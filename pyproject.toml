@@ -1,0 +1,35 @@
+[project]
+name = "agent-assistant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "namoshika", email = "namoshika@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "langchain-google-genai>=4.2.1",
+    "langchain-postgres>=0.0.17",
+    "langchain[community]>=1.2.10",
+    "obsidianmd-parser>=0.4.0",
+    "sqlalchemy>=2.0.48",
+    "unstructured[md]>=0.21.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+    "integration: 実際の外部システム (PostgreSQL, Gemini API) を必要とするテスト",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "mlflow>=3.10.1",
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+]

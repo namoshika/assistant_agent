@@ -1,0 +1,57 @@
+# Agent RAG
+
+月次ニュースを PostgreSQL ベクターストアに格納し、Gemini LLM + LangChain ツールで検索・回答する RAG エージェント。mlflow を通じてデプロイされる。
+
+## Commands
+
+```bash
+# 単体テスト実行
+uv run pytest tests/ -m 'not integration' -v
+
+# 結合テスト (構文・収集チェック)
+uv run pytest tests/integration/ --collect-only
+
+# 依存関係の追加
+uv add <package>           # 本番依存
+uv add --dev <package>     # 開発依存
+```
+
+`pytest` の `pythonpath` は `src/` に設定済みのため、テスト内では `from libs.xxx import ...` が直接使える。
+
+## ディレクトリ & 設定
+
+### 主要ファイル
+
+| ファイル | 役割 |
+|---|---|
+| `src/` | ソースコード |
+| `src/libs/` | 共通ソースコード (ローカルと Databricks の両環境を念頭に置く) |
+| `tests/` | テストコード |
+| `tests/data` | テストデータ |
+
+### 環境変数
+
+| 変数名 | 用途 |
+|---|---|
+| `ENV_GEMINI_API_KEY` | Google Gemini API キー |
+| `GEMINI_MODEL_ID` | Gemini モデル ID (デフォルト: `gemini-3-flash-preview`) |
+| `ENV_PG_CONNECTION_STRING` | PostgreSQL 接続文字列 |
+
+## ワークフロー
+機能追加は以下の流れで行い、都度状況を `docs/specs/{date}_{task_name}/` へ記録する。ステップ2以降は `tasks.md` に記載したタスクを順に実行。完了したタスクにはチェックを付ける。
+
+**背景:** エージェントの性能が落ち、コンテキスト消費の増大に原因が有ると思われる場合に、作業を中断し新しいセッションで再開させることが有ります。その際の再開に必要な情報を記録させます。
+
+1. 設計: 改修を要求されたら plan モードを立ち上げて以下を検討。承諾されたら一連のファイルを書き出す
+    - 要件定義 (`requirements.md`)
+    - 方法検討 (`tech.md`): web で事例や資料を読み、用いる方法やライブラリを定め、理由・実装に必要なサンプルやリファレンスのURLを記録
+    - 設計 (`design.md`): 定めた方法に則り設計
+    - チェック: 設計を再読し、実装方法や全体とのバランスを確認。必要に応じて既存箇所も改修し、シンプルかつ堅牢な作りとなるよう設計を改善。
+    - タスクへ分解 (`tasks.md`): チェック可能な項目でプランを作成
+2. 実装: TDD で実装
+3. 試験: pytest を実行し、試験をパスする
+
+### エラーシナリオ
+
+- 途中で問題が発生したら **即座に作業を止めて再計画**
+- 解決不能な場合は **指示を仰ぐこと**
