@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from agent_assistant.obsidian import VaultLoader
+from agent_assistant.loader.obsidian import VaultLoader
 
 
 @pytest.fixture(scope="module")

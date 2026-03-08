@@ -1,11 +1,30 @@
+import os
 import uuid
 import pytest
 from langchain_core.documents import Document
 from sqlalchemy import text
+from pydantic import SecretStr
 
 from agent_assistant.utils.chunker.text import TextChunker
-from agent_assistant.utils.documentstore.obsidian import ObsidianDocumentStore
-from agent_assistant.utils.retriever import ObsidianChunkStore
+from agent_assistant.retriever.obsidian import ObsidianChunkStore, ObsidianDocumentStore
+
+
+@pytest.fixture()
+def store_name():
+    """テストごとに一意なテーブル名。"""
+    return f"test_{uuid.uuid4().hex[:8]}_chunks"
+
+
+@pytest.fixture()
+def chunk_store(pg_engine, store_name: str):
+    """テスト用 ObsidianChunkStore。ENV_GEMINI_API_KEY が必要。"""
+    ENV_GEMINI_API_KEY = os.environ.get("ENV_GEMINI_API_KEY")
+    if not ENV_GEMINI_API_KEY:
+        pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
+
+    ENV_GEMINI_API_KEY = SecretStr(ENV_GEMINI_API_KEY)
+    yield ObsidianChunkStore(pg_engine, ENV_GEMINI_API_KEY)
+    pg_engine.drop_table(store_name)
 
 
 @pytest.fixture()
@@ -15,8 +34,13 @@ def obsidian_store(pg_engine, sa_engine):
     ENV_GEMINI_API_KEY 環境変数が必要 (ObsidianChunkStore が os.getenv で自動取得)。
     テスト終了後に作成したテーブルを DROP する。
     """
+    ENV_GEMINI_API_KEY = os.environ.get("ENV_GEMINI_API_KEY")
+    if not ENV_GEMINI_API_KEY:
+        pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
+
+    ENV_GEMINI_API_KEY = SecretStr(ENV_GEMINI_API_KEY)
     table_prefix = f"test_{uuid.uuid4().hex[:8]}"
-    chunk_store = ObsidianChunkStore(pg_engine)
+    chunk_store = ObsidianChunkStore(pg_engine, ENV_GEMINI_API_KEY)
     store = ObsidianDocumentStore(
         store_name=table_prefix,
         chunk_store=chunk_store,
@@ -31,6 +55,63 @@ def obsidian_store(pg_engine, sa_engine):
         conn.execute(text(f"DROP TABLE IF EXISTS {table_prefix}_raw CASCADE"))
         conn.execute(text(f"DROP TABLE IF EXISTS {table_prefix}_chunks CASCADE"))
         conn.commit()
+
+
+@pytest.mark.integration
+def test_get_vectorstore_01(chunk_store: ObsidianChunkStore, store_name: str):
+    """実際の PostgreSQL に接続して VectorStore を取得できる。
+
+    観点1: get_vectorstore() が例外なく VectorStore を返す
+    観点2: 返り値が similarity_search メソッドを持つ
+    """
+    # 試験実施
+    vs = chunk_store.get_vectorstore(store_name)
+
+    # 結果検証
+    # 観点1: 例外なく返る
+    assert vs is not None
+    # 観点2: VectorStore のインターフェースを持つ
+    assert hasattr(vs, "similarity_search")
+
+
+@pytest.mark.integration
+def test_add_chunks_01(chunk_store: ObsidianChunkStore, store_name: str):
+    """ドキュメントを追加後、similarity_search で取得できる。
+
+    観点1: 1件追加後に similarity_search でドキュメントが取得できる
+    観点2: path メタデータが保持されている
+    観点3: 複数件追加後も similarity_search で取得できる
+    """
+    vs = chunk_store.get_vectorstore(store_name)
+
+    # 1件追加
+    chunk_store.add_chunks(
+        store_name,
+        [
+            Document(
+                page_content="PostgreSQL のベクターストア統合テスト",
+                metadata={"path": "test.md", "start_index": 0},
+            )
+        ],
+    )
+    results = vs.similarity_search("PostgreSQL", k=1)
+    assert len(results) >= 1
+    assert "test.md" in [r.metadata.get("path") for r in results]
+
+    # 複数件追加
+    chunk_store.add_chunks(
+        store_name,
+        [
+            Document(
+                page_content=f"テスト文書 {i} の内容",
+                metadata={"path": f"note_{i}.md", "start_index": 0},
+            )
+            for i in range(3)
+        ],
+    )
+    results = vs.similarity_search("テスト文書", k=3)
+    assert len(results) >= 1
+    assert len({r.metadata.get("path") for r in results}) >= 1
 
 
 @pytest.mark.integration

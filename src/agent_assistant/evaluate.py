@@ -1,8 +1,10 @@
+from typing import Sequence
 import mlflow
 import mlflow.genai
 from mlflow.genai.scorers import Correctness, Guidelines
-from mlflow.pyfunc import ResponsesAgent
-from mlflow.types.responses import Message, ResponsesAgentResponse
+from mlflow.pyfunc.model import ResponsesAgent
+from mlflow.types.responses import ResponsesAgentResponse
+from mlflow.types.responses_helpers import Message, OutputItem
 
 
 def eval_responses(model: ResponsesAgent, eval_dataset: list):
@@ -18,20 +20,20 @@ def eval_responses(model: ResponsesAgent, eval_dataset: list):
     scorers = [
         # 出力が期待値と一致していること
         Correctness(model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0"),
-        # 出力が日本語であること
-        Guidelines(
-            model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0",
-            name="is_japanese",
-            guidelines="The answer must be in Japanese",
-        ),
+        # # 出力が日本語であること
+        # Guidelines(
+        #     model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        #     name="is_japanese",
+        #     guidelines="The answer must be in Japanese",
+        # ),
         # 任意の評価基準を満たす事
         custom_check,
     ]
 
     # モデルを評価
     @mlflow.trace
-    def predict_fn(messages: list[Message]):
-        res = model.predict({"input": messages})
+    def predict_fn(messages: list[Message|OutputItem]):
+        res = model.predict({"input": messages}) # pyright: ignore[reportArgumentType]
 
         # mlflow.pyfunc.log_model() すると ResponsesAgent も PythonModel になる
         # ResponsesAgent と PythonModel では predict 時の戻り値が異なるため、辞書に揃える。

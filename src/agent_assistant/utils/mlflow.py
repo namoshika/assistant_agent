@@ -1,7 +1,8 @@
 from collections.abc import Generator
+from typing import Any
 from langchain.messages import AIMessageChunk, AIMessage
 from langgraph.graph.state import CompiledStateGraph
-from mlflow.pyfunc import ResponsesAgent
+from mlflow.pyfunc.model import ResponsesAgent
 from mlflow.types.responses import (
     ResponsesAgentRequest,
     ResponsesAgentResponse,
@@ -11,12 +12,13 @@ from mlflow.types.responses import (
 
 
 class LangGraphWrapper(ResponsesAgent):
-    def __init__(self, agent: CompiledStateGraph):
+    def __init__(self, agent: CompiledStateGraph[Any, Any, Any, Any], context: Any):
         self._agent = agent
+        self._context = context
 
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
         outputs = [
-            event.item
+            event.item  # pyright: ignore[reportAttributeAccessIssue]
             for event in self.predict_stream(request)
             if event.type == "response.output_item.done"
         ]
@@ -27,14 +29,19 @@ class LangGraphWrapper(ResponsesAgent):
     def predict_stream(
         self, request: ResponsesAgentRequest
     ) -> Generator[ResponsesAgentStreamEvent, None, None]:
-        cc_msgs = to_chat_completions_input(request.input)
+        cc_msgs = to_chat_completions_input(
+            request.input  # pyright: ignore[reportArgumentType]
+        )
         for mode, chunk in self._agent.stream(
             {"messages": cc_msgs},
-            config={"recursion_limit": 100},
+            {"recursion_limit": 100},
+            context=self._context,
             stream_mode=["updates", "messages"],
         ):
             if mode == "updates":
-                for chunk_state in chunk.values():
+                for (
+                    chunk_state
+                ) in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
                     chunk_msgs = chunk_state.get("messages", [])
                     for chunk_msg in chunk_msgs:
                         if isinstance(chunk_msg, AIMessage):
@@ -70,7 +77,10 @@ class LangGraphWrapper(ResponsesAgent):
                     if content is None:
                         continue
                     yield ResponsesAgentStreamEvent(
-                        **self.create_text_delta(delta=content, item_id=chunk_msg.id),
+                        **self.create_text_delta(
+                            delta=content,
+                            item_id=chunk_msg.id,  # pyright: ignore[reportArgumentType]
+                        ),
                     )
             else:
                 raise ValueError(f"Unknown mode: {mode}")

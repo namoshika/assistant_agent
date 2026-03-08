@@ -61,5 +61,5 @@ class PGVectorChunkStore(absclass.ChunkReader, absclass.ChunkWriter):
         self.engine.init_vectorstore_table(
             table_name,
             self.dimention_size,
-            metadata_columns=self.metadata_columns,
+            metadata_columns=self.metadata_columns,  # pyright: ignore[reportArgumentType]
         )

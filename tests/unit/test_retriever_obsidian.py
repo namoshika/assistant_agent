@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from pytest_mock import MockerFixture
 from langchain_core.documents import Document
 
-from agent_assistant.utils.documentstore.obsidian import ObsidianDocumentStore
+from agent_assistant.retriever.obsidian import ObsidianDocumentStore
 from agent_assistant.utils.chunker.text import TextChunker
 
 
@@ -46,7 +46,7 @@ def test_search_documents_01(mocker: MockerFixture):
         Document(page_content="chunk2", metadata={"path": "b.md", "start_index": 0}),
         Document(page_content="chunk3", metadata={"path": "a.md", "start_index": 32}),
     ]
-    store._chunk_vs.search.return_value = m_chunks
+    store._chunk_vs.search.return_value = m_chunks  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
 
     # SA engine の conn.execute() が返すロー (DB は b.md, a.md の逆順で返す)
     m_row_a = MagicMock()
@@ -59,7 +59,9 @@ def test_search_documents_01(mocker: MockerFixture):
     m_row_b.metadata = json.dumps({"path": "b.md"})
 
     m_result = MagicMock()
-    m_result.__iter__ = MagicMock(return_value=iter([m_row_b, m_row_a]))  # DB が逆順で返す
+    m_result.__iter__ = MagicMock(
+        return_value=iter([m_row_b, m_row_a])
+    )  # DB が逆順で返す
     m_conn = MagicMock()
     m_conn.__enter__ = MagicMock(return_value=m_conn)
     m_conn.__exit__ = MagicMock(return_value=False)
@@ -71,7 +73,9 @@ def test_search_documents_01(mocker: MockerFixture):
 
     # 結果検証
     # 観点1: search が呼ばれる
-    store._chunk_vs.search.assert_called_once_with("テスト", "similarity", top_k=5)
+    store._chunk_vs.search.assert_called_once_with(  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
+        "テスト", "similarity", top_k=5
+    )
     # 観点2 & 3: 2件返る (a.md の重複は除去済み)
     assert len(docs) == 2
     sa_engine.connect.assert_called()

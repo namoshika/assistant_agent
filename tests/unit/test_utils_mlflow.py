@@ -1,9 +1,9 @@
 from langchain_core.messages import AIMessage, AIMessageChunk
 from mlflow.types.responses import (
-    Message,
     ResponsesAgentRequest,
     ResponsesAgentStreamEvent,
 )
+from mlflow.types.responses_helpers import Message
 from unittest.mock import MagicMock
 
 from agent_assistant.utils.mlflow import LangGraphWrapper
@@ -25,13 +25,15 @@ class TestLangGraphWrapper:
         request = ResponsesAgentRequest(input=[Message(role="user", content="hello")])
 
         # 試験実施
-        wrapper = LangGraphWrapper(m_agent)
+        m_context = MagicMock()
+        wrapper = LangGraphWrapper(m_agent, m_context)
         events = list(wrapper.predict_stream(request))
 
         # 観点1: 入力がエージェントに正しく渡される
         m_agent.stream.assert_called_once_with(
             {"messages": [{"role": "user", "content": "hello"}]},
-            config={"recursion_limit": 100},
+            {"recursion_limit": 100},
+            context=m_context,
             stream_mode=["updates", "messages"],
         )
         # 観点2: 出力が ResponsesAgentStreamEvent に変換される
@@ -40,7 +42,10 @@ class TestLangGraphWrapper:
         delta_events = [e for e in events if e.type == "response.output_text.delta"]
         assert len(done_events) == 1
         assert len(delta_events) == 1
-        assert delta_events[0].delta == "streaming text"
+        assert (
+            delta_events[0].delta  # pyright: ignore[reportAttributeAccessIssue]
+            == "streaming text"
+        )
 
     def test_predict(self):
         """predict() の動作を検証する
@@ -56,13 +61,15 @@ class TestLangGraphWrapper:
         request = ResponsesAgentRequest(input=[Message(role="user", content="hello")])
 
         # 試験実施
-        wrapper = LangGraphWrapper(m_agent)
+        m_context = MagicMock()
+        wrapper = LangGraphWrapper(m_agent, m_context)
         result = wrapper.predict(request)
 
         # 観点1: 入力がエージェントに正しく渡される
         m_agent.stream.assert_called_once_with(
             {"messages": [{"role": "user", "content": "hello"}]},
-            config={"recursion_limit": 100},
+            {"recursion_limit": 100},
+            context=m_context,
             stream_mode=["updates", "messages"],
         )
         # 観点2: 出力が ResponsesAgentStreamEvent に変換される

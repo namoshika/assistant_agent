@@ -1,5 +1,25 @@
 from langchain_core.documents import Document
-from .. import absclass
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_postgres import PGEngine, Column
+from pydantic import SecretStr
+
+from agent_assistant.utils import absclass
+from agent_assistant.utils.chunkstore.postgres import PGVectorChunkStore
+
+
+class MarkdownChunkStore(PGVectorChunkStore):
+    def __init__(self, engine: PGEngine, emb_api_key: SecretStr):
+        super().__init__(
+            engine,
+            [
+                Column("source", "text", False),
+                Column("section", "text", True),
+            ],
+            GoogleGenerativeAIEmbeddings(
+                model="gemini-embedding-001", api_key=emb_api_key
+            ),
+            3072,
+        )
 
 
 class MarkdownDocumentStore(absclass.DocumentStore):

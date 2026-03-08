@@ -1,11 +1,35 @@
 import json
-from langchain_core.documents import Document
-from sqlalchemy import Engine, text
 from typing import Literal
+from langchain_core.documents import Document
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_postgres import PGEngine, Column
+from sqlalchemy import Engine, text
+from pydantic import SecretStr
 
-from .. import absclass
-from ..retriever import ObsidianChunkStore
-from ..chunker.text import TextChunker
+from agent_assistant.utils.chunker.text import TextChunker
+from agent_assistant.utils.chunkstore.postgres import PGVectorChunkStore
+from agent_assistant.utils import absclass
+
+
+class ObsidianChunkStore(PGVectorChunkStore):
+    """Obsidian Vault のチャンクを PGVector に格納するストア。
+
+    各チャンクに元ノートの path (vault 相対パス) と
+    原文内の開始位置 position を保持する。
+    """
+
+    def __init__(self, engine: PGEngine, emb_api_key: SecretStr):
+        super().__init__(
+            engine,
+            [
+                Column("path", "text", False),
+                Column("start_index", "integer", False),
+            ],
+            GoogleGenerativeAIEmbeddings(
+                model="gemini-embedding-001", api_key=emb_api_key
+            ),
+            3072,
+        )
 
 
 class ObsidianDocumentStore(absclass.DocumentStore):
@@ -155,38 +179,6 @@ class ObsidianDocumentStore(absclass.DocumentStore):
                 text(
                     f"SELECT path, content, metadata FROM {self._raw_table} "
                     f"WHERE path = ANY(:paths)"
-                ),
-                {"paths": paths},
-            )
-            return [
-                Document(
-                    page_content=row.content,
-                    metadata=(
-                        json.loads(row.metadata)
-                        if isinstance(row.metadata, str)
-                        else (row.metadata or {})
-                    ),
-                )
-                for row in result
-            ]
-
-    def get_backlinks(self, paths: list[str]) -> list[Document]:
-        """paths のノートにリンクしているノートを返す（バックリンク）。
-
-        将来 GIN インデックス対応時は @> クエリへの切り替えで高速化可能。
-        """
-        if self._chunk_vs is None:
-            raise ValueError("Store is not connected")
-        if not paths:
-            return []
-        with self._sa_engine.connect() as conn:
-            result = conn.execute(
-                text(
-                    f"SELECT path, content, metadata FROM {self._raw_table} "
-                    f"WHERE EXISTS ("
-                    f"  SELECT 1 FROM jsonb_array_elements_text(metadata->'forward_links') fl "
-                    f"  WHERE fl = ANY(:paths)"
-                    f")"
                 ),
                 {"paths": paths},
             )
