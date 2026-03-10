@@ -1,6 +1,6 @@
 from collections.abc import Generator
 from typing import Any
-from langchain.messages import AIMessageChunk, AIMessage
+from langchain_core.messages import AIMessageChunk, AIMessage
 from langgraph.graph.state import CompiledStateGraph
 from mlflow.pyfunc.model import ResponsesAgent
 from mlflow.types.responses import (

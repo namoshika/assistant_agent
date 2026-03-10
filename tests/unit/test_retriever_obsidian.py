@@ -1,8 +1,8 @@
 import json
 import pytest
 from unittest.mock import MagicMock
-from pytest_mock import MockerFixture
 from langchain_core.documents import Document
+from pytest_mock import MockerFixture
 
 from agent_assistant.retriever.obsidian import ObsidianDocumentStore
 from agent_assistant.utils.chunker.text import TextChunker

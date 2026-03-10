@@ -1,6 +1,5 @@
 import datetime
 from pathlib import Path
-
 from langchain_community.document_loaders import ObsidianLoader
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
@@ -25,9 +24,15 @@ class VaultLoader(BaseLoader):
             rel_path = str(Path(doc.metadata["path"]).relative_to(self._vault_path))
             doc.metadata |= {
                 "path": rel_path,
-                "created": datetime.datetime.fromtimestamp(doc.metadata["created"]).isoformat(),
-                "last_modified": datetime.datetime.fromtimestamp(doc.metadata["last_modified"]).isoformat(),
-                "last_accessed": datetime.datetime.fromtimestamp(doc.metadata["last_accessed"]).isoformat(),
+                "created": datetime.datetime.fromtimestamp(
+                    doc.metadata["created"]
+                ).isoformat(),
+                "last_modified": datetime.datetime.fromtimestamp(
+                    doc.metadata["last_modified"]
+                ).isoformat(),
+                "last_accessed": datetime.datetime.fromtimestamp(
+                    doc.metadata["last_accessed"]
+                ).isoformat(),
                 "forward_links": self._extract_forward_links(rel_path, vault),
             }
         return docs

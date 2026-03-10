@@ -18,7 +18,7 @@ def test_build_session_01(mocker: MockerFixture):
         "ENV_PG_CONNECTION_STRING": "postgresql://localhost/test",
     })
     mocker.patch("agent_assistant.context.PGEngine.from_connection_string", return_value=MagicMock())
-    mocker.patch("agent_assistant.context.create_engine", return_value=MagicMock())
+    mocker.patch("sqlalchemy.create_engine", return_value=MagicMock())
 
     # 試験実施
     ctx = build_session()

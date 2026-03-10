@@ -1,4 +1,3 @@
-from typing import Sequence
 import mlflow
 import mlflow.genai
 from mlflow.genai.scorers import Correctness, Guidelines
@@ -32,8 +31,8 @@ def eval_responses(model: ResponsesAgent, eval_dataset: list):
 
     # モデルを評価
     @mlflow.trace
-    def predict_fn(messages: list[Message|OutputItem]):
-        res = model.predict({"input": messages}) # pyright: ignore[reportArgumentType]
+    def predict_fn(messages: list[Message | OutputItem]):
+        res = model.predict({"input": messages})  # pyright: ignore[reportArgumentType]
 
         # mlflow.pyfunc.log_model() すると ResponsesAgent も PythonModel になる
         # ResponsesAgent と PythonModel では predict 時の戻り値が異なるため、辞書に揃える。

@@ -1,6 +1,5 @@
 import pytest
 from pathlib import Path
-
 from agent_assistant.loader.obsidian import VaultLoader
 
 

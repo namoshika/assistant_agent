@@ -1,10 +1,10 @@
 from pathlib import Path
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter
-from ..absclass import DocumentChunker
+from agent_assistant.utils import absclass
 
 
-class MarkdownHeaderChunker(DocumentChunker):
+class MarkdownHeaderChunker(absclass.DocumentChunker):
     """Markdown の H1 見出し (#) でドキュメントをチャンクに分割する。
 
     MarkdownDocumentStore.import_documents() からだけでなく、

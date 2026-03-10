@@ -1,9 +1,9 @@
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from ..absclass import DocumentChunker
+from agent_assistant.utils import absclass
 
 
-class TextChunker(DocumentChunker):
+class TextChunker(absclass.DocumentChunker):
     """RecursiveCharacterTextSplitter ベースの汎用チャンカー。
 
     意味境界（句読点・改行）を優先してドキュメントを chunk_size 文字以内に分割する。

@@ -5,7 +5,7 @@ from pyspark.sql.types import ArrayType, FloatType
 from databricks_langchain import DatabricksVectorSearch
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
-from .. import absclass
+from agent_assistant.utils import absclass
 
 
 class DatabricksChunkReader(absclass.ChunkReader):

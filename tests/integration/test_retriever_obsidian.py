@@ -2,11 +2,10 @@ import os
 import uuid
 import pytest
 from langchain_core.documents import Document
-from sqlalchemy import text
 from pydantic import SecretStr
 
-from agent_assistant.utils.chunker.text import TextChunker
 from agent_assistant.retriever.obsidian import ObsidianChunkStore, ObsidianDocumentStore
+from tests.integration.conftest import make_docs
 
 
 @pytest.fixture()
@@ -25,36 +24,6 @@ def chunk_store(pg_engine, store_name: str):
     ENV_GEMINI_API_KEY = SecretStr(ENV_GEMINI_API_KEY)
     yield ObsidianChunkStore(pg_engine, ENV_GEMINI_API_KEY)
     pg_engine.drop_table(store_name)
-
-
-@pytest.fixture()
-def obsidian_store(pg_engine, sa_engine):
-    """実際の PostgreSQL に接続した ObsidianDocumentStore。
-
-    ENV_GEMINI_API_KEY 環境変数が必要 (ObsidianChunkStore が os.getenv で自動取得)。
-    テスト終了後に作成したテーブルを DROP する。
-    """
-    ENV_GEMINI_API_KEY = os.environ.get("ENV_GEMINI_API_KEY")
-    if not ENV_GEMINI_API_KEY:
-        pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
-
-    ENV_GEMINI_API_KEY = SecretStr(ENV_GEMINI_API_KEY)
-    table_prefix = f"test_{uuid.uuid4().hex[:8]}"
-    chunk_store = ObsidianChunkStore(pg_engine, ENV_GEMINI_API_KEY)
-    store = ObsidianDocumentStore(
-        store_name=table_prefix,
-        chunk_store=chunk_store,
-        sa_engine=sa_engine,
-        chunker=TextChunker(chunk_size=128),
-    )
-    store.connect()
-    yield store
-
-    # teardown: テスト用テーブルを削除
-    with sa_engine.connect() as conn:
-        conn.execute(text(f"DROP TABLE IF EXISTS {table_prefix}_raw CASCADE"))
-        conn.execute(text(f"DROP TABLE IF EXISTS {table_prefix}_chunks CASCADE"))
-        conn.commit()
 
 
 @pytest.mark.integration
@@ -124,7 +93,7 @@ def test_import_documents_01(obsidian_store: ObsidianDocumentStore):
     観点4: 同一 path で2回 import すると upsert になる（重複なし・最新コンテンツ）
     """
     # 試験実施
-    obsidian_store.import_documents(_make_docs())
+    obsidian_store.import_documents(make_docs())
 
     # 結果検証
     results = obsidian_store.get_documents(["langchain.md"])
@@ -165,7 +134,7 @@ def test_search_documents_01(obsidian_store: ObsidianDocumentStore):
     観点2: 返り値の Document が path メタデータを持つ
     """
     # 試験準備
-    obsidian_store.import_documents(_make_docs())
+    obsidian_store.import_documents(make_docs())
 
     # 試験実施
     results = obsidian_store.search_documents("LLM フレームワーク", top_k=2)
@@ -187,7 +156,7 @@ def test_get_documents_01(obsidian_store: ObsidianDocumentStore):
     観点3: 存在しない path を指定すると空リストが返る
     """
     # 試験準備
-    obsidian_store.import_documents(_make_docs())
+    obsidian_store.import_documents(make_docs())
 
     # 試験実施
     results = obsidian_store.get_documents(["postgres.md"])
@@ -239,17 +208,3 @@ def test_get_backlinks_01(obsidian_store: ObsidianDocumentStore):
         assert "path" in doc.metadata
     # 観点3: 存在しない path → 空リスト
     assert obsidian_store.get_backlinks(["nonexistent_target.md"]) == []
-
-
-def _make_docs():
-    """テスト用 Document リストを生成するヘルパー。"""
-    return [
-        Document(
-            page_content="LangChain は LLM アプリケーション構築フレームワークである。",
-            metadata={"path": "langchain.md", "tags": ["ai", "framework"]},
-        ),
-        Document(
-            page_content="PostgreSQL は高性能なオープンソースデータベースである。",
-            metadata={"path": "postgres.md", "tags": ["database"]},
-        ),
-    ]
