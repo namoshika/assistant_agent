@@ -1,6 +1,6 @@
-# Agent RAG
+# Agent Assistant
 
-月次ニュースを PostgreSQL ベクターストアに格納し、Gemini LLM + LangChain ツールで検索・回答する RAG エージェント。mlflow を通じてデプロイされる。
+月次ニュースを PostgreSQL ベクターストアに格納し、 LLM + LangChain ツールで検索・回答する RAG エージェント。mlflow を通じてデプロイされる。
 
 ## Commands
 
@@ -16,8 +16,6 @@ uv add <package>           # 本番依存
 uv add --dev <package>     # 開発依存
 ```
 
-`pytest` の `pythonpath` は `src/` に設定済みのため、テスト内では `from libs.xxx import ...` が直接使える。
-
 ## ディレクトリ & 設定
 
 ### 主要ファイル
@@ -25,7 +23,6 @@ uv add --dev <package>     # 開発依存
 | ファイル | 役割 |
 |---|---|
 | `src/` | ソースコード |
-| `src/libs/` | 共通ソースコード (ローカルと Databricks の両環境を念頭に置く) |
 | `tests/` | テストコード |
 | `tests/data` | テストデータ |
 
@@ -33,8 +30,8 @@ uv add --dev <package>     # 開発依存
 
 | 変数名 | 用途 |
 |---|---|
+| `ENV_GEMINI_MODEL_ID` | Gemini モデル ID (デフォルト: `gemini-3-flash-preview`) |
 | `ENV_GEMINI_API_KEY` | Google Gemini API キー |
-| `GEMINI_MODEL_ID` | Gemini モデル ID (デフォルト: `gemini-3-flash-preview`) |
 | `ENV_PG_CONNECTION_STRING` | PostgreSQL 接続文字列 |
 
 ## ワークフロー
