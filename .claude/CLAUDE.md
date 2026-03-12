@@ -7,16 +7,7 @@
 ```bash
 # 単体テスト実行
 uv run pytest tests/ -m 'not integration' -v
-
-# 結合テスト (構文・収集チェック)
-uv run pytest tests/integration/ --collect-only
-
-# 依存関係の追加
-uv add <package>           # 本番依存
-uv add --dev <package>     # 開発依存
 ```
-
-## ディレクトリ & 設定
 
 ### 主要ディレクトリ
 
@@ -25,17 +16,9 @@ uv add --dev <package>     # 開発依存
 | `docs/adr/` | 過去のアーキテクチャ検討における方針の変遷を記録。開発時の設計を検討する上で、過去の経緯を考慮するのに使用。 |
 | `docs/specs/` | 個々の開発時の検討資料や設計、タスクリスト。中断した作業の再開に使用。 |
 | `script/` | 開発者の作業用のノートブック |
-| `src/` | エージェントのソースコード |
+| `src/` | 開発中のソースコード |
 | `tests/` | テストコード |
 | `tests/data` | テストデータ |
-
-### 環境変数
-
-| 変数名 | 用途 |
-|---|---|
-| `ENV_GEMINI_MODEL_ID` | Gemini モデル ID (デフォルト: `gemini-3-flash-preview`) |
-| `ENV_GEMINI_API_KEY` | Google Gemini API キー |
-| `ENV_PG_CONNECTION_STRING` | PostgreSQL 接続文字列 |
 
 ## ワークフロー
 機能追加は以下の流れで行い、都度状況を `docs/specs/{date}_{task_name}/` へ記録する。ステップ2以降は `tasks.md` に記載したタスクを順に実行。完了したタスクにはチェックを付ける。
