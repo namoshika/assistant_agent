@@ -57,7 +57,6 @@ def obsidian_store(
         sa_engine=sa_engine,
         chunker=TextChunker(chunk_size=128),
     )
-    store.connect()
     yield store
 
     with sa_engine.connect() as conn:

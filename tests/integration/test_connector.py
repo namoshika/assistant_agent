@@ -8,7 +8,10 @@ from langchain.agents import create_agent
 
 from agent_assistant import connector
 from agent_assistant.context import ContextSchema
-from agent_assistant.retriever.obsidian import ObsidianDocumentStore
+from agent_assistant.retriever.obsidian import (
+    ObsidianDocumentStore,
+    path_to_document_id,
+)
 from tests.integration.conftest import make_docs
 
 
@@ -60,6 +63,7 @@ def test_obsidian_vault_search_01(obsidian_store: ObsidianDocumentStore) -> None
     観点1: import 後に search が例外なく完了し、ToolMessage として返る
     観点2: ToolMessage.content が非空文字列で、artifact の各 Document が path メタデータを持つ
     """
+    obsidian_store.connect()
     obsidian_store.import_documents(make_docs())
 
     ai_msg = AIMessage(
@@ -96,14 +100,15 @@ def test_obsidian_vault_get_01(obsidian_store: ObsidianDocumentStore) -> None:
     観点2: ToolMessage.content に page_content が含まれる
     観点3: 存在しない ID を指定すると ToolMessage.artifact が空リスト、content が空文字列
     """
+    obsidian_store.connect()
     obsidian_store.import_documents(make_docs())
-
+    doc_id = path_to_document_id("langchain.md")
     ai_msg = AIMessage(
         content="",
         tool_calls=[
             {
                 "name": "obsidian_vault_get",
-                "args": {"ids": ["langchain.md"]},
+                "args": {"document_ids": [doc_id]},
                 "id": "1",
                 "type": "tool_call",
             }
@@ -124,7 +129,7 @@ def test_obsidian_vault_get_01(obsidian_store: ObsidianDocumentStore) -> None:
         tool_calls=[
             {
                 "name": "obsidian_vault_get",
-                "args": {"ids": ["nonexistent.md"]},
+                "args": {"document_ids": ["nonexistent.md"]},
                 "id": "2",
                 "type": "tool_call",
             }

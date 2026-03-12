@@ -26,6 +26,7 @@ def test_agent_01(
         pytest.fail("AWS 認証情報が未設定")
 
     # 試験準備
+    obsidian_store.connect()
     obsidian_store.import_documents(make_docs())
     sys.modules.pop("agent_assistant.agent", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")

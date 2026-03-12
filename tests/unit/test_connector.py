@@ -74,7 +74,12 @@ def test_obsidian_vault_search_01():
     観点2: search_documents() が正しいクエリと top_k=5 で呼ばれる
     観点3: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が search_documents() の返り値と一致する
     """
-    docs = [Document(page_content="ノート本文", metadata={"path": "notes/idea.md"})]
+    docs = [
+        Document(
+            page_content="ノート本文",
+            metadata={"path": "notes/idea.md", "document_id": "doc-id-1"},
+        )
+    ]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
 
@@ -103,7 +108,7 @@ def test_obsidian_vault_search_01():
     m_store.search_documents.assert_called_once_with("アイデア", top_k=5)
     # 観点3
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert "notes/idea.md" in tool_msg.content
+    assert "title: idea.md" in tool_msg.content
     assert "ノート本文" in tool_msg.content
     assert tool_msg.artifact is docs
 
@@ -116,17 +121,20 @@ def test_obsidian_vault_get_01():
     観点3: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が get_documents() の返り値と一致する
     """
     docs = [
-        Document(page_content="取得したノート", metadata={"path": "folder/note.md"})
+        Document(
+            page_content="取得したノート",
+            metadata={"path": "folder/note.md", "document_id": "doc-id-2"},
+        )
     ]
     m_store = MagicMock()
-    m_store.get_documents.return_value = docs
+    m_store.get_documents_by_ids.return_value = docs
 
     ai_msg = AIMessage(
         content="",
         tool_calls=[
             {
                 "name": "obsidian_vault_get",
-                "args": {"ids": ["note.md"]},
+                "args": {"document_ids": ["sample_document_id"]},
                 "id": "1",
                 "type": "tool_call",
             }
@@ -143,9 +151,9 @@ def test_obsidian_vault_get_01():
     # 観点1
     m_store.connect.assert_called_once()
     # 観点2
-    m_store.get_documents.assert_called_once_with(["note.md"])
+    m_store.get_documents_by_ids.assert_called_once_with(["sample_document_id"])
     # 観点3
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert "folder/note.md" in tool_msg.content
+    assert "title: note.md" in tool_msg.content
     assert "取得したノート" in tool_msg.content
     assert tool_msg.artifact is docs

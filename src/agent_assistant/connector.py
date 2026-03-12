@@ -7,6 +7,7 @@ from langchain.tools import tool, ToolRuntime
 from pydantic import SecretStr
 from agent_assistant.context import ContextSchema
 
+
 def get_llm() -> BaseChatModel:
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -32,6 +33,10 @@ def get_llm() -> BaseChatModel:
     return llm
 
 
+def get_tools():
+    return [get_weather, obsidian_vault_search, obsidian_vault_get]
+
+
 @tool
 def get_weather(city: str) -> str:
     """Get weather for a given city."""
@@ -47,37 +52,47 @@ def obsidian_vault_search(
     obsidian_store = runtime.context.obsidian_store
     obsidian_store.connect()
 
-    tmpl = " title: {doc_name}  \n" + "===  \n" + "{doc_content}  \n\n"
     results = obsidian_store.search_documents(search_query, top_k=5)
-    contents = [
-        tmpl.format(
-            doc_name=item.metadata.get("path", ""),
-            doc_content=item.page_content,
-        )
-        for item in results
-    ]
-    return "".join(contents), results
+    return _format_documents(results, obsidian_store), results
 
 
 @tool(response_format="content_and_artifact")
 def obsidian_vault_get(
-    ids: Annotated[list[str], "取得するノート ID のリスト"],
+    document_ids: Annotated[list[str], "取得するノートの document_id のリスト"],
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, list[Document]]:
-    """ファイル名または相対パスで指定した Obsidian ノートの原文を返す。"""
+    """document_id で指定した Obsidian ノートの原文を返す。"""
     obsidian_store = runtime.context.obsidian_store
     obsidian_store.connect()
 
-    tmpl = " title: {doc_name}  \n" + "===  \n" + "{doc_content}  \n\n"
-    results = obsidian_store.get_documents(ids)
-    contents = [
-        tmpl.format(
-            doc_name=item.metadata.get("path", ""),
-            doc_content=item.page_content,
-        )
-        for item in results
-    ]
-    return "".join(contents), results
+    results = obsidian_store.get_documents_by_ids(document_ids)
+    return _format_documents(results, obsidian_store), results
 
-def get_tools():
-    return [get_weather, obsidian_vault_search, obsidian_vault_get]
+
+def _format_documents(documents: list[Document], obsidian_store) -> str:
+    parts = []
+    for doc in documents:
+        meta = doc.metadata
+        forward_links: list[str] = meta.get("forward_links") or []
+        meta_without_links = {k: v for k, v in meta.items() if k != "forward_links"}
+
+        lines = [
+            f"title: {basename(meta['path'])}",
+            "===\n",
+            "```yaml",
+            f"document_id: {meta['document_id']}",
+            f"metadata: {json.dumps(meta_without_links)}",
+        ]
+
+        if forward_links:
+            linked_docs = obsidian_store.get_documents_by_ids(forward_links)
+            lines.append("forward_link:")
+            for linked in linked_docs:
+                link_name = basename(linked.metadata.get("path", ""))
+                link_id = linked.metadata.get("document_id", "")
+                lines.append(f'  "{link_id}": "{link_name}"')
+
+        lines.extend(["```\n", doc.page_content])
+        parts.append("\n".join(lines))
+
+    return "\n\n---\n\n".join(parts)
