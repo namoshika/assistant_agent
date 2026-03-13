@@ -33,6 +33,24 @@ def _make_agent(tool_calls_msg: AIMessage, *tools: Any) -> Any:
 
 
 @pytest.mark.integration
+def test_format_documents_01(obsidian_store: ObsidianDocumentStore) -> None:
+    """document リストから整形済み文字列を返す。
+
+    観点: 戻り値が文字列である
+    """
+    # 試験準備
+    obsidian_store.connect()
+    obsidian_store.import_documents(make_docs())
+    docs = obsidian_store.get_document_by_path("langchain.md")
+
+    # 試験実施
+    result = connector.format_documents(docs, obsidian_store)
+
+    # 結果検証
+    assert isinstance(result, str)
+
+
+@pytest.mark.integration
 def test_get_llm_01() -> None:
     """get_llm() が返す BaseChatModel を invoke するとレスポンスが返る。
 

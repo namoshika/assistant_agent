@@ -23,6 +23,8 @@ class VaultLoader(BaseLoader):
         docs = ObsidianLoader(str(self._vault_path), collect_metadata=True).load()
         vault = Vault(self._vault_path)
         for doc in docs:
+            # ObsidianLoader が None を "None" 文字列に変換するため元に戻す
+            doc.metadata = {k: (None if v == "None" else v) for k, v in doc.metadata.items()}
             rel_path = str(Path(doc.metadata["path"]).relative_to(self._vault_path))
             doc.metadata |= {
                 "path": rel_path,

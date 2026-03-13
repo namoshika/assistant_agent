@@ -1,11 +1,13 @@
+import json
 import os
+from os.path import basename
 from typing import Annotated
-from langchain_aws import ChatBedrock
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain.tools import tool, ToolRuntime
 from pydantic import SecretStr
 from agent_assistant.context import ContextSchema
+from agent_assistant.retriever.obsidian import ObsidianDocumentStore
 
 
 def get_llm() -> BaseChatModel:
@@ -53,7 +55,7 @@ def obsidian_vault_search(
     obsidian_store.connect()
 
     results = obsidian_store.search_documents(search_query, top_k=5)
-    return _format_documents(results, obsidian_store), results
+    return format_documents(results, obsidian_store), results
 
 
 @tool(response_format="content_and_artifact")
@@ -66,10 +68,12 @@ def obsidian_vault_get(
     obsidian_store.connect()
 
     results = obsidian_store.get_documents_by_ids(document_ids)
-    return _format_documents(results, obsidian_store), results
+    return format_documents(results, obsidian_store), results
 
 
-def _format_documents(documents: list[Document], obsidian_store) -> str:
+def format_documents(
+    documents: list[Document], obsidian_store: ObsidianDocumentStore
+) -> str:
     parts = []
     for doc in documents:
         meta = doc.metadata
@@ -81,7 +85,7 @@ def _format_documents(documents: list[Document], obsidian_store) -> str:
             "===\n",
             "```yaml",
             f"document_id: {meta['document_id']}",
-            f"metadata: {json.dumps(meta_without_links)}",
+            f"metadata: {json.dumps(meta_without_links, ensure_ascii=False)}",
         ]
 
         if forward_links:

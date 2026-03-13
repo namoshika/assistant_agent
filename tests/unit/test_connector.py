@@ -157,3 +157,24 @@ def test_obsidian_vault_get_01():
     assert "title: note.md" in tool_msg.content
     assert "取得したノート" in tool_msg.content
     assert tool_msg.artifact is docs
+
+
+def test_format_documents_01():
+    """document リストから整形済み文字列を返す。
+
+    観点: 戻り値が文字列である
+    """
+    # 試験準備
+    docs = [
+        Document(
+            page_content="ノート本文",
+            metadata={"path": "folder/note.md", "document_id": "doc-id-1", "tags": "日本語テキスト"},
+        )
+    ]
+    m_store = MagicMock()
+
+    # 試験実施
+    result = connector.format_documents(docs, m_store)
+
+    # 結果検証
+    assert isinstance(result, str)
