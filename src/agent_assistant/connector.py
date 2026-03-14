@@ -20,18 +20,21 @@ def get_llm() -> BaseChatModel:
     AWS_SECRET_ACCESS_KEY = SecretStr(AWS_SECRET_ACCESS_KEY)
 
     # LLM 作成
-    # from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
-    # llm = ChatGoogleGenerativeAI(
-    #     model=os.environ.get("ENV_GEMINI_MODEL_ID", "gemini-3.1-pro-preview"),
-    #     api_key=os.environ.get("ENV_GEMINI_API_KEY"),
-    # )
+    from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
 
-    llm = ChatBedrock(
-        model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region=AWS_DEFAULT_REGION,
+    llm = ChatGoogleGenerativeAI(
+        model=os.environ.get("ENV_GEMINI_MODEL_ID", "gemini-3.1-pro-preview"),
+        api_key=os.environ.get("ENV_GEMINI_API_KEY"),
     )
+
+    # LLM 作成
+    # from langchain_aws import ChatBedrockConverse
+    # llm = ChatBedrockConverse(
+    #     model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    #     aws_access_key_id=AWS_ACCESS_KEY_ID,
+    #     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    #     region_name=AWS_DEFAULT_REGION,
+    # )
     return llm
 
 
