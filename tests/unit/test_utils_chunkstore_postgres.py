@@ -2,8 +2,20 @@ from pytest_mock import MockerFixture
 from unittest.mock import MagicMock, call
 from langchain_core.documents import Document
 from langchain_postgres import Column
+from sqlalchemy import String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from agent_assistant.utils.chunkstore.postgres import PGVectorChunkStore
+
+
+class _TestBase(DeclarativeBase):
+    pass
+
+
+class _TestChunkEntity:
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    source: Mapped[str] = mapped_column(String)
+    page: Mapped[str] = mapped_column(String)
 
 
 def test_get_vectorstore_01(mocker: MockerFixture):
@@ -16,7 +28,7 @@ def test_get_vectorstore_01(mocker: MockerFixture):
     # 試験準備
     engine = MagicMock()
     embedding = MagicMock()
-    cols = [Column("source", "TEXT"), Column("page", "INT")]
+    cols = [Column("source", "TEXT"), Column("page", "TEXT")]
     m_vectorstore = MagicMock()
     m_create = mocker.patch(
         "agent_assistant.utils.chunkstore.postgres.PGVectorStore.create_sync",
@@ -26,18 +38,21 @@ def test_get_vectorstore_01(mocker: MockerFixture):
     # 試験実施
     store = PGVectorChunkStore(
         engine=engine,
+        store_name="my_table",
         metadata_columns=cols,
         embedding=embedding,
         dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
     )
-    result = store.get_vectorstore("my_table")
+    result = store.get_vectorstore()
 
     # 結果検証
     # 観点1: create_sync が正しい引数で呼ばれる
     m_create.assert_called_once_with(
         engine=engine,
-        table_name="my_table",
         embedding_service=embedding,
+        table_name="my_table",
         metadata_columns=[c.name for c in cols],
     )
     # 観点2: テーブル初期化は不要
@@ -56,7 +71,7 @@ def test_get_vectorstore_02(mocker: MockerFixture):
     # 試験準備
     engine = MagicMock()
     embedding = MagicMock()
-    cols = [Column("source", "TEXT"), Column("page", "INT")]
+    cols = [Column("source", "TEXT"), Column("page", "TEXT")]
     m_vectorstore = MagicMock()
     m_create = mocker.patch(
         "agent_assistant.utils.chunkstore.postgres.PGVectorStore.create_sync",
@@ -66,18 +81,21 @@ def test_get_vectorstore_02(mocker: MockerFixture):
     # 試験実施
     store = PGVectorChunkStore(
         engine=engine,
+        store_name="new_table",
         metadata_columns=cols,
         embedding=embedding,
         dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
     )
-    result = store.get_vectorstore("new_table")
+    result = store.get_vectorstore()
 
     # 観点1: create_sync が 2 回呼ばれる
     assert m_create.call_count == 2
     expected_call = call(
         engine=engine,
-        table_name="new_table",
         embedding_service=embedding,
+        table_name="new_table",
         metadata_columns=[c.name for c in cols],
     )
     m_create.assert_has_calls([expected_call, expected_call])
@@ -92,7 +110,7 @@ def test_get_vectorstore_02(mocker: MockerFixture):
 
 
 def test_add_chunks_01(mocker: MockerFixture):
-    """add_chunks() が正しいテーブルの VectorStore にドキュメントを追加する。
+    """add_chunks() が store_name の VectorStore にドキュメントを追加する。
 
     観点1: create_sync が store_name を引数に呼ばれる
     観点2: add_documents が正しいドキュメントリストで呼ばれる
@@ -100,7 +118,7 @@ def test_add_chunks_01(mocker: MockerFixture):
     # 試験準備
     engine = MagicMock()
     embedding = MagicMock()
-    cols = [Column("source", "TEXT"), Column("page", "INT")]
+    cols = [Column("source", "TEXT"), Column("page", "TEXT")]
     m_vectorstore = MagicMock()
     m_create = mocker.patch(
         "agent_assistant.utils.chunkstore.postgres.PGVectorStore.create_sync",
@@ -111,11 +129,14 @@ def test_add_chunks_01(mocker: MockerFixture):
     # 試験実施
     store = PGVectorChunkStore(
         engine=engine,
+        store_name="my_table",
         metadata_columns=cols,
         embedding=embedding,
         dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
     )
-    store.add_chunks("my_table", docs)
+    store.add_chunks(docs)
 
     # 観点1: create_sync が store_name を引数に呼ばれる
     m_create.assert_called_once_with(
@@ -126,3 +147,117 @@ def test_add_chunks_01(mocker: MockerFixture):
     )
     # 観点2: add_documents にドキュメントが渡される
     m_vectorstore.add_documents.assert_called_once_with(docs)
+
+
+def test_del_chunks_01(mocker: MockerFixture):
+    """chunk_ids を渡した場合、vectorstore.delete が chunk_ids と filter=None で呼ばれる。
+
+    観点1: PGVectorStore.create_sync が store_name を引数に呼ばれる
+    観点2: vectorstore.delete が chunk_ids と filter=None で呼ばれる
+    """
+    # 試験準備
+    engine = MagicMock()
+    embedding = MagicMock()
+    cols = [Column("source", "TEXT"), Column("page", "TEXT")]
+    m_vectorstore = MagicMock()
+    m_create = mocker.patch(
+        "agent_assistant.utils.chunkstore.postgres.PGVectorStore.create_sync",
+        return_value=m_vectorstore,
+    )
+    chunk_ids = ["id1", "id2"]
+
+    # 試験実施
+    store = PGVectorChunkStore(
+        engine=engine,
+        store_name="my_table",
+        metadata_columns=cols,
+        embedding=embedding,
+        dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
+    )
+    store.del_chunks(chunk_ids=chunk_ids)
+
+    # 結果検証
+    # 観点1: create_sync が store_name を引数に呼ばれる
+    m_create.assert_called_once_with(
+        engine=engine,
+        table_name="my_table",
+        embedding_service=embedding,
+        metadata_columns=[c.name for c in cols],
+    )
+    # 観点2: delete に chunk_ids と filter=None が渡される
+    m_vectorstore.delete.assert_called_once_with(chunk_ids, filter=None)
+
+
+def test_del_chunks_02(mocker: MockerFixture):
+    """filter を渡した場合、vectorstore.delete が chunk_ids=None と filter で呼ばれる。
+
+    観点1: PGVectorStore.create_sync が store_name を引数に呼ばれる
+    観点2: vectorstore.delete が chunk_ids=None と filter で呼ばれる
+    """
+    # 試験準備
+    engine = MagicMock()
+    embedding = MagicMock()
+    cols = [Column("source", "TEXT"), Column("page", "TEXT")]
+    m_vectorstore = MagicMock()
+    m_create = mocker.patch(
+        "agent_assistant.utils.chunkstore.postgres.PGVectorStore.create_sync",
+        return_value=m_vectorstore,
+    )
+    filter_ = {"source": "a"}
+
+    # 試験実施
+    store = PGVectorChunkStore(
+        engine=engine,
+        store_name="my_table",
+        metadata_columns=cols,
+        embedding=embedding,
+        dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
+    )
+    store.del_chunks(filter=filter_)
+
+    # 結果検証
+    # 観点1: create_sync が store_name を引数に呼ばれる
+    m_create.assert_called_once_with(
+        engine=engine,
+        table_name="my_table",
+        embedding_service=embedding,
+        metadata_columns=[c.name for c in cols],
+    )
+    # 観点2: delete に chunk_ids=None と filter が渡される
+    m_vectorstore.delete.assert_called_once_with(None, filter=filter_)
+
+
+def test_chunk_entity_01():
+    """chunk_entity が store_name に対応する ORM マッピングクラスを返す。
+
+    観点1: 返り値がクラス
+    観点2: __tablename__ が store_name と一致する
+    観点3: chunk_entity として渡したテーブル列の定義を持つ
+    """
+    # 試験準備
+    store = PGVectorChunkStore(
+        engine=MagicMock(),
+        store_name="my_chunks",
+        metadata_columns=[],
+        embedding=MagicMock(),
+        dimention_size=1536,
+        chunk_entity=_TestChunkEntity,
+        chunk_base=_TestBase,
+    )
+
+    # 試験実施 & 結果検証
+    # 観点1
+    assert isinstance(store.chunk_entity, type)
+    # 観点2
+    assert (
+        store.chunk_entity.__tablename__  # pyright: ignore[reportAttributeAccessIssue]
+        == "my_chunks"
+    )
+    # 観点3
+    assert hasattr(store.chunk_entity, "key")
+    assert hasattr(store.chunk_entity, "source")
+    assert hasattr(store.chunk_entity, "page")

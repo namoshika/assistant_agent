@@ -2,20 +2,27 @@ import importlib
 import os
 import sys
 import pytest
+from langchain_core.documents import Document
 from mlflow.pyfunc.model import ResponsesAgent
 from mlflow.types.responses import ResponsesAgentRequest, ResponsesAgentResponse
 from mlflow.types.responses_helpers import Message
 from pytest_mock import MockerFixture
+from sqlalchemy import Engine
 
-from agent_assistant.retriever.obsidian import ObsidianDocumentStore
-from tests.integration.conftest import make_docs
+from agent_assistant.loader.obsidian import PgVault
+from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 @pytest.mark.integration
 def test_agent_01(
-    mocker: MockerFixture, obsidian_store: ObsidianDocumentStore, vault_name: str
+    mocker: MockerFixture,
+    obsidian_retriever: ObsidianLlamaRetriever,
+    vault_entities: type,
+    sa_engine: Engine,
+    vault_docs: list[Document],
+    vault_name: str,
 ) -> None:
-    """agent.py インポートにより適切に初期化されたエージェントが mlflow へ登録される。
+    """適切に初期化されたエージェントが mlflow へ登録される。
 
     観点1: 登録されたエージェントが ResponsesAgent のインスタンスである
     観点2: predict() が ResponsesAgentResponse を返す
@@ -26,8 +33,9 @@ def test_agent_01(
         pytest.fail("AWS 認証情報が未設定")
 
     # 試験準備
-    obsidian_store.connect()
-    obsidian_store.import_documents(make_docs())
+    raw_entity = vault_entities
+    PgVault.sync(vault_docs, sa_engine, raw_entity)
+    obsidian_retriever.sync_chunks()
     sys.modules.pop("agent_assistant.agent", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")
     mocker.patch.dict(os.environ, {"ENV_VAULT_NAME": vault_name})

@@ -1,30 +1,48 @@
+from typing import Optional
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 from langchain_postgres import PGEngine, PGVectorStore, Column
+from sqlalchemy.orm import DeclarativeBase
 from agent_assistant.utils import absclass
 
 
-class PGVectorChunkStore(absclass.ChunkReader, absclass.ChunkWriter):
+class PGVectorChunkStore[CEntity](absclass.ChunkReader, absclass.ChunkWriter):
     def __init__(
         self,
         engine: PGEngine,
+        store_name: str,
         metadata_columns: list[Column],
         embedding: Embeddings,
         dimention_size: int,
+        chunk_entity: type[CEntity],
+        chunk_base: type[DeclarativeBase],
     ):
+        """
+        Args:
+            engine: PostgreSQL 接続を管理する PGEngine インスタンス
+            store_name: VectorStore が使うテーブル名
+            metadata_columns: Document.metadata からテーブル列に展開する項目リスト
+            embedding: テキストのベクトル化に使用する Embeddings インスタンス
+            dimention_size: 埋め込みベクトルの次元数
+            chunk_entity: VectorStore が生成するテーブルの SQLAlchemy 側の定義 (SQLAlchemy から操作するために使用)
+            chunk_base: SQLAlchemy の DeclarativeBase クラス (テーブル共通の設定 (schema など) を設定するために使用)
+        """
+        super().__init__(store_name)
         self.engine = engine
         self.metadata_columns = metadata_columns
         self.embedding = embedding
         self.dimention_size = dimention_size
+        self.chunk_entity: type[CEntity] = type(
+            f"PGVectorChunkStore_{store_name}",
+            (chunk_base, chunk_entity),
+            {"__tablename__": store_name, "__table_args__": {"extend_existing": True}},
+        )  # pyright: ignore[reportAttributeAccessIssue]
 
-    def get_vectorstore(self, store_name: str) -> VectorStore:
+    def get_vectorstore(self) -> VectorStore:
         """
-        指定されたテーブル名に対応する VectorStore インスタンスを返す。
+        store_name に対応する VectorStore インスタンスを返す。
         テーブルが存在しない場合は初期化してから再取得する。
-
-        Args:
-            table_name: ベクトルストアのテーブル名。
 
         Returns:
             PGVectorStore インスタンス。
@@ -32,30 +50,41 @@ class PGVectorChunkStore(absclass.ChunkReader, absclass.ChunkWriter):
         try:
             vectorstore = PGVectorStore.create_sync(
                 engine=self.engine,
-                table_name=store_name,
                 embedding_service=self.embedding,
+                table_name=self.store_name,
                 metadata_columns=[item.name for item in self.metadata_columns],
             )
-        except ValueError as e:
-            self._init_table(store_name)
+        except ValueError:
+            self._init_table(self.store_name)
             vectorstore = PGVectorStore.create_sync(
                 engine=self.engine,
-                table_name=store_name,
                 embedding_service=self.embedding,
+                table_name=self.store_name,
                 metadata_columns=[item.name for item in self.metadata_columns],
             )
         return vectorstore
 
-    def add_chunks(self, store_name: str, documents: list[Document]) -> None:
+    def add_chunks(self, chunks: list[Document]) -> None:
         """
-        ドキュメントをベクトルストアに追加する。
+        ドキュメントを store_name のベクトルストアに追加する。
 
         Args:
-            store_name: 追加先のテーブル名。
-            documents: 追加する Document のリスト。
+            chunks: 追加する Document のリスト。
         """
-        vectorstore = self.get_vectorstore(store_name)
-        vectorstore.add_documents(documents)
+        vectorstore = self.get_vectorstore()
+        vectorstore.add_documents(chunks)
+
+    def del_chunks(
+        self, chunk_ids: Optional[list[str]] = None, filter: Optional[dict] = None
+    ) -> None:
+        """
+        ドキュメントを store_name のベクトルストアから削除する。
+
+        Args:
+            chunks: 削除する Document.id のリスト。
+        """
+        vectorstore = self.get_vectorstore()
+        vectorstore.delete(chunk_ids, filter=filter)
 
     def _init_table(self, table_name: str):
         self.engine.init_vectorstore_table(

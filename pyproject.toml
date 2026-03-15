@@ -10,6 +10,13 @@ requires-python = ">=3.13"
 dependencies = [
     "langchain-postgres>=0.0.17",
     "langchain[community,google-genai,aws]>=1.2.10",
+    "llama-index>=0.14.18",
+    "llama-index-embeddings-google-genai>=0.5.0",
+    "llama-index-llms-google-genai>=0.8.7",
+    "llama-index-readers-file>=0.6.0",
+    "llama-index-readers-obsidian>=0.7.1",
+    "llama-index-storage-docstore-postgres>=0.5.0",
+    "llama-index-vector-stores-postgres>=0.8.1",
     "obsidianmd-parser>=0.4.0",
     "sqlalchemy>=2.0.48",
     "unstructured[md]>=0.21.5",

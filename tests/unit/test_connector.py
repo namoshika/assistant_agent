@@ -70,12 +70,12 @@ def test_get_weather_01():
 def test_obsidian_vault_search_01():
     """Obsidian vault をベクトル検索し、ToolMessage として結果を返す。
 
-    観点1: obsidian_store.connect() が呼ばれる
-    観点2: search_documents() が正しいクエリと top_k=5 で呼ばれる
-    観点3: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が search_documents() の返り値と一致する
+    観点1: search_documents() が正しいクエリと top_k=5 で呼ばれる
+    観点2: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が search_documents() の返り値と一致する
     """
     docs = [
         Document(
+            id="doc-id-1",
             page_content="ノート本文",
             metadata={"path": "notes/idea.md", "document_id": "doc-id-1"},
         )
@@ -103,10 +103,8 @@ def test_obsidian_vault_search_01():
     )
 
     # 観点1
-    m_store.connect.assert_called_once()
-    # 観点2
     m_store.search_documents.assert_called_once_with("アイデア", top_k=5)
-    # 観点3
+    # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert "title: idea.md" in tool_msg.content
     assert "ノート本文" in tool_msg.content
@@ -116,12 +114,12 @@ def test_obsidian_vault_search_01():
 def test_obsidian_vault_get_01():
     """ID 指定でノートを取得し、ToolMessage として結果を返す。
 
-    観点1: obsidian_store.connect() が呼ばれる
-    観点2: get_documents() に ids リストが渡される
-    観点3: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が get_documents() の返り値と一致する
+    観点1: get_documents_by_ids() に ids リストが渡される
+    観点2: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が get_documents_by_ids() の返り値と一致する
     """
     docs = [
         Document(
+            id="doc-id-2",
             page_content="取得したノート",
             metadata={"path": "folder/note.md", "document_id": "doc-id-2"},
         )
@@ -149,10 +147,8 @@ def test_obsidian_vault_get_01():
     )
 
     # 観点1
-    m_store.connect.assert_called_once()
-    # 観点2
     m_store.get_documents_by_ids.assert_called_once_with(["sample_document_id"])
-    # 観点3
+    # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert "title: note.md" in tool_msg.content
     assert "取得したノート" in tool_msg.content
@@ -167,6 +163,7 @@ def test_format_documents_01():
     # 試験準備
     docs = [
         Document(
+            id="doc-id-1",
             page_content="ノート本文",
             metadata={"path": "folder/note.md", "document_id": "doc-id-1", "tags": "日本語テキスト"},
         )

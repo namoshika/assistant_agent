@@ -1,13 +1,13 @@
 import json
 import os
 from os.path import basename
-from typing import Annotated
+from typing import Annotated, Sequence
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain.tools import tool, ToolRuntime
 from pydantic import SecretStr
 from agent_assistant.context import ContextSchema
-from agent_assistant.retriever.obsidian import ObsidianDocumentStore
+from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 def get_llm() -> BaseChatModel:
@@ -55,8 +55,6 @@ def obsidian_vault_search(
 ) -> tuple[str, list[Document]]:
     """Obsidian vault を検索し、マッチしたノートの原文を返す。"""
     obsidian_store = runtime.context.obsidian_store
-    obsidian_store.connect()
-
     results = obsidian_store.search_documents(search_query, top_k=5)
     return format_documents(results, obsidian_store), results
 
@@ -65,17 +63,15 @@ def obsidian_vault_search(
 def obsidian_vault_get(
     document_ids: Annotated[list[str], "取得するノートの document_id のリスト"],
     runtime: ToolRuntime[ContextSchema],
-) -> tuple[str, list[Document]]:
+) -> tuple[str, Sequence[Document]]:
     """document_id で指定した Obsidian ノートの原文を返す。"""
     obsidian_store = runtime.context.obsidian_store
-    obsidian_store.connect()
-
     results = obsidian_store.get_documents_by_ids(document_ids)
     return format_documents(results, obsidian_store), results
 
 
 def format_documents(
-    documents: list[Document], obsidian_store: ObsidianDocumentStore
+    documents: Sequence[Document], obsidian_store: ObsidianLlamaRetriever
 ) -> str:
     parts = []
     for doc in documents:

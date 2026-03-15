@@ -1,15 +1,17 @@
 import os
 import sqlalchemy
 from dataclasses import dataclass
-from langchain_postgres import PGEngine
 from pydantic import SecretStr
-from agent_assistant.utils.chunker.text import TextChunker
-from agent_assistant.retriever.obsidian import ObsidianChunkStore, ObsidianDocumentStore
+from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from agent_assistant.model import (
+    ObsidianVaultBase,
+    ObsidianVaultRawEntity,
+)
 
 
 @dataclass
 class ContextSchema:
-    obsidian_store: ObsidianDocumentStore
+    obsidian_store: ObsidianLlamaRetriever
 
 
 def build_session() -> ContextSchema:
@@ -20,11 +22,16 @@ def build_session() -> ContextSchema:
     assert PG_CONNECTION_STRING is not None
     ENV_GEMINI_API_KEY = SecretStr(ENV_GEMINI_API_KEY)
 
-    pg_engine = PGEngine.from_connection_string(url=PG_CONNECTION_STRING, pool_size=5)
     sa_engine = sqlalchemy.create_engine(PG_CONNECTION_STRING)
-    obsidian_chunk = ObsidianChunkStore(pg_engine, ENV_GEMINI_API_KEY)
-    obsidian_store = ObsidianDocumentStore(
-        ENV_VAULT_NAME, obsidian_chunk, sa_engine, TextChunker()
+
+    ObsidianVaultBase.metadata.create_all(sa_engine)
+    obsidian_store = ObsidianLlamaRetriever(
+        sa_engine=sa_engine,
+        connection_string=PG_CONNECTION_STRING,
+        emb_api_key=ENV_GEMINI_API_KEY,
+        docstore_name=f"{ENV_VAULT_NAME}_docs",
+        vectorstore_name=f"{ENV_VAULT_NAME}_vectors",
+        vault_entity=ObsidianVaultRawEntity,
     )
 
     return ContextSchema(obsidian_store=obsidian_store)
