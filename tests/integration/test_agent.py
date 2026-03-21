@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+
 import pytest
 from langchain_core.documents import Document
 from mlflow.pyfunc.model import ResponsesAgent
@@ -22,14 +23,12 @@ def test_agent_01(
     vault_docs: list[Document],
     vault_name: str,
 ) -> None:
-    """適切に初期化されたエージェントが mlflow へ登録される。
+    """適切に初期化されたエージェントが mlflow へ登録される.
 
     観点1: 登録されたエージェントが ResponsesAgent のインスタンスである
     観点2: predict() が ResponsesAgentResponse を返す
     """
-    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get(
-        "AWS_SECRET_ACCESS_KEY"
-    ):
+    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
         pytest.fail("AWS 認証情報が未設定")
 
     # 試験準備

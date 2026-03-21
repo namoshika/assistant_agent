@@ -1,5 +1,6 @@
 from typing import Any
 from unittest.mock import MagicMock
+
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
@@ -14,7 +15,7 @@ class _FakeChatModel(GenericFakeChatModel):
 
 
 def test_build_graph_01():
-    """build_graph() がエージェントを返し、呼び出しで LLM と tool が実行される。
+    """build_graph() がエージェントを返し、呼び出しで LLM と tool が実行される.
 
     観点1: 戻り値が CompiledStateGraph インスタンス
     観点2: インスタンスを invoke すると LLM が呼ばれ AIMessage が生成される

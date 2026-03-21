@@ -1,9 +1,10 @@
 import os
-import pytest
 from collections.abc import Generator
+
+import pytest
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_postgres import PGEngine, Column
+from langchain_postgres import Column, PGEngine
 from pydantic import SecretStr
 from sqlalchemy import Engine, MetaData, String, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -25,12 +26,12 @@ class _TestChunkEntity:
 def chunk_store(
     pg_engine: PGEngine, sa_engine: Engine, vault_name: str
 ) -> Generator[PGVectorChunkStore, None, None]:
-    """実際の PostgreSQL に接続した PGVectorChunkStore。
+    """実際の PostgreSQL に接続した PGVectorChunkStore.
 
     ENV_GEMINI_API_KEY 環境変数が必要。テスト終了後に作成したテーブルを DROP する。
     """
-    ENV_GEMINI_API_KEY = os.environ.get("ENV_GEMINI_API_KEY")
-    if not ENV_GEMINI_API_KEY:
+    env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
+    if not env_gemini_api_key:
         pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
 
     store = PGVectorChunkStore(
@@ -38,7 +39,7 @@ def chunk_store(
         store_name=f"{vault_name}_chunks",
         metadata_columns=[Column("source", "text", False)],
         embedding=GoogleGenerativeAIEmbeddings(
-            model="gemini-embedding-001", api_key=SecretStr(ENV_GEMINI_API_KEY)
+            model="gemini-embedding-001", api_key=SecretStr(env_gemini_api_key)
         ),
         dimention_size=3072,
         chunk_entity=_TestChunkEntity,
@@ -53,7 +54,7 @@ def chunk_store(
 
 @pytest.mark.integration
 def test_add_chunks_01(chunk_store: PGVectorChunkStore):
-    """add_chunks でドキュメントが追加される。
+    """add_chunks でドキュメントが追加される.
 
     観点1: 追加したドキュメントが similarity_search で取得できる
     """
@@ -81,7 +82,7 @@ def test_add_chunks_01(chunk_store: PGVectorChunkStore):
 
 @pytest.mark.integration
 def test_del_chunks_01(chunk_store: PGVectorChunkStore):
-    """chunk_ids と filter それぞれでチャンクが削除される。
+    """chunk_ids と filter それぞれでチャンクが削除される.
 
     観点1: chunk_ids 指定で対象ドキュメントが削除される
     観点2: filter 指定で同一メタデータを持つ複数ドキュメントが一括削除される
@@ -124,30 +125,12 @@ def test_del_chunks_01(chunk_store: PGVectorChunkStore):
     vs = chunk_store.get_vectorstore()
     # 観点1: chunk_ids 指定の削除対象が消えている
     assert (
-        vs.similarity_search(
-            "chunk_ids 削除テスト", k=10, filter={"source": "source_a.md"}
-        )
-        == []
+        vs.similarity_search("chunk_ids 削除テスト", k=10, filter={"source": "source_a.md"}) == []
     )
     # 観点2: $in 指定の削除対象 (group_a 2件・group_b 1件) が消えている
-    assert (
-        vs.similarity_search(
-            "filter 削除テスト A", k=10, filter={"source": "group_a.md"}
-        )
-        == []
-    )
-    assert (
-        vs.similarity_search(
-            "filter 削除テスト B", k=10, filter={"source": "group_b.md"}
-        )
-        == []
-    )
+    assert vs.similarity_search("filter 削除テスト A", k=10, filter={"source": "group_a.md"}) == []
+    assert vs.similarity_search("filter 削除テスト B", k=10, filter={"source": "group_b.md"}) == []
     # 観点3: $in 対象外の group_c は残っている
     assert (
-        len(
-            vs.similarity_search(
-                "filter 削除テスト C", k=10, filter={"source": "group_c.md"}
-            )
-        )
-        == 1
+        len(vs.similarity_search("filter 削除テスト C", k=10, filter={"source": "group_c.md"})) == 1
     )

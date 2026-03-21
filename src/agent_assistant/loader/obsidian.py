@@ -1,7 +1,8 @@
-import hashlib
 import datetime
+import hashlib
 import uuid
 from pathlib import Path
+
 from langchain_community.document_loaders import ObsidianLoader
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
@@ -16,12 +17,12 @@ from agent_assistant.model import (
 
 
 def path_to_document_id(path: str) -> str:
-    """vault 相対パスから document_id (UUID5) を生成する。"""
+    """Vault ルートを基準とした相対パスから document_id (UUID5) を生成する."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 
 
 class VaultLoader(BaseLoader):
-    """Obsidian Vault をロードし、forward_links を含む Document リストを返す。
+    """Vault ディレクトリをロードし、forward_links を含む Document リストを返す.
 
     ObsidianLoader (LangChain) で Document を生成し、
     obsidianmd-parser で forward_links (document_id リスト) を補完する。
@@ -29,9 +30,11 @@ class VaultLoader(BaseLoader):
     """
 
     def __init__(self, vault_path: str | Path) -> None:
+        """Construct VaultLoader."""
         self._vault_path = Path(vault_path)
 
     def load(self) -> list[Document]:
+        """Vault ディレクトリからドキュメントをロードし、メタデータを付与する."""
         docs = ObsidianLoader(str(self._vault_path), collect_metadata=True).load()
         vault = Vault(self._vault_path)
         for doc in docs:
@@ -39,16 +42,12 @@ class VaultLoader(BaseLoader):
             full_body = Path(doc.metadata["path"]).read_text()
             doc.id = path_to_document_id(rel_path)
             # ObsidianLoader が None を "None" 文字列に変換するため元に戻す
-            doc.metadata = {
-                k: (None if v == "None" else v) for k, v in doc.metadata.items()
-            }
+            doc.metadata = {k: (None if v == "None" else v) for k, v in doc.metadata.items()}
             doc.metadata |= {
                 "document_id": doc.id,
                 "path": rel_path,
                 "hash": hashlib.sha256(full_body.encode()).hexdigest(),
-                "created": datetime.datetime.fromtimestamp(
-                    doc.metadata["created"]
-                ).isoformat(),
+                "created": datetime.datetime.fromtimestamp(doc.metadata["created"]).isoformat(),
                 "last_modified": datetime.datetime.fromtimestamp(
                     doc.metadata["last_modified"]
                 ).isoformat(),
@@ -60,7 +59,7 @@ class VaultLoader(BaseLoader):
         return docs
 
     def _extract_forward_links(self, rel_path: str, vault: Vault) -> list[str]:
-        """wikilinks を document_id (UUID5) に解決して返す。"""
+        """Document のwikilinks を document_id (UUID5) に解決して返す."""
         note = vault.get_note(rel_path)
         if note is None:
             return []
@@ -74,7 +73,7 @@ class VaultLoader(BaseLoader):
 
 
 class PgVault:
-    """Obsidian vault ノートを PostgreSQL に同期するクラス。"""
+    """Vault のドキュメントを PostgreSQL に同期するクラス."""
 
     @staticmethod
     def sync(
@@ -82,7 +81,7 @@ class PgVault:
         sa_engine: Engine,
         raw_entity: type[ObsidianVaultEntity] = ObsidianVaultRawEntity,
     ) -> None:
-        """raw テーブルを引数 documents の内容で洗い替えする。"""
+        """Vault テーブルを引数 documents の内容で洗い替えする."""
         rows = [
             {
                 "document_id": doc.id,

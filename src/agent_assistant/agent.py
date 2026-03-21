@@ -1,6 +1,7 @@
 import mlflow.models
-from agent_assistant.utils.mlflow import LangGraphWrapper
+
 from agent_assistant import connector, context, graph
+from agent_assistant.utils.mlflow import LangGraphWrapper
 
 AGENT_NAME = "agent"
 ctx = context.build_session()

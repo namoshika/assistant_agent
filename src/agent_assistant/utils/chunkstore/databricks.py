@@ -1,10 +1,12 @@
-import pandas as pd
 from typing import Callable
-from pyspark.sql.functions import pandas_udf
-from pyspark.sql.types import ArrayType, FloatType
+
+import pandas as pd
 from databricks_langchain import DatabricksVectorSearch
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
+from pyspark.sql.functions import pandas_udf
+from pyspark.sql.types import ArrayType, FloatType
+
 from agent_assistant.utils import absclass
 
 
@@ -16,15 +18,15 @@ class DatabricksChunkReader(absclass.ChunkReader):
         text_col: str,
         endpoint_name: str,
     ):
+        """Construct DatabricksChunkReader."""
         self.text_col = text_col
         self.embedding = embedding
         self.dimention_size = dimention_size
         self.endpoint_name = endpoint_name
 
     def get_vectorstore(self, store_name: str) -> VectorStore:
-        return DatabricksVectorSearch(
-            store_name, self.endpoint_name, self.embedding, self.text_col
-        )
+        """store_name に対応する VectorStore インスタンスを返す."""
+        return DatabricksVectorSearch(store_name, self.endpoint_name, self.embedding, self.text_col)
 
 
 def create_vsi(
@@ -35,6 +37,7 @@ def create_vsi(
     source_name: str,
     endpoint_name: str = "vsi_endpoint",
 ):
+    """Vector Search Index を作成する."""
     from databricks.vector_search.client import VectorSearchClient
 
     client = VectorSearchClient()
@@ -44,10 +47,8 @@ def create_vsi(
     try:
         res_enp = client.get_endpoint(endpoint_name)
     # 無い場合は作成
-    except Exception as ex:
-        res_enp = client.create_endpoint_and_wait(
-            name=endpoint_name, endpoint_type="STANDARD"
-        )
+    except Exception:
+        res_enp = client.create_endpoint_and_wait(name=endpoint_name, endpoint_type="STANDARD")
 
     # ---------------------------------------------
     # Vector Search Index を取得
@@ -55,7 +56,7 @@ def create_vsi(
     try:
         res_vsi = client.get_index(endpoint_name, index_name)
     # 無い場合は作成
-    except Exception as ex:
+    except Exception:
         res_vsi = client.create_delta_sync_index_and_wait(
             endpoint_name,
             index_name,
@@ -71,17 +72,13 @@ def create_vsi(
 
 
 def emb_udf_factory(factory: Callable[[], Embeddings]):
-    """
-    Spark DataFrame の文字列列から埋め込み表現列を生成
-    """
+    """Spark DataFrame の文字列列から埋め込み表現列を生成."""
 
     @pandas_udf(ArrayType(FloatType()))
     def emb_udf(text_col: pd.Series) -> pd.Series:
         # return pd.Series([[float(text_col.size)] for _ in text_col])
         embedding = factory()
-        doc_embed = pd.Series(
-            [embbed for embbed in embedding.embed_documents(text_col.tolist())]
-        )
+        doc_embed = pd.Series([embbed for embbed in embedding.embed_documents(text_col.tolist())])
         return doc_embed
 
     return emb_udf

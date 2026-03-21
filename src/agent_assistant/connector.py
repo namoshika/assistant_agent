@@ -2,22 +2,25 @@ import json
 import os
 from os.path import basename
 from typing import Annotated, Sequence
+
+from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
-from langchain.tools import tool, ToolRuntime
 from pydantic import SecretStr
+
 from agent_assistant.context import ContextSchema
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 def get_llm() -> BaseChatModel:
-    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-    AWS_DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    assert AWS_ACCESS_KEY_ID is not None
-    assert AWS_SECRET_ACCESS_KEY is not None
-    AWS_ACCESS_KEY_ID = SecretStr(AWS_ACCESS_KEY_ID)
-    AWS_SECRET_ACCESS_KEY = SecretStr(AWS_SECRET_ACCESS_KEY)
+    """エージェントが使用するLLMを返す."""
+    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")  # noqa: F841
+    assert aws_access_key_id is not None
+    assert aws_secret_access_key is not None
+    aws_access_key_id = SecretStr(aws_access_key_id)
+    aws_secret_access_key = SecretStr(aws_secret_access_key)
 
     # LLM 作成
     from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
@@ -29,16 +32,18 @@ def get_llm() -> BaseChatModel:
 
     # LLM 作成
     # from langchain_aws import ChatBedrockConverse
+
     # llm = ChatBedrockConverse(
     #     model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
-    #     aws_access_key_id=AWS_ACCESS_KEY_ID,
-    #     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    #     region_name=AWS_DEFAULT_REGION,
+    #     aws_access_key_id=aws_access_key_id,
+    #     aws_secret_access_key=aws_secret_access_key,
+    #     region_name=aws_default_region,
     # )
     return llm
 
 
 def get_tools():
+    """エージェントに使用させるツールを返す."""
     return [get_weather, obsidian_vault_search, obsidian_vault_get]
 
 
@@ -53,7 +58,7 @@ def obsidian_vault_search(
     search_query: Annotated[str, "検索クエリ"],
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, list[Document]]:
-    """Obsidian vault を検索し、マッチしたノートの原文を返す。"""
+    """Obsidian vault を検索し、マッチしたノートの原文を返す."""
     obsidian_store = runtime.context.obsidian_store
     results = obsidian_store.search_documents(search_query, top_k=5)
     return format_documents(results, obsidian_store), results
@@ -64,15 +69,23 @@ def obsidian_vault_get(
     document_ids: Annotated[list[str], "取得するノートの document_id のリスト"],
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, Sequence[Document]]:
-    """document_id で指定した Obsidian ノートの原文を返す。"""
+    """document_id で指定した Obsidian ノートの原文を返す."""
     obsidian_store = runtime.context.obsidian_store
     results = obsidian_store.get_documents_by_ids(document_ids)
     return format_documents(results, obsidian_store), results
 
 
-def format_documents(
-    documents: Sequence[Document], obsidian_store: ObsidianLlamaRetriever
-) -> str:
+def format_documents(documents: Sequence[Document], obsidian_store: ObsidianLlamaRetriever) -> str:
+    """Document オブジェクトのリストを、エージェントが読みやすいテキスト形式に整形する.
+
+    Args:
+        documents: 整形対象の Document リスト。
+        obsidian_store: リンク情報の解決に使用するレトリーバー。
+
+    Returns:
+        メタデータ、前方リンク、および本文を含む整形済み文字列。
+
+    """
     parts = []
     for doc in documents:
         meta = doc.metadata

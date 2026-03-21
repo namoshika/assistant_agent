@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from typing import Any
-from langchain_core.messages import AIMessageChunk, AIMessage
+
+from langchain_core.messages import AIMessage, AIMessageChunk
 from langgraph.graph.state import CompiledStateGraph
 from mlflow.pyfunc.model import ResponsesAgent
 from mlflow.types.responses import (
@@ -13,22 +14,23 @@ from mlflow.types.responses import (
 
 class LangGraphWrapper(ResponsesAgent):
     def __init__(self, agent: CompiledStateGraph[Any, Any, Any, Any], context: Any):
+        """Construct LangGraphWrapper."""
         self._agent = agent
         self._context = context
 
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
+        """エージェントの推論結果を返す."""
         outputs = [
             event.item  # pyright: ignore[reportAttributeAccessIssue]
             for event in self.predict_stream(request)
             if event.type == "response.output_item.done"
         ]
-        return ResponsesAgentResponse(
-            output=outputs, custom_outputs=request.custom_inputs
-        )
+        return ResponsesAgentResponse(output=outputs, custom_outputs=request.custom_inputs)
 
     def predict_stream(
         self, request: ResponsesAgentRequest
     ) -> Generator[ResponsesAgentStreamEvent, None, None]:
+        """エージェントの推論結果 (Streaming) を返す."""
         cc_msgs = to_chat_completions_input(
             request.input  # pyright: ignore[reportArgumentType]
         )
@@ -39,16 +41,15 @@ class LangGraphWrapper(ResponsesAgent):
             stream_mode=["updates", "messages"],
         ):
             if mode == "updates":
-                for (
-                    chunk_state
-                ) in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
+                for chunk_state in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
                     chunk_msgs = chunk_state.get("messages", [])
                     for chunk_msg in chunk_msgs:
                         if isinstance(chunk_msg, AIMessage):
                             # 暫定対処:
                             # mlflow の output_to_responses_items_stream() が内部で呼び出す
-                            # create_text_output_item() がコンテンツとして文字列のみを想定しており、LLM から
-                            # 来る配列が渡す事が不可能であるため、配列内の文字列を連結して一つの文字列にして使う
+                            # create_text_output_item() がコンテンツとして文字列のみを想定しており、
+                            # LLM から来る配列が渡す事が不可能であるため、配列内の文字列を連結して
+                            # 一つの文字列にして使う
                             chunk_msg.content = "".join(
                                 [
                                     item["text"]
@@ -64,8 +65,9 @@ class LangGraphWrapper(ResponsesAgent):
                 if isinstance(chunk_msg, AIMessageChunk):
                     # 暫定対処:
                     # mlflow の output_to_responses_items_stream() が内部で呼び出す
-                    # create_text_output_item() がコンテンツとして文字列のみを想定しており、LLM から
-                    # 来る配列が渡す事が不可能であるため、配列内の文字列を連結して一つの文字列にして使う
+                    # create_text_output_item() がコンテンツとして文字列のみを想定しており、
+                    # LLM から来る配列が渡す事が不可能であるため、配列内の文字列を連結して
+                    # 一つの文字列にして使う
                     chunk_msg.content = "".join(
                         [
                             item["text"]

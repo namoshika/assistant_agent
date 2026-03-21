@@ -1,7 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
-from pytest_mock import MockerFixture
+
+import pytest
 from pydantic import SecretStr
+from pytest_mock import MockerFixture
 
 from agent_assistant.loader.obsidian import path_to_document_id
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
@@ -12,7 +13,7 @@ _DOC_ID_B = path_to_document_id("b.md")
 
 @pytest.fixture
 def retriever(mocker: MockerFixture) -> ObsidianLlamaRetriever:
-    """ObsidianLlamaRetriever のテスト用インスタンス。
+    """ObsidianLlamaRetriever のテスト用インスタンス.
 
     LlamaIndex の外部依存 (GoogleGenAIEmbedding, PGVectorStore,
     PostgresDocumentStore, IngestionPipeline) をモック化する。
@@ -31,7 +32,7 @@ def retriever(mocker: MockerFixture) -> ObsidianLlamaRetriever:
 
 
 def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
-    """chunk 検索 → ref_doc_id 重複除去 → raw から全文取得 → 初出順ソート。
+    """Chunk 検索 → ref_doc_id 重複除去 → raw から全文取得 → 初出順ソート.
 
     観点1: as_retriever が top_k を引数に呼ばれる
     観点2: ref_doc_id が重複除去される (a.md は chunk1/chunk3 の 2 件あるが 1 件に集約)
@@ -68,9 +69,7 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = [m_row_b, m_row_a]
-    mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.Session", return_value=m_session
-    )
+    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
 
     # 試験実施
     docs = retriever.search_documents("テスト", top_k=5)
@@ -86,7 +85,7 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
 
 
 def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
-    """retrieve() が空リストを返すとき search_documents は [] を返す。
+    """retrieve() が空リストを返すとき search_documents は [] を返す.
 
     観点1: 空リストが返る
     TODO: 階層型レトリーバー導入の段階で試験内容を見直す
@@ -111,7 +110,7 @@ def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFi
 
 
 def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
-    """raw テーブルとチャンクテーブルの同期ができること (raw 有件)
+    """Vault テーブルとチャンクテーブルの同期ができること (有件).
 
     観点1: 全ドキュメントが LlamaDocument に変換され pipeline.run へ渡される
     観点2: sync_chunks 後に _index キャッシュが None にリセットされる
@@ -129,9 +128,7 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = [m_row_a, m_row_b]
-    mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.Session", return_value=m_session
-    )
+    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
 
     retriever._index = MagicMock()
 
@@ -154,7 +151,7 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
 
 
 def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
-    """raw テーブルとチャンクテーブルの同期ができること (raw 0件)
+    """Vault テーブルとチャンクテーブルの同期ができること (0件).
 
     観点1: 空のドキュメントリストが pipeline.run へ渡される
     """
@@ -163,9 +160,7 @@ def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = []
-    mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.Session", return_value=m_session
-    )
+    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
 
     # 試験実施
     retriever.sync_chunks()

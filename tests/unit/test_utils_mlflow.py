@@ -1,17 +1,18 @@
+from unittest.mock import MagicMock
+
 from langchain_core.messages import AIMessage, AIMessageChunk
 from mlflow.types.responses import (
     ResponsesAgentRequest,
     ResponsesAgentStreamEvent,
 )
 from mlflow.types.responses_helpers import Message
-from unittest.mock import MagicMock
 
 from agent_assistant.utils.mlflow import LangGraphWrapper
 
 
 class TestLangGraphWrapper:
     def test_predict_stream(self):
-        """predict_stream() の動作を検証する
+        """predict_stream() の動作を検証する.
 
         観点1: Message インスタンスのリストを格納した ResponsesAgentRequest が
                エージェントに変換されて渡される
@@ -48,7 +49,7 @@ class TestLangGraphWrapper:
         )
 
     def test_predict(self):
-        """predict() の動作を検証する
+        """predict() の動作を検証する.
 
         観点2: updates/messages 混在出力のうち、updates モードの done イベントのみが
                output に収集される
@@ -78,7 +79,7 @@ class TestLangGraphWrapper:
 
     @staticmethod
     def _make_mixed_stream():
-        """updates/messages 混在のストリームデータを返すヘルパー"""
+        """updates/messages 混在のストリームデータを返すヘルパー."""
         ai_msg = AIMessage(content="agent response")
         ai_chunk = AIMessageChunk(
             content=[{"type": "text", "text": "streaming text"}], id="chunk-1"

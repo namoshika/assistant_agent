@@ -1,17 +1,17 @@
-import os
 from unittest.mock import MagicMock
+
+from langchain.agents import create_agent
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain.agents import create_agent
 
 from agent_assistant import connector
 from agent_assistant.context import ContextSchema
 
 
 class _FakeChatModel(GenericFakeChatModel):
-    """bind_tools() をサポートするダミーチャットモデル。"""
+    """bind_tools() をサポートするダミーチャットモデル."""
 
     def bind_tools(self, tools, **_):
         return self
@@ -26,13 +26,11 @@ def _make_agent(tool_calls_msg: AIMessage, *tools, context_schema=None):
             ]
         )
     )
-    return create_agent(
-        model=fake_llm, tools=list(tools), context_schema=context_schema
-    )
+    return create_agent(model=fake_llm, tools=list(tools), context_schema=context_schema)
 
 
 def test_get_llm_01():
-    """get_llm() が BaseChatModel を返す。
+    """get_llm() が BaseChatModel を返す.
 
     観点: 戻り値が BaseChatModel のインスタンスである
     """
@@ -45,7 +43,7 @@ def test_get_llm_01():
 
 
 def test_get_weather_01():
-    """天気を取得する。
+    """天気を取得する.
 
     観点: ToolMessage として返り、content に引数の都市名が含まれる
     """
@@ -68,10 +66,12 @@ def test_get_weather_01():
 
 
 def test_obsidian_vault_search_01():
-    """Obsidian vault をベクトル検索し、ToolMessage として結果を返す。
+    """Obsidian vault をベクトル検索し、ToolMessage として結果を返す.
 
     観点1: search_documents() が正しいクエリと top_k=5 で呼ばれる
-    観点2: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が search_documents() の返り値と一致する
+    観点2:
+        結果が ToolMessage として返り、content に path と page_content が含まれ、
+        artifact が search_documents() の返り値と一致する
     """
     docs = [
         Document(
@@ -94,9 +94,7 @@ def test_obsidian_vault_search_01():
             }
         ],
     )
-    agent = _make_agent(
-        ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema
-    )
+    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
     result = agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
         context=ContextSchema(obsidian_store=m_store),
@@ -112,10 +110,12 @@ def test_obsidian_vault_search_01():
 
 
 def test_obsidian_vault_get_01():
-    """ID 指定でノートを取得し、ToolMessage として結果を返す。
+    """ID 指定でノートを取得し、ToolMessage として結果を返す.
 
     観点1: get_documents_by_ids() に ids リストが渡される
-    観点2: 結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が get_documents_by_ids() の返り値と一致する
+    観点2:
+        結果が ToolMessage として返り、content に path と page_content が含まれ、artifact が
+        get_documents_by_ids() の返り値と一致する
     """
     docs = [
         Document(
@@ -138,9 +138,7 @@ def test_obsidian_vault_get_01():
             }
         ],
     )
-    agent = _make_agent(
-        ai_msg, connector.obsidian_vault_get, context_schema=ContextSchema
-    )
+    agent = _make_agent(ai_msg, connector.obsidian_vault_get, context_schema=ContextSchema)
     result = agent.invoke(
         {"messages": [HumanMessage(content="note.md を取得して")]},
         context=ContextSchema(obsidian_store=m_store),
@@ -156,7 +154,7 @@ def test_obsidian_vault_get_01():
 
 
 def test_format_documents_01():
-    """document リストから整形済み文字列を返す。
+    """Document リストから整形済み文字列を返す.
 
     観点: 戻り値が文字列である
     """
@@ -165,7 +163,11 @@ def test_format_documents_01():
         Document(
             id="doc-id-1",
             page_content="ノート本文",
-            metadata={"path": "folder/note.md", "document_id": "doc-id-1", "tags": "日本語テキスト"},
+            metadata={
+                "path": "folder/note.md",
+                "document_id": "doc-id-1",
+                "tags": "日本語テキスト",
+            },
         )
     ]
     m_store = MagicMock()

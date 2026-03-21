@@ -1,15 +1,13 @@
 import mlflow
 import mlflow.genai
-from mlflow.genai.scorers import Correctness, Guidelines
+from mlflow.genai.scorers import Correctness, Guidelines  # noqa: F401
 from mlflow.pyfunc.model import ResponsesAgent
 from mlflow.types.responses import ResponsesAgentResponse
 from mlflow.types.responses_helpers import Message, OutputItem
 
 
 def eval_responses(model: ResponsesAgent, eval_dataset: list):
-    """
-    評価用データセットを用いて ResponsesAgent の評価を行う。実装内容は要件に応じて書き換える必要有り。
-    """
+    """評価用データセットを用いて ResponsesAgent の評価を行う. 実装内容は要件に応じて要書き換え."""
 
     # 評価基準を定義
     @mlflow.genai.scorer(description="出力を評価 (観点: 回答が10文字以上であること)")
@@ -18,7 +16,7 @@ def eval_responses(model: ResponsesAgent, eval_dataset: list):
 
     scorers = [
         # 出力が期待値と一致していること
-        Correctness(model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0"),
+        # Correctness(model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0"),
         # # 出力が日本語であること
         # Guidelines(
         #     model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -35,7 +33,7 @@ def eval_responses(model: ResponsesAgent, eval_dataset: list):
         res = model.predict({"input": messages})  # pyright: ignore[reportArgumentType]
 
         # mlflow.pyfunc.log_model() すると ResponsesAgent も PythonModel になる
-        # ResponsesAgent と PythonModel では predict 時の戻り値が異なるため、辞書に揃える。
+        # ResponsesAgent と PythonModel では predict 時の戻り値が異なるため、辞書に揃える
         if isinstance(res, ResponsesAgentResponse):
             res = res.model_dump()
 

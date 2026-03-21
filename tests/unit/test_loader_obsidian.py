@@ -1,14 +1,15 @@
 import datetime
 from pathlib import Path
-from langchain_community.document_loaders import ObsidianLoader
-from agent_assistant.loader.obsidian import VaultLoader, path_to_document_id
 
+from langchain_community.document_loaders import ObsidianLoader
+
+from agent_assistant.loader.obsidian import VaultLoader, path_to_document_id
 
 VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
 
 
 def test_load_01():
-    """VaultLoader.load() が返す Document の metadata が正しく変換される。
+    """VaultLoader.load() が返す Document の metadata が正しく変換される.
 
     観点1: 全 Document に保証された全メタデータキーが存在し、doc.id が設定されている
     観点2: note_a.md の path が document_id (UUID5) に変換される
@@ -32,9 +33,7 @@ def test_load_01():
             "last_accessed",
             "forward_links",
         ):
-            assert (
-                key in doc.metadata
-            ), f"{key} が存在しない: {doc.metadata.get('path')}"
+            assert key in doc.metadata, f"{key} が存在しない: {doc.metadata.get('path')}"
         assert doc.id is not None
         assert doc.id == doc.metadata["document_id"]
         assert not Path(doc.metadata["path"]).is_absolute()
@@ -59,9 +58,9 @@ def test_load_01():
 
 
 def test_load_02():
-    """ObsidianLoader 単体では None フィールドが "None" 文字列になる。
-    VaultLoader が後処理で修正している根拠となるバグを確認する。
+    """ObsidianLoader 単体では None フィールドが "None" 文字列になる.
 
+    VaultLoader が後処理で修正している根拠となるバグを確認する
     観点1: ObsidianLoader は None フロントマター値を "None" 文字列に変換する
     """
     # 試験準備 & 試験実施

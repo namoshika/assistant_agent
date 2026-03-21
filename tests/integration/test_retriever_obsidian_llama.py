@@ -1,4 +1,5 @@
 import hashlib
+
 import pytest
 from langchain_core.documents import Document
 from sqlalchemy import Engine
@@ -14,12 +15,12 @@ def test_search_documents_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定したクエリを search_documents() に渡しドキュメントが取得できる。
-    
+    """指定したクエリを search_documents() に渡しドキュメントが取得できる.
+
     前提: PgVault.sync + sync_chunks 済み
 
-    観点1: 1件以上の結果が返る  
-    観点2: 返ってきたドキュメントの id・page_content・metadata の全項目が一致する  
+    観点1: 1件以上の結果が返る
+    観点2: 返ってきたドキュメントの id・page_content・metadata の全項目が一致する
     """
     # 試験準備
     raw_entity = vault_entities
@@ -47,7 +48,7 @@ def test_get_documents_by_ids_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定した document_id を get_documents_by_ids() へ渡しドキュメントを取得できる。
+    """指定した document_id を get_documents_by_ids() へ渡しドキュメントを取得できる.
 
     観点1: 既存 id を指定すると id・page_content・metadata の全項目が一致する
     観点2: 存在しない document_id を指定すると空リストが返る
@@ -78,12 +79,12 @@ def test_get_backlinks_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定した document_id を get_backlinks() へ渡し、対象ドキュメントへの forward_links を持つドキュメント一覧を取得できる。
+    """指定した document_id を get_backlinks() へ渡し、対象ドキュメントへの forward_links を持つドキュメント一覧を取得できる.
 
     観点1: リンク元のみ返り、リンク先は含まれない
     観点2: 返ってきたドキュメントの id・page_content・metadata が登録値と一致する
     観点3: 存在しない document_id を指定すると空リストが返る
-    """
+    """  # noqa: E501
     # 試験準備
     raw_entity = vault_entities
     doc_a = next(
@@ -109,10 +110,7 @@ def test_get_backlinks_01(
     assert results[0].page_content == doc_a.page_content
     assert results[0].metadata == doc_a.metadata
     # 観点3
-    assert (
-        obsidian_retriever.get_backlinks(path_to_document_id("nonexistent_target.md"))
-        == []
-    )
+    assert obsidian_retriever.get_backlinks(path_to_document_id("nonexistent_target.md")) == []
 
 
 @pytest.mark.integration
@@ -122,7 +120,7 @@ def test_sync_chunks_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """sync_chunks() を呼び出し、ドキュメントの追加・更新・削除をチャンクに正しく反映できる。
+    """sync_chunks() を呼び出し、ドキュメントの追加・更新・削除をチャンクに正しく反映できる.
 
     操作対象外ドキュメント (noise) を含む状態で各操作を実行し、
     操作したドキュメントのチャンクのみが変化し noise のチャンクが不変であることを確認。

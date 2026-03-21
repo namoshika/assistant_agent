@@ -1,7 +1,8 @@
-from pytest_mock import MockerFixture
 from unittest.mock import MagicMock, call
+
 from langchain_core.documents import Document
 from langchain_postgres import Column
+from pytest_mock import MockerFixture
 from sqlalchemy import String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -19,7 +20,7 @@ class _TestChunkEntity:
 
 
 def test_get_vectorstore_01(mocker: MockerFixture):
-    """テーブルが既存の場合、_init_table を呼ばずに VectorStore を返す。
+    """テーブルが既存の場合、_init_table を呼ばずに VectorStore を返す.
 
     観点1: PGVectorStore.create_sync が期待引数で呼ばれる
     観点2: _init_table は呼ばれない
@@ -62,7 +63,7 @@ def test_get_vectorstore_01(mocker: MockerFixture):
 
 
 def test_get_vectorstore_02(mocker: MockerFixture):
-    """テーブル未存在で ValueError が発生した場合、テーブルを初期化して再取得する。
+    """テーブル未存在で ValueError が発生した場合、テーブルを初期化して再取得する.
 
     観点1: create_sync が 2 回呼ばれる（1 回目は失敗、2 回目は成功）
     観点2: init_vectorstore_table が正しい引数で 1 回呼ばれる
@@ -110,7 +111,7 @@ def test_get_vectorstore_02(mocker: MockerFixture):
 
 
 def test_add_chunks_01(mocker: MockerFixture):
-    """add_chunks() が store_name の VectorStore にドキュメントを追加する。
+    """add_chunks() が store_name の VectorStore にドキュメントを追加する.
 
     観点1: create_sync が store_name を引数に呼ばれる
     観点2: add_documents が正しいドキュメントリストで呼ばれる
@@ -150,7 +151,7 @@ def test_add_chunks_01(mocker: MockerFixture):
 
 
 def test_del_chunks_01(mocker: MockerFixture):
-    """chunk_ids を渡した場合、vectorstore.delete が chunk_ids と filter=None で呼ばれる。
+    """引数 chunk_ids を渡した場合、vectorstore.delete が chunk_ids と filter=None で呼ばれる.
 
     観点1: PGVectorStore.create_sync が store_name を引数に呼ばれる
     観点2: vectorstore.delete が chunk_ids と filter=None で呼ばれる
@@ -191,7 +192,7 @@ def test_del_chunks_01(mocker: MockerFixture):
 
 
 def test_del_chunks_02(mocker: MockerFixture):
-    """filter を渡した場合、vectorstore.delete が chunk_ids=None と filter で呼ばれる。
+    """引数 filter を渡した場合、vectorstore.delete が chunk_ids=None と filter で呼ばれる.
 
     観点1: PGVectorStore.create_sync が store_name を引数に呼ばれる
     観点2: vectorstore.delete が chunk_ids=None と filter で呼ばれる
@@ -232,7 +233,7 @@ def test_del_chunks_02(mocker: MockerFixture):
 
 
 def test_chunk_entity_01():
-    """chunk_entity が store_name に対応する ORM マッピングクラスを返す。
+    """chunk_entity が store_name に対応する ORM マッピングクラスを返す.
 
     観点1: 返り値がクラス
     観点2: __tablename__ が store_name と一致する
