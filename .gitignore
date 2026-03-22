@@ -1,19 +1,2 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-.claude/settings.local.json
-
 # Environment file
 .env
-
-# Dataset
-/docs/*
-!/docs/specs/
-!/docs/adr/

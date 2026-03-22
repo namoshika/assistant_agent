@@ -15,3 +15,7 @@ fnm install 24 \
 npm install -g @google/gemini-cli
 # Install Claude Code (AI Coding Agent)
 curl -fsSL https://claude.ai/install.sh | bash
+
+# uv
+cd agent
+uv sync
