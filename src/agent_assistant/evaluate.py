@@ -18,11 +18,11 @@ def eval_responses(model: ResponsesAgent, eval_dataset: list):
         # 出力が期待値と一致していること
         # Correctness(model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0"),
         # # 出力が日本語であること
-        # Guidelines(
-        #     model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        #     name="is_japanese",
-        #     guidelines="The answer must be in Japanese",
-        # ),
+        Guidelines(
+            model="bedrock:/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+            name="is_japanese",
+            guidelines="The answer must be in Japanese",
+        ),
         # 任意の評価基準を満たす事
         custom_check,
     ]
