@@ -32,6 +32,9 @@ markers = [
     "integration: 実際の外部システム (PostgreSQL, Gemini API) を必要とするテスト",
 ]
 
+[project.scripts]
+serve = "agent_assistant.agent_server:serve"
+
 [tool.ruff]
 extend-exclude = ["scripts/*.ipynb", "docs"]
 line-length = 100
