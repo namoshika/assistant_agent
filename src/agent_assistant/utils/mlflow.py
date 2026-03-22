@@ -38,7 +38,12 @@ class LangGraphWrapper(ResponsesAgent):
             {"messages": cc_msgs},
             {"recursion_limit": 100},
             context=self._context,
-            stream_mode=["updates", "messages"],
+            # 暫定対処 (ADR-009):
+            # "messages" を含めると StreamMessagesHandler (_StreamingCallbackHandler) が
+            # 登録され LLM がストリーミングモードになり、on_llm_new_token が content_blocks
+            # (list[dict]) を OTel スパン属性に渡すことで警告が大量発生する。
+            # mlflow バグ修正後に ["updates", "messages"] へ戻すこと。
+            stream_mode=["updates"],
         ):
             if mode == "updates":
                 for chunk_state in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
