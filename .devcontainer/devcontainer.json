@@ -10,6 +10,7 @@
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
+	"forwardPorts": [3000, 8000],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "/bin/bash .devcontainer/hook_post_create.sh",
@@ -30,5 +31,5 @@
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
-	"runArgs": ["--env-file","agent/.env"]
+	"runArgs": ["--env-file",".env"]
 }
