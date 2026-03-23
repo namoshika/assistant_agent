@@ -21,8 +21,8 @@
 			"extensions": [
 				"ms-python.python",
 				"ms-toolsai.jupyter",
-				"ms-python.black-formatter",
 				"mhutchie.git-graph",
+				"charliermarsh.ruff",
 				"Anthropic.claude-code"
 			]
 		}
