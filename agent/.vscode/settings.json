@@ -1,4 +1,5 @@
 {
+    "task.autoDetect": "off",
     "python.testing.pytestArgs": [
         "tests"
     ],

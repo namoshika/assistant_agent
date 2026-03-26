@@ -1,16 +1,17 @@
 from unittest.mock import MagicMock
 
-from langchain_core.messages import AIMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from mlflow.types.agent import ChatAgentChunk, ChatAgentMessage
 from mlflow.types.responses import (
     ResponsesAgentRequest,
     ResponsesAgentStreamEvent,
 )
 from mlflow.types.responses_helpers import Message
 
-from agent_assistant.utils.mlflow import LangGraphWrapper
+from agent_assistant.utils.mlflow import LangGraphChatAgent, LangGraphResponsesAgent
 
 
-class TestLangGraphWrapper:
+class TestLangGraphResponsesAgent:
     def test_predict_stream(self):
         """predict_stream() の動作を検証する.
 
@@ -27,7 +28,7 @@ class TestLangGraphWrapper:
 
         # 試験実施
         m_context = MagicMock()
-        wrapper = LangGraphWrapper(m_agent, m_context)
+        wrapper = LangGraphResponsesAgent(m_agent, m_context)
         events = list(wrapper.predict_stream(request))
 
         # 観点1: 入力がエージェントに正しく渡される
@@ -35,7 +36,9 @@ class TestLangGraphWrapper:
             {"messages": [{"role": "user", "content": "hello"}]},
             {"recursion_limit": 100},
             context=m_context,
-            stream_mode=["updates", "messages"],
+            stream_mode=["updates"],
+            # 暫定対処
+            # stream_mode=["updates", "messages"],
         )
         # 観点2: 出力が ResponsesAgentStreamEvent に変換される
         assert all(isinstance(e, ResponsesAgentStreamEvent) for e in events)
@@ -63,7 +66,7 @@ class TestLangGraphWrapper:
 
         # 試験実施
         m_context = MagicMock()
-        wrapper = LangGraphWrapper(m_agent, m_context)
+        wrapper = LangGraphResponsesAgent(m_agent, m_context)
         result = wrapper.predict(request)
 
         # 観点1: 入力がエージェントに正しく渡される
@@ -71,7 +74,9 @@ class TestLangGraphWrapper:
             {"messages": [{"role": "user", "content": "hello"}]},
             {"recursion_limit": 100},
             context=m_context,
-            stream_mode=["updates", "messages"],
+            stream_mode=["updates"],
+            # 暫定対処
+            # stream_mode=["updates", "messages"],
         )
         # 観点2: 出力が ResponsesAgentStreamEvent に変換される
         assert len(result.output) == 1
@@ -87,4 +92,131 @@ class TestLangGraphWrapper:
         return [
             ("updates", {"node": {"messages": [ai_msg]}}),
             ("messages", (ai_chunk, None)),
+        ]
+
+
+class TestLangGraphChatAgent:
+    def test_predict_01(self):
+        """Predict の動作を検証する.
+
+        観点1: invoke が正しい引数で呼び出される
+        観点2: 最後の assistant メッセージのみが返ること
+        """
+        # 試験準備
+        m_agent = MagicMock()
+        m_agent.invoke.return_value = {
+            "messages": [
+                HumanMessage(content="hello", id="h-1"),
+                AIMessage(content="first response", id="a-1"),
+                ToolMessage(
+                    content="tool result", tool_call_id="call-1", name="get_weather", id="t-1"
+                ),
+                AIMessage(content="final response", id="a-2"),
+            ]
+        }
+        messages = [ChatAgentMessage(role="user", content="hello")]
+
+        # 試験実施
+        m_context = MagicMock()
+        wrapper = LangGraphChatAgent(m_agent, m_context)
+        result = wrapper.predict(messages)
+
+        # 観点1
+        m_agent.invoke.assert_called_once_with(
+            {"messages": [{"role": "user", "content": "hello"}]},
+            context=m_context,
+        )
+        # 観点2
+        assert len(result.messages) == 1
+        assert result.messages[0].role == "assistant"
+        assert result.messages[0].content == "final response"
+
+    def test_predict_stream_01(self):
+        """predict_stream の動作を検証する.
+
+        観点1: stream_mode=["messages"] で呼び出される
+        観点2: "messages" モードの AIMessageChunk がテキストデルタに変換される
+        観点3: "updates" モードの model ノードの AIMessage が ChatAgentChunk として yield される
+        観点4: "updates" モードの tools ノード (ToolMessage) は ChatAgentChunk として yield される
+        観点5: content 空の AIMessageChunk はスキップされる
+        """
+        # 試験準備
+        m_agent = MagicMock()
+        m_agent.stream.return_value = iter(self._make_mixed_stream())
+        messages = [ChatAgentMessage(role="user", content="hello")]
+
+        # 試験実施
+        m_context = MagicMock()
+        wrapper = LangGraphChatAgent(m_agent, m_context)
+        chunks = list(wrapper.predict_stream(messages))
+
+        # 観点1
+        m_agent.stream.assert_called_once_with(
+            {"messages": [{"role": "user", "content": "hello"}]},
+            stream_mode=["messages"],
+            context=m_context,
+        )
+        # 観点2-5: 3件が yield される
+        assert len(chunks) == 3
+        assert all(isinstance(c, ChatAgentChunk) for c in chunks)
+        # 観点3: updates/model の AIMessage
+        assert chunks[0].delta.content == "agent response"
+        # 観点4: updates/tools の ToolMessage
+        assert chunks[1].delta.content == "tool result"
+        # 観点2: messages の AIMessageChunk
+        assert chunks[2].delta.content == "streaming text"
+        # 観点5: content 空の AIMessageChunk はスキップ → 3件のみ
+
+    def test_predict_stream_02(self):
+        """predict_stream の動作を検証する (model ノードに tool_calls がある場合).
+
+        観点1: "updates" モードの model ノードが tool_calls を持つ場合、
+               tool_calls のみを含む ChatAgentChunk が yield される
+        観点2: tool_calls チャンクの content は空文字になること
+        """
+        # 試験準備
+        m_agent = MagicMock()
+        m_agent.stream.return_value = iter(self._make_tool_call_stream())
+        messages = [ChatAgentMessage(role="user", content="hello")]
+
+        # 試験実施
+        m_context = MagicMock()
+        wrapper = LangGraphChatAgent(m_agent, m_context)
+        chunks = list(wrapper.predict_stream(messages))
+
+        # 観点1: tool_calls チャンクが 1件 yield される
+        assert len(chunks) == 1
+        assert isinstance(chunks[0], ChatAgentChunk)
+        assert chunks[0].delta.tool_calls is not None
+        assert chunks[0].delta.tool_calls[0].function.name == "get_weather"
+        # 観点2: content は None
+        assert chunks[0].delta.content == ""
+
+    @staticmethod
+    def _make_mixed_stream():
+        """updates/messages 混在のストリームデータを返すヘルパー."""
+        tool_msg = ToolMessage(
+            content="tool result", tool_call_id="call-1", name="get_weather", id="tool-1"
+        )
+        ai_chunk = AIMessageChunk(
+            content=[{"type": "text", "text": "streaming text"}], id="chunk-1"
+        )
+        empty_chunk = AIMessageChunk(content=[], id="chunk-2")
+        return [
+            ("updates", {"model": {"messages": [AIMessage(content="agent response")]}}),
+            ("updates", {"tools": {"messages": [tool_msg]}}),
+            ("messages", (ai_chunk, None)),
+            ("messages", (empty_chunk, None)),
+        ]
+
+    @staticmethod
+    def _make_tool_call_stream():
+        """Model ノードが tool_calls を持つ AIMessage を返すストリームデータ."""
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[{"id": "call-1", "name": "get_weather", "args": {"city": "Tokyo"}}],
+            id="ai-1",
+        )
+        return [
+            ("updates", {"model": {"messages": [ai_msg]}}),
         ]

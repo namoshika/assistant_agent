@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi-cli>=0.0.5",
     "langchain-community>=0.4.1",
     "langchain-postgres>=0.0.17",
     "langchain>=1.2.13",
@@ -31,8 +32,8 @@ markers = [
     "integration: 実際の外部システム (PostgreSQL, Gemini API) を必要とするテスト",
 ]
 
-[project.scripts]
-serve = "agent_assistant.agent_server:serve"
+[tool.fastapi]
+entrypoint = "agent_assistant.agent_server:app"
 
 [tool.ruff]
 extend-exclude = ["scripts/*.ipynb", "docs"]

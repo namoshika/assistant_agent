@@ -1,19 +1,23 @@
 import mlflow
-from mlflow.genai.agent_server import AgentServer
+from fastapi import FastAPI
 
-# import することで API を FastAPI へ登録
-import agent_assistant.agent  # noqa: F401
+from agent_assistant.agent import agent_wrapped
+from agent_assistant.utils.serving import ChatCompletion
 
-agent_server = AgentServer("ResponsesAgent")
-app = agent_server.app
+mlflow.set_experiment("agent-rag")
+mlflow.autolog()
 
-
-def serve():
-    """AgentServer を起動."""
-    mlflow.set_experiment("agent-rag")
-    mlflow.autolog()
-    agent_server.run("agent_assistant.agent_server:app")
+app = FastAPI(title="Agent Assistant")
+endpoint = ChatCompletion.bind(app)
 
 
-if __name__ == "__main__":
-    serve()
+@endpoint.regist(model_id="agent_assistant_v1")
+def _predict(req):
+    """非ストリーミング推論."""
+    return agent_wrapped.predict(req.messages)
+
+
+@endpoint.regist_stream(model_id="agent_assistant_v1")
+def _predict_stream(req):
+    """ストリーミング推論."""
+    return agent_wrapped.predict_stream(req.messages)

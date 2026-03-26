@@ -4,9 +4,8 @@ import sys
 
 import pytest
 from langchain_core.documents import Document
-from mlflow.pyfunc.model import ResponsesAgent
-from mlflow.types.responses import ResponsesAgentRequest, ResponsesAgentResponse
-from mlflow.types.responses_helpers import Message
+from mlflow.pyfunc.model import ChatAgent
+from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
 from sqlalchemy import Engine
 
@@ -25,8 +24,8 @@ def test_agent_01(
 ) -> None:
     """適切に初期化されたエージェントが mlflow へ登録される.
 
-    観点1: 登録されたエージェントが ResponsesAgent のインスタンスである
-    観点2: predict() が ResponsesAgentResponse を返す
+    観点1: 登録されたエージェントが ChatAgent のインスタンスである
+    観点2: predict() が ChatAgentResponse を返す
     """
     if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
         pytest.fail("AWS 認証情報が未設定")
@@ -44,10 +43,10 @@ def test_agent_01(
     agent_wrapped = mock_set_model.call_args.args[0]
 
     # 観点1
-    assert isinstance(agent_wrapped, ResponsesAgent)
+    assert isinstance(agent_wrapped, ChatAgent)
     result = agent_wrapped.predict(
-        ResponsesAgentRequest(input=[Message(role="user", content="東京の天気は?")])
+        messages=[ChatAgentMessage(role="user", content="東京の天気は?")]
     )
 
     # 観点2
-    assert isinstance(result, ResponsesAgentResponse)
+    assert isinstance(result, ChatAgentResponse)
