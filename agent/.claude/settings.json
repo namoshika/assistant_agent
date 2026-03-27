@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx ruff check src/ tests/ 1>&2 || exit 2"
+            "command": "uvx ruff check --force-exclude 1>&2 || exit 2"
           }
         ]
       }

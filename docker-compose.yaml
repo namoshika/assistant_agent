@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  agent:
+    build: { context: agent }
+    environment:
+      - MLFLOW_TRACKING_URI
+      - CONTEXT7_API_KEY
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+      - OPENAI_API_KEY
+      - ENV_GEMINI_MODEL_ID
+      - ENV_GEMINI_API_KEY
+      - ENV_PG_CONNECTION_STRING
+    volumes:
+      - .:/workspaces/agent_assistant:cached
+    # ports:
+    #   - 8000:8000
+    command: sleep infinity
+
+  chatbot:
+    build: { context: chatbot }
+    volumes:
+      - chatbot_data:/app/backend/data:cached
+    ports:
+      - 8001:8080
+
+volumes:
+  chatbot_data:
