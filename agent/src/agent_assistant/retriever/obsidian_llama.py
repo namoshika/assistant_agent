@@ -45,7 +45,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         self._sa_engine = sa_engine
         self._vault_entity = vault_entity
         self._embed_model = GoogleGenAIEmbedding(
-            model="gemini-embedding-2-preview",
+            model="gemini-embedding-001",
             api_key=emb_api_key.get_secret_value(),
         )
 
