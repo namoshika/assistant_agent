@@ -1,5 +1,3 @@
-import datetime
-import hashlib
 import uuid
 from pathlib import Path
 
@@ -39,23 +37,15 @@ class VaultLoader(BaseLoader):
         vault = Vault(self._vault_path)
         for doc in docs:
             rel_path = str(Path(doc.metadata["path"]).relative_to(self._vault_path))
-            full_body = Path(doc.metadata["path"]).read_text()
             doc.id = path_to_document_id(rel_path)
             # ObsidianLoader が None を "None" 文字列に変換するため元に戻す
             doc.metadata = {k: (None if v == "None" else v) for k, v in doc.metadata.items()}
             doc.metadata |= {
-                "document_id": doc.id,
                 "path": rel_path,
-                "hash": hashlib.sha256(full_body.encode()).hexdigest(),
-                "created": datetime.datetime.fromtimestamp(doc.metadata["created"]).isoformat(),
-                "last_modified": datetime.datetime.fromtimestamp(
-                    doc.metadata["last_modified"]
-                ).isoformat(),
-                "last_accessed": datetime.datetime.fromtimestamp(
-                    doc.metadata["last_accessed"]
-                ).isoformat(),
                 "forward_links": self._extract_forward_links(rel_path, vault),
             }
+            for key in ("created", "last_modified", "last_accessed", "source"):
+                doc.metadata.pop(key, None)
         return docs
 
     def _extract_forward_links(self, rel_path: str, vault: Vault) -> list[str]:
@@ -87,7 +77,6 @@ class PgVault:
                 "document_id": doc.id,
                 "document_metadata": doc.metadata,
                 "content": doc.page_content,
-                "hash": doc.metadata["hash"],
                 "path": doc.metadata["path"],
             }
             for doc in documents

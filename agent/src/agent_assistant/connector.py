@@ -26,8 +26,9 @@ def get_llm() -> BaseChatModel:
     # from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
 
     # llm = ChatGoogleGenerativeAI(
-    #     model=os.environ.get("ENV_GEMINI_MODEL_ID", "gemini-3.1-pro-preview"),
+    #     model=os.environ.get("ENV_GEMINI_MODEL_ID", "gemini-3-flash-preview"),
     #     api_key=os.environ.get("ENV_GEMINI_API_KEY"),
+    #     thinking_level="minimal",
     # )
 
     # LLM 作成

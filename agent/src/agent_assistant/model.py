@@ -7,7 +7,6 @@ class ObsidianVaultEntity:
     document_id: Mapped[str] = mapped_column(String, primary_key=True)
     document_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
-    hash: Mapped[str] = mapped_column(String, nullable=False)
     path: Mapped[str] = mapped_column(String, nullable=False, unique=True)
 
 

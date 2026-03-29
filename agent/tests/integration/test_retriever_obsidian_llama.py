@@ -1,5 +1,3 @@
-import hashlib
-
 import pytest
 from langchain_core.documents import Document
 from sqlalchemy import Engine
@@ -151,11 +149,10 @@ def test_sync_chunks_01(
 
     # --- ステップ2: 更新 ---
     new_content = target_doc.page_content + " 更新版"
-    new_hash = hashlib.sha256(new_content.encode()).hexdigest()
     updated_target = Document(
         id=target_doc.id,
         page_content=new_content,
-        metadata={**target_doc.metadata, "hash": new_hash},
+        metadata=target_doc.metadata,
     )
     PgVault.sync([noise_doc, updated_target], sa_engine, raw_entity)
     obsidian_retriever.sync_chunks()
