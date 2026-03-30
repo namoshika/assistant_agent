@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import SecretStr
 from pytest_mock import MockerFixture
 
 from agent_assistant.loader.obsidian import path_to_document_id
@@ -15,19 +14,18 @@ _DOC_ID_B = path_to_document_id("b.md")
 def retriever(mocker: MockerFixture) -> ObsidianLlamaRetriever:
     """ObsidianLlamaRetriever のテスト用インスタンス.
 
-    LlamaIndex の外部依存 (GoogleGenAIEmbedding, PGVectorStore,
-    PostgresDocumentStore, IngestionPipeline) をモック化する。
+    LlamaIndex の外部依存 (PGVectorStore, PostgresDocumentStore, IngestionPipeline) をモック化する。
     """
-    mocker.patch("agent_assistant.retriever.obsidian_llama.GoogleGenAIEmbedding")
     mocker.patch("agent_assistant.retriever.obsidian_llama.PGVectorStore")
     mocker.patch("agent_assistant.retriever.obsidian_llama.PostgresDocumentStore")
     mocker.patch("agent_assistant.retriever.obsidian_llama.IngestionPipeline")
     return ObsidianLlamaRetriever(
         sa_engine=MagicMock(),
         connection_string="postgresql://test",
-        emb_api_key=SecretStr("test_key"),
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
+        embed_model=MagicMock(),
+        embed_dim=128,
     )
 
 

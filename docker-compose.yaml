@@ -13,6 +13,8 @@ services:
       - ENV_GEMINI_API_KEY
       - DEV_PG_CONNECTION_STRING
       - PRD_PG_CONNECTION_STRING
+      - DEV_ADMIN_PG_CONNECTION_STRING
+      - PRD_ADMIN_PG_CONNECTION_STRING      
     volumes:
       - .:/workspaces/agent_assistant:cached
     # ports:

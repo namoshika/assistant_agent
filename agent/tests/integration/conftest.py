@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from langchain_core.documents import Document
-from pydantic import SecretStr
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy import Engine, MetaData, create_engine, text
 from sqlalchemy.orm import DeclarativeBase
 
@@ -73,9 +73,12 @@ def obsidian_retriever(
     retriever = ObsidianLlamaRetriever(
         sa_engine=sa_engine,
         connection_string=conn_str,
-        emb_api_key=SecretStr(env_gemini_api_key),
         docstore_name=f"{vault_name}_docstore",
         vectorstore_name=f"{vault_name}_vectors",
+        embed_model=GoogleGenAIEmbedding(
+            model="gemini-embedding-001",
+            api_key=env_gemini_api_key,
+        ),
         vault_entity=raw_entity,  # pyright: ignore[reportArgumentType]
     )
     yield retriever

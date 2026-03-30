@@ -3,12 +3,11 @@ from typing import Sequence
 from langchain_core.documents import Document
 from llama_index.core import Document as LlamaDocument
 from llama_index.core import VectorStoreIndex
+from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.storage.docstore.postgres import PostgresDocumentStore
 from llama_index.vector_stores.postgres import PGVectorStore
-from pydantic import SecretStr
 from sqlalchemy import Engine, cast, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine.url import make_url
@@ -33,9 +32,10 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         self,
         sa_engine: Engine,
         connection_string: str,
-        emb_api_key: SecretStr,
         docstore_name: str,
         vectorstore_name: str,
+        embed_model: BaseEmbedding,
+        embed_dim: int = 3072,
         schema_name: str = "app",
         chunk_size: int = 1024,
         chunk_overlap: int = 200,
@@ -44,10 +44,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         """Construct ObsidianLlamaRetriever."""
         self._sa_engine = sa_engine
         self._vault_entity = vault_entity
-        self._embed_model = GoogleGenAIEmbedding(
-            model="gemini-embedding-001",
-            api_key=emb_api_key.get_secret_value(),
-        )
+        self._embed_model = embed_model
 
         # Chunking ロジック設定
         url = make_url(connection_string)
@@ -58,7 +55,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
             user=url.username,
             password=str(url.password or ""),
             table_name=vectorstore_name,
-            embed_dim=3072,
+            embed_dim=embed_dim,
             schema_name=schema_name,
             use_jsonb=True,
         )
