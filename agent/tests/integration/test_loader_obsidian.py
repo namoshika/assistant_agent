@@ -19,17 +19,14 @@ def pg_vault_tables(
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
 
     class _TestBase(DeclarativeBase):
-        metadata = MetaData("public")
+        metadata = MetaData("assets")
 
     class _TestRawEntity(_TestBase, ObsidianVaultEntity):
         __tablename__ = f"{vault_name}_raw"
 
     _TestBase.metadata.create_all(sa_engine)
     yield sa_engine, _TestRawEntity
-
-    with sa_engine.connect() as conn:
-        conn.execute(text(f"DROP TABLE IF EXISTS {vault_name}_raw CASCADE"))
-        conn.commit()
+    _TestBase.metadata.drop_all(sa_engine)
 
 
 class TestVaultLoader:

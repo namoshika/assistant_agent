@@ -11,7 +11,8 @@ services:
       - OPENAI_API_KEY
       - ENV_GEMINI_MODEL_ID
       - ENV_GEMINI_API_KEY
-      - ENV_PG_CONNECTION_STRING
+      - DEV_PG_CONNECTION_STRING
+      - PRD_PG_CONNECTION_STRING
     volumes:
       - .:/workspaces/agent_assistant:cached
     # ports:

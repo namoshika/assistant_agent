@@ -18,7 +18,7 @@ def test_build_session_01(mocker: MockerFixture):
         os.environ,
         {
             "ENV_GEMINI_API_KEY": "dummy-key",
-            "ENV_PG_CONNECTION_STRING": "postgresql://localhost/test",
+            "DEV_PG_CONNECTION_STRING": "postgresql://localhost/test",
         },
     )
     mocker.patch("sqlalchemy.create_engine", return_value=MagicMock())

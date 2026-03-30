@@ -36,7 +36,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         emb_api_key: SecretStr,
         docstore_name: str,
         vectorstore_name: str,
-        schema_name: str = "public",
+        schema_name: str = "app",
         chunk_size: int = 1024,
         chunk_overlap: int = 200,
         vault_entity: type[ObsidianVaultRawEntity] = ObsidianVaultRawEntity,

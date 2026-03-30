@@ -25,7 +25,7 @@ def build_session() -> ContextSchema:
     """
     env_vault_name = os.getenv("ENV_VAULT_NAME", "obsidian_vault")
     env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
-    pg_connection_string = os.getenv("ENV_PG_CONNECTION_STRING")
+    pg_connection_string = os.getenv("DEV_PG_CONNECTION_STRING")
     assert env_gemini_api_key is not None
     assert pg_connection_string is not None
     env_gemini_api_key = SecretStr(env_gemini_api_key)

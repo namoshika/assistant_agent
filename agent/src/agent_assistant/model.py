@@ -11,7 +11,7 @@ class ObsidianVaultEntity:
 
 
 class ObsidianVaultBase(DeclarativeBase):
-    metadata = MetaData("public")
+    metadata = MetaData("assets")
     pass
 
 
