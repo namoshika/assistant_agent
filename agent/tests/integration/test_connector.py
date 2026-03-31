@@ -87,7 +87,8 @@ def test_obsidian_vault_search_01(
     """obsidian_vault_search() を呼び出した時、 クエリと意味的に近いドキュメントを返せる.
 
     観点1: sync 後に search が例外なく完了し、ToolMessage として返る
-    観点2: ToolMessage.content が非空文字列で、artifact の各 Document が path メタデータを持つ
+    観点2: ToolMessage.content が document_id の一覧を含む文字列で、
+        artifact の各 Document が path メタデータを持つ
     """
     raw_entity = vault_entities
     PgVault.sync(vault_docs, sa_engine, raw_entity)
@@ -115,6 +116,7 @@ def test_obsidian_vault_search_01(
     assert len(tool_msg.artifact) >= 1
     # 観点2
     assert len(tool_msg.content) > 0
+    assert vault_docs[0].metadata["document_id"] in tool_msg.content
     for doc in tool_msg.artifact:
         assert "path" in doc.metadata
 

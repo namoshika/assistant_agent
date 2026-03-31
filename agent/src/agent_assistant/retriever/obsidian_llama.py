@@ -1,5 +1,6 @@
 from typing import Sequence
 
+import mlflow
 from langchain_core.documents import Document
 from llama_index.core import Document as LlamaDocument
 from llama_index.core import VectorStoreIndex
@@ -87,6 +88,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         )
         self._index: VectorStoreIndex | None = None
 
+    @mlflow.trace(span_type="RETRIEVER")
     def search_documents(self, query: str, top_k: int) -> list[Document]:
         """チャンク類似検索 → document_id 重複除去 → raw から全文取得."""
         if self._index is None:
@@ -110,6 +112,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         }
         return [id_to_doc[doc_id] for doc_id in sorted_ids if doc_id in id_to_doc]
 
+    @mlflow.trace(span_type="RETRIEVER")
     def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
         """document_id の完全一致する Document を取得する."""
         with Session(self._sa_engine) as session:

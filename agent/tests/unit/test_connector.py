@@ -70,7 +70,7 @@ def test_obsidian_vault_search_01():
 
     観点1: search_documents() が正しいクエリと top_k=5 で呼ばれる
     観点2:
-        結果が ToolMessage として返り、content に path と page_content が含まれ、
+        結果が ToolMessage として返り、content に document_id が含まれ、
         artifact が search_documents() の返り値と一致する
     """
     docs = [
@@ -101,11 +101,11 @@ def test_obsidian_vault_search_01():
     )
 
     # 観点1
-    m_store.search_documents.assert_called_once_with("アイデア", top_k=5)
+    m_store.search_documents.assert_called_once_with("アイデア", top_k=10)
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert "title: idea.md" in tool_msg.content
-    assert "ノート本文" in tool_msg.content
+    assert "doc-id-1" in tool_msg.content
+    assert "ノート本文" not in tool_msg.content
     assert tool_msg.artifact is docs
 
 
@@ -177,3 +177,36 @@ def test_format_documents_01():
 
     # 結果検証
     assert isinstance(result, str)
+
+
+def test_format_document_ids_01():
+    """Document リストから document_id と path の一覧文字列を返す.
+
+    観点1: 戻り値が文字列である
+    観点2: document_id と path が含まれ、page_content は含まれない
+    """
+    # 試験準備
+    docs = [
+        Document(
+            id="doc-id-1",
+            page_content="ノート本文",
+            metadata={"path": "notes/idea.md", "document_id": "doc-id-1"},
+        ),
+        Document(
+            id="doc-id-2",
+            page_content="別のノート",
+            metadata={"path": "folder/meeting.md", "document_id": "doc-id-2"},
+        ),
+    ]
+
+    # 試験実施
+    result = connector.format_document_ids(docs)
+
+    # 結果検証
+    # 観点1
+    assert isinstance(result, str)
+    # 観点2
+    assert "doc-id-1" in result
+    assert "doc-id-2" in result
+    assert "ノート本文" not in result
+    assert "別のノート" not in result

@@ -54,26 +54,54 @@ def get_weather(city: str) -> str:
     return f"It's always sunny in {city}!"
 
 
-@tool(response_format="content_and_artifact")
+@tool(
+    description=(
+        """Obsidian vault を検索し、類似度の高いノートの document_id 一覧を返す.
+
+        レスポンスには metadata が含まれ、以下の情報を保持する (他項目は無効)
+        ```yaml
+        document_id: (ドキュメント識別子)
+        metadata:
+            date: (ドキュメント作成日)
+            path: (ドキュメントパス)
+            tags: (カテゴリタグ)
+        ```
+        """
+    ),
+    response_format="content_and_artifact",
+)
 def obsidian_vault_search(
-    search_query: Annotated[str, "検索クエリ"],
+    search_query: Annotated[str, "検索ワード (条件式などは非対応)"],
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, list[Document]]:
-    """Obsidian vault を検索し、マッチしたノートの原文を返す."""
+    """Obsidian vault を検索し、類似度の高いノートの document_id と path の一覧を返す."""
     obsidian_store = runtime.context.obsidian_store
-    results = obsidian_store.search_documents(search_query, top_k=5)
-    return format_documents(results, obsidian_store), results
+    results = obsidian_store.search_documents(search_query, top_k=10)
+    return format_document_ids(results), results
 
 
-@tool(response_format="content_and_artifact")
+@tool(
+    description="document_id で指定した Obsidian ノートの原文を返す",
+    response_format="content_and_artifact",
+)
 def obsidian_vault_get(
-    document_ids: Annotated[list[str], "取得するノートの document_id のリスト"],
+    document_ids: Annotated[list[str], "取得するノートの document_id のリスト (要素数無制限)"],
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, Sequence[Document]]:
     """document_id で指定した Obsidian ノートの原文を返す."""
     obsidian_store = runtime.context.obsidian_store
     results = obsidian_store.get_documents_by_ids(document_ids)
     return format_documents(results, obsidian_store), results
+
+
+def format_document_ids(documents: Sequence[Document]) -> str:
+    """Document リストから document_id と path の一覧文字列を返す."""
+    lines = [f"Search results ({len(documents)} documents found):"]
+    for doc in documents:
+        doc_id = doc.metadata["document_id"]
+        lines.append(f"- {{document_id: {doc_id}}}")
+    lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
+    return "\n".join(lines)
 
 
 def format_documents(documents: Sequence[Document], obsidian_store: ObsidianLlamaRetriever) -> str:
