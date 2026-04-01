@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from pytest_mock import MockerFixture
 
 from agent_assistant.loader.obsidian import path_to_document_id
@@ -80,6 +81,36 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     # 観点4: DB が逆順 (b→a) でも初出順 (a→b) で返る
     assert docs[0].page_content == "content_a"
     assert docs[1].page_content == "content_b"
+
+
+def test_search_documents_03(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+    """Filters 指定時に as_retriever に filters が渡される.
+
+    観点1: as_retriever が filters 付きで呼ばれる
+    """
+    # 試験準備
+    filters = MetadataFilters(
+        filters=[
+            MetadataFilter(key="date", value="2025-01-01 00:00:00", operator=FilterOperator.GTE)
+        ]
+    )
+
+    m_llama_retriever = MagicMock()
+    m_llama_retriever.retrieve.return_value = []
+
+    m_index = MagicMock()
+    m_index.as_retriever.return_value = m_llama_retriever
+    mocker.patch(
+        "agent_assistant.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        return_value=m_index,
+    )
+
+    # 試験実施
+    retriever.search_documents("テスト", top_k=5, filters=filters)
+
+    # 結果検証
+    # 観点1
+    m_index.as_retriever.assert_called_once_with(similarity_top_k=5, filters=filters)
 
 
 def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):

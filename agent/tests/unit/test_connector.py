@@ -5,6 +5,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
 from agent_assistant import connector
 from agent_assistant.context import ContextSchema
@@ -68,7 +69,7 @@ def test_get_weather_01():
 def test_obsidian_vault_search_01():
     """Obsidian vault をベクトル検索し、ToolMessage として結果を返す.
 
-    観点1: search_documents() が正しいクエリと top_k=5 で呼ばれる
+    観点1: full_fetch=False のとき search_documents() が top_k=10 で呼ばれる
     観点2:
         結果が ToolMessage として返り、content に document_id が含まれ、
         artifact が search_documents() の返り値と一致する
@@ -88,7 +89,7 @@ def test_obsidian_vault_search_01():
         tool_calls=[
             {
                 "name": "obsidian_vault_search",
-                "args": {"search_query": "アイデア"},
+                "args": {"search_query": "アイデア", "filters": None, "full_fetch": False},
                 "id": "1",
                 "type": "tool_call",
             }
@@ -101,12 +102,99 @@ def test_obsidian_vault_search_01():
     )
 
     # 観点1
-    m_store.search_documents.assert_called_once_with("アイデア", top_k=10)
+    m_store.search_documents.assert_called_once_with("アイデア", top_k=10, filters=None)
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert "doc-id-1" in tool_msg.content
     assert "ノート本文" not in tool_msg.content
     assert tool_msg.artifact is docs
+
+
+def test_obsidian_vault_search_02():
+    """Obsidian vault をベクトル検索し、ToolMessage として結果を返せるか確認 (full_fetch=True).
+
+    観点1: full_fetch=True のとき search_documents() が top_k=9999 で呼ばれる
+    """
+    # 試験準備
+    m_store = MagicMock()
+    m_store.search_documents.return_value = []
+
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "obsidian_vault_search",
+                "args": {"search_query": "アイデア", "filters": None, "full_fetch": True},
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
+
+    # 試験実施
+    agent.invoke(
+        {"messages": [HumanMessage(content="全件取得して")]},
+        context=ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+    )
+
+    # 結果検証
+    # 観点1
+    m_store.search_documents.assert_called_once_with("アイデア", top_k=9999, filters=None)
+
+
+def test_obsidian_vault_search_03():
+    """Obsidian vault をベクトル検索し、ToolMessage として結果を返せるか確認 (filters 有り).
+
+    観点1: search_documents が filters 付きで呼ばれる
+    """
+    # 試験準備
+    filters = MetadataFilters(
+        filters=[
+            MetadataFilter(key="date", value="2025-01-01 00:00:00", operator=FilterOperator.GTE)
+        ]
+    )
+    docs = [
+        Document(
+            id="doc-id-1",
+            page_content="ノート本文",
+            metadata={"path": "notes/idea.md", "document_id": "doc-id-1"},
+        )
+    ]
+    m_store = MagicMock()
+    m_store.search_documents.return_value = docs
+
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "obsidian_vault_search",
+                "args": {
+                    "search_query": "アイデア",
+                    "filters": {
+                        "filters": [
+                            {"key": "date", "value": "2025-01-01 00:00:00", "operator": ">="}
+                        ]
+                    },
+                    "full_fetch": False,
+                },
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
+    agent.invoke(
+        {"messages": [HumanMessage(content="アイデアを検索して")]},
+        context=ContextSchema(obsidian_store=m_store),
+    )
+
+    # 結果検証
+    # 観点1
+    call_kwargs = m_store.search_documents.call_args
+    assert call_kwargs.args == ("アイデア",)
+    assert call_kwargs.kwargs["top_k"] == 10
+    assert call_kwargs.kwargs["filters"] == filters
 
 
 def test_obsidian_vault_get_01():

@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Optional, Sequence
 
 import mlflow
 from langchain_core.documents import Document
@@ -7,6 +7,7 @@ from llama_index.core import VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.vector_stores.types import MetadataFilters
 from llama_index.storage.docstore.postgres import PostgresDocumentStore
 from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import Engine, cast, select
@@ -87,11 +88,12 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         self._index: VectorStoreIndex | None = None
 
     @mlflow.trace(span_type="RETRIEVER")
-    def search_documents(self, query: str, top_k: int) -> list[Document]:
+    def search_documents(self, query: str, top_k: int, **kwargs: Any) -> list[Document]:
         """チャンク類似検索 → document_id 重複除去 → raw から全文取得."""
+        filters: Optional[MetadataFilters] = kwargs.get("filters")
         if self._index is None:
             self._index = VectorStoreIndex.from_vector_store(self._vector_store, self._embed_model)
-        retriever = self._index.as_retriever(similarity_top_k=top_k)
+        retriever = self._index.as_retriever(similarity_top_k=top_k, filters=filters)
         nodes = retriever.retrieve(query)
         sorted_ids = list(dict.fromkeys(n.node.ref_doc_id for n in nodes))
 

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStore
@@ -99,12 +99,14 @@ class DocumentRetriever(abc.ABC):
     """Document 検索とチャンク同期を行うクラス."""
 
     @abc.abstractmethod
-    def search_documents(self, query: str, top_k: int) -> list[Document]:
+    def search_documents(self, query: str, top_k: int, **kwargs: Any) -> list[Document]:
         """クエリに基づき、関連するドキュメントを検索する.
 
         Args:
             query: 検索クエリ文字列。
             top_k: 取得するドキュメントの最大数。
+            **kwargs: 実装クラス固有のオプション引数。
+                ObsidianLlamaRetriever では filters (MetadataFilters) を受け付ける。
 
         Returns:
             検索結果の Document リスト。

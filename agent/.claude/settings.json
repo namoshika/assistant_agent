@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx ruff check --fix && uvx ruff format"
+            "command": "uvx ruff format && uvx ruff format"
           }
         ]
       }

@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 from sqlalchemy import Engine
 
 from agent_assistant import connector
@@ -99,7 +100,11 @@ def test_obsidian_vault_search_01(
         tool_calls=[
             {
                 "name": "obsidian_vault_search",
-                "args": {"search_query": vault_docs[0].page_content[:20]},
+                "args": {
+                    "search_query": vault_docs[0].page_content[:20],
+                    "filters": None,
+                    "full_fetch": False,
+                },
                 "id": "1",
                 "type": "tool_call",
             }
@@ -119,6 +124,71 @@ def test_obsidian_vault_search_01(
     assert vault_docs[0].metadata["document_id"] in tool_msg.content
     for doc in tool_msg.artifact:
         assert "path" in doc.metadata
+
+
+@pytest.mark.integration
+def test_obsidian_vault_search_02() -> None:
+    """実際の LLM から obsidian_vault_search をフィルタなしで呼び出せるか確認.
+
+    観点1: LLM が search_query のみで tool call を生成し
+        search_documents が filters=None で呼ばれる
+    """
+    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        pytest.fail("AWS 認証情報が未設定")
+
+    # 試験準備
+    docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    m_store = MagicMock()
+    m_store.search_documents.return_value = docs
+    ctx = context.build_session()
+    agent = create_agent(
+        model=ctx.llm, tools=[connector.obsidian_vault_search], context_schema=context.ContextSchema
+    )
+
+    # 試験実施
+    result = agent.invoke(
+        {"messages": [HumanMessage(content="エージェントについてのノートを検索して")]},
+        context=context.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+    )
+
+    # 結果検証
+    tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+    assert isinstance(tool_msg.artifact, list)
+    assert m_store.search_documents.call_args.kwargs.get("filters") is None
+
+
+@pytest.mark.integration
+def test_obsidian_vault_search_03() -> None:
+    """実際の LLM から obsidian_vault_search をフィルタありで呼び出せるか確認.
+
+    観点1: LLM が MetadataFilters を含む tool call を生成し
+        search_documents が filters 付きで呼ばれる
+    """
+    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        pytest.fail("AWS 認証情報が未設定")
+
+    # 試験準備
+    docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    m_store = MagicMock()
+    m_store.search_documents.return_value = docs
+    ctx = context.build_session()
+    agent = create_agent(
+        model=ctx.llm, tools=[connector.obsidian_vault_search], context_schema=context.ContextSchema
+    )
+
+    # 試験実施
+    result = agent.invoke(
+        {"messages": [HumanMessage(content="2026年1月以降のノートを検索して")]},
+        context=context.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+    )
+
+    # 結果検証
+    tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+    assert isinstance(tool_msg.artifact, list)
+    filters = m_store.search_documents.call_args.kwargs.get("filters")
+    assert filters is not None
+    assert isinstance(filters, MetadataFilters)
+    assert any(isinstance(f, MetadataFilter) and f.key == "date" for f in filters.filters)
 
 
 @pytest.mark.integration

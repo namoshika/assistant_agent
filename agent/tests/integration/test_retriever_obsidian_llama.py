@@ -1,5 +1,6 @@
 import pytest
 from langchain_core.documents import Document
+from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from sqlalchemy import Engine
 
 from agent_assistant.loader.obsidian import PgVault, path_to_document_id
@@ -37,6 +38,25 @@ def test_search_documents_01(
     assert matched is not None
     assert matched.page_content == doc.page_content
     assert matched.metadata == doc.metadata
+
+    # 観点2 ケース1: date フィルタ
+    date_filter = MetadataFilters(
+        filters=[
+            MetadataFilter(key="date", value="2026-01-01 00:00:00", operator=FilterOperator.GTE)
+        ]
+    )
+    results_date = obsidian_retriever.search_documents(
+        doc.page_content[:30], top_k=10, filters=date_filter
+    )
+    assert all(r.metadata["date"] >= "2026-01-01 00:00:00" for r in results_date)
+
+    # 観点2 ケース2: path フィルタ
+    path_filter = MetadataFilters(
+        filters=[MetadataFilter(key="path", value="01_Inbox", operator=FilterOperator.TEXT_MATCH)]
+    )
+    results_path = obsidian_retriever.search_documents("project", top_k=10, filters=path_filter)
+    assert len(results_path) >= 1
+    assert all("01_Inbox" in r.metadata["path"] for r in results_path)
 
 
 @pytest.mark.integration
