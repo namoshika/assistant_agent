@@ -4,23 +4,20 @@ from fastapi.testclient import TestClient
 from agent_assistant.agent_server import app
 
 
-@pytest.fixture
-def _client():
-    """本番 app を使った TestClient を返すフィクスチャ."""
-    return TestClient(app)
-
-
 @pytest.mark.integration
-def test_chat_completions_01(_client):
-    """ChatCompletion エンドポイント エンドツーエンドテスト.
+def test_chat_completions_01():
+    """クライアントからのリクエストを正しく応答できるか確認.
 
     観点1: GET /v1/models でモデル一覧が返ること (model_id が含まれる)
     観点2: POST /v1/chat/completions (非ストリーム) でエージェントが呼び出されレスポンスが返ること
     観点3: POST /v1/chat/completions (stream=True) でエージェント関数が呼び出され、SSE が返ること
     """
+    # 試験準備
+    client = TestClient(app)
+
     # 観点1: モデル一覧
     # 試験実施
-    models_resp = _client.get("/v1/models")
+    models_resp = client.get("/v1/models")
 
     # 結果検証 (観点1)
     assert models_resp.status_code == 200
@@ -29,7 +26,7 @@ def test_chat_completions_01(_client):
 
     # 観点2: 非ストリーミング
     # 試験実施
-    resp = _client.post(
+    resp = client.post(
         "/v1/chat/completions",
         json={
             "model": "agent_assistant_v1",
@@ -47,7 +44,7 @@ def test_chat_completions_01(_client):
 
     # 観点3: ストリーミング
     # 試験実施
-    stream_resp = _client.post(
+    stream_resp = client.post(
         "/v1/chat/completions",
         json={
             "model": "agent_assistant_v1",

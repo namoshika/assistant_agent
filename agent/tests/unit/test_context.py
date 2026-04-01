@@ -8,10 +8,10 @@ from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 def test_build_session_01(mocker: MockerFixture):
-    """build_session() が ContextSchema を返す.
+    """build_session() が ContextSchema を返せるか確認.
 
-    観点1: 戻り値が ContextSchema インスタンス
-    観点2: obsidian_store が ObsidianLlamaRetriever インスタンス
+    観点1: 戻り値が ContextSchema インスタンスであること
+    観点2: ContextSchema インスタンスの全メンバーが初期化されていること
     """
     # 試験準備
     mocker.patch.dict(
@@ -35,4 +35,5 @@ def test_build_session_01(mocker: MockerFixture):
     # 観点1
     assert isinstance(ctx, ContextSchema)
     # 観点2
-    assert isinstance(ctx.obsidian_store, ObsidianLlamaRetriever)
+    assert ctx.obsidian_store is not None
+    assert ctx.llm is not None

@@ -32,7 +32,7 @@ def pg_vault_tables(
 class TestVaultLoader:
     @pytest.mark.integration
     def test_load_01(self):
-        """load() を呼び出した時、 Vault ディレクトリ内のドキュメントを Document リストで返せる.
+        """load() を呼び出した時、 Vault ディレクトリ内のドキュメントをリストで返せるか確認.
 
         観点1: 結果が空でない
         観点2: どの doc も path が絶対パスでなく、空でない

@@ -118,7 +118,7 @@ class LangGraphChatAgent(ChatAgent):
     ) -> ChatAgentResponse:
         """エージェントの推論結果を返す."""
         req = {"messages": self._convert_messages_to_dict(messages)}
-        res = self.agent.invoke(req, context=self._context)
+        res = self.agent.invoke(req, {"recursion_limit": 100}, context=self._context)
         assistant_msgs = []
         for item in res["messages"]:
             if isinstance(item, AIMessage):
@@ -145,6 +145,7 @@ class LangGraphChatAgent(ChatAgent):
         request = {"messages": self._convert_messages_to_dict(messages)}
         for mode, chunk in self.agent.stream(
             request,
+            {"recursion_limit": 100},
             # 暫定対処 (ADR-009):
             # "messages" を含めると StreamMessagesHandler が登録され on_llm_new_token に
             # content_blocks (list[dict]) が渡ってOTel警告が発生する。

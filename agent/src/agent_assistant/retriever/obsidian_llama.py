@@ -1,4 +1,4 @@
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 
 import mlflow
 from langchain_core.documents import Document
@@ -85,32 +85,24 @@ class ObsidianLlamaRetriever(DocumentRetriever):
             vector_store=self._vector_store,
             docstore_strategy=DocstoreStrategy.UPSERTS_AND_DELETE,
         )
-        self._index: VectorStoreIndex | None = None
 
     @mlflow.trace(span_type="RETRIEVER")
-    def search_documents(self, query: str, top_k: int, **kwargs: Any) -> list[Document]:
+    def search_documents(self, query: str, top_k: int, **kwargs: Any) -> Sequence[Document]:
         """チャンク類似検索 → document_id 重複除去 → raw から全文取得."""
-        filters: Optional[MetadataFilters] = kwargs.get("filters")
-        if self._index is None:
-            self._index = VectorStoreIndex.from_vector_store(self._vector_store, self._embed_model)
-        retriever = self._index.as_retriever(similarity_top_k=top_k, filters=filters)
+        filters: MetadataFilters | None = kwargs.get("filters")
+
+        # チャンク類似検索
+        index = VectorStoreIndex.from_vector_store(self._vector_store, self._embed_model)
+        retriever = index.as_retriever(similarity_top_k=top_k, filters=filters)
         nodes = retriever.retrieve(query)
-        sorted_ids = list(dict.fromkeys(n.node.ref_doc_id for n in nodes))
 
-        with Session(self._sa_engine) as session:
-            rows = session.scalars(
-                select(self._vault_entity).where(self._vault_entity.document_id.in_(sorted_ids))
-            ).all()
+        # document_id 重複除去
+        sorted_ids = list(
+            dict.fromkeys(n.node.ref_doc_id for n in nodes if n.node.ref_doc_id is not None)
+        )
 
-        id_to_doc = {
-            row.document_id: Document(
-                page_content=row.content,
-                id=row.document_id,
-                metadata=row.document_metadata,
-            )
-            for row in rows
-        }
-        return [id_to_doc[doc_id] for doc_id in sorted_ids if doc_id in id_to_doc]
+        # raw から全文取得
+        return self.get_documents_by_ids(sorted_ids)
 
     @mlflow.trace(span_type="RETRIEVER")
     def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
@@ -119,14 +111,17 @@ class ObsidianLlamaRetriever(DocumentRetriever):
             rows = session.scalars(
                 select(self._vault_entity).where(self._vault_entity.document_id.in_(document_ids))
             ).all()
-        return [
-            Document(
+
+        # raw から全文取得
+        id_to_doc = {
+            row.document_id: Document(
                 id=row.document_id,
                 page_content=row.content,
                 metadata=row.document_metadata,
             )
             for row in rows
-        ]
+        }
+        return [id_to_doc[doc_id] for doc_id in document_ids if doc_id in id_to_doc]
 
     def get_backlinks(self, document_id: str) -> Sequence[Document]:
         """document_id のノートにリンクしているノートを返す（バックリンク）.
@@ -168,4 +163,3 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         ]
 
         self._pipeline.run(documents=llama_docs)
-        self._index = None  # キャッシュを無効化

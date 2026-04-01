@@ -14,26 +14,25 @@ def test_search_documents_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定したクエリを search_documents() に渡しドキュメントが取得できる.
+    """指定したクエリに類似する Document を取得できるか確認.
 
     前提: PgVault.sync + sync_chunks 済み
 
-    観点1: 1件以上の結果が返る
-    観点2: 返ってきたドキュメントの id・page_content・metadata の全項目が一致する
+    観点1: フィルタなし — 1件以上の結果が返り、id・page_content・metadata が一致する
+    観点2: フィルタあり — 指定条件に合致するDocumentのみ返る
+        ケース1: date >= "2026-01-01 00:00:00" で絞ると 2025 年以前が除外される
+        ケース2: path text_match "01_Inbox" で絞ると該当フォルダのみ返る
     """
     # 試験準備
     raw_entity = vault_entities
-    doc = vault_docs[0]
-    PgVault.sync([doc], sa_engine, raw_entity)
+    PgVault.sync(vault_docs, sa_engine, raw_entity)
     obsidian_retriever.sync_chunks()
+    doc = vault_docs[0]
 
-    # 試験実施
-    results = obsidian_retriever.search_documents(doc.page_content[:30], top_k=3)
-
-    # 結果検証
+    # 試験実施・結果検証
     # 観点1
+    results = obsidian_retriever.search_documents(doc.page_content[:30], top_k=10)
     assert len(results) >= 1
-    # 観点2
     matched = next((r for r in results if r.id == doc.id), None)
     assert matched is not None
     assert matched.page_content == doc.page_content
@@ -66,7 +65,7 @@ def test_get_documents_by_ids_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定した document_id を get_documents_by_ids() へ渡しドキュメントを取得できる.
+    """document_ids に対応する Document を取得できるか確認.
 
     観点1: 既存 id を指定すると id・page_content・metadata の全項目が一致する
     観点2: 存在しない document_id を指定すると空リストが返る
@@ -97,10 +96,10 @@ def test_get_backlinks_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """指定した document_id を get_backlinks() へ渡し、対象ドキュメントへの forward_links を持つドキュメント一覧を取得できる.
+    """指定した document_id を参照する Document 一覧を取得できるか確認.
 
     観点1: リンク元のみ返り、リンク先は含まれない
-    観点2: 返ってきたドキュメントの id・page_content・metadata が登録値と一致する
+    観点2: 返ってきた Document の id・page_content・metadata が登録値と一致する
     観点3: 存在しない document_id を指定すると空リストが返る
     """  # noqa: E501
     # 試験準備
@@ -110,7 +109,7 @@ def test_get_backlinks_01(
         None,
     )
     if doc_a is None:
-        pytest.skip("forward_links を持つドキュメントが vault_docs にない")
+        pytest.skip("forward_links を持つDocumentが vault_docs にない")
     link_tgt_id = doc_a.metadata["forward_links"][0]
     doc_b = next((d for d in vault_docs if d.id == link_tgt_id), None)
     if doc_b is None:
@@ -138,10 +137,10 @@ def test_sync_chunks_01(
     sa_engine: Engine,
     vault_docs: list[Document],
 ):
-    """sync_chunks() を呼び出し、ドキュメントの追加・更新・削除をチャンクに正しく反映できる.
+    """Vault テーブルと Chunk テーブルの同期ができるか確認.
 
-    操作対象外ドキュメント (noise) を含む状態で各操作を実行し、
-    操作したドキュメントのチャンクのみが変化し noise のチャンクが不変であることを確認。
+    操作対象外 Document (noise) を含む状態で各操作を実行し、
+    操作した Document のチャンクのみが変化し noise のチャンクが不変であるか確認。
 
     観点1: 追加後 sync_chunks の後、target と noise が正しい全項目で取得できる
     観点2: 更新後 sync_chunks の後、target が新コンテンツで取得でき、noise は不変

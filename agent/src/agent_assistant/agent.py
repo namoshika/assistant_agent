@@ -6,9 +6,8 @@ from agent_assistant.utils.mlflow import LangGraphChatAgent
 
 AGENT_NAME = "agent"
 ctx = context.build_session()
-agent = graph.build_graph(AGENT_NAME, connector.get_llm(), connector.get_tools())
+agent = graph.build_graph(AGENT_NAME, ctx.llm, connector.get_tools())
 agent_wrapped = LangGraphChatAgent(agent, ctx)  # pyright: ignore[reportArgumentType]
-
 
 # MLflow integration (log model)
 mlflow.models.set_model(agent_wrapped)

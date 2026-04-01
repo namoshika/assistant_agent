@@ -22,10 +22,10 @@ def test_agent_01(
     vault_docs: list[Document],
     vault_name: str,
 ) -> None:
-    """適切に初期化されたエージェントが mlflow へ登録される.
+    """適切に初期化されたエージェントが mlflow へ登録されるか確認.
 
     観点1: 登録されたエージェントが ChatAgent のインスタンスである
-    観点2: predict() が ChatAgentResponse を返す
+    観点2: 登録されたエージェントの predict() が正常動作すること
     """
     if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
         pytest.fail("AWS 認証情報が未設定")
@@ -44,9 +44,9 @@ def test_agent_01(
 
     # 観点1
     assert isinstance(agent_wrapped, ChatAgent)
+
+    # 観点2
     result = agent_wrapped.predict(
         messages=[ChatAgentMessage(role="user", content="東京の天気は?")]
     )
-
-    # 観点2
     assert isinstance(result, ChatAgentResponse)

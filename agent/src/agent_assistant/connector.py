@@ -1,47 +1,14 @@
 import json
-import os
 from os.path import basename
-from typing import Annotated, Optional, Sequence
+from typing import Sequence
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document
-from langchain_core.language_models import BaseChatModel
 from llama_index.core.vector_stores.types import MetadataFilters
-from pydantic import SecretStr
+from pydantic import BaseModel, Field
 
 from agent_assistant.context import ContextSchema
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-
-
-def get_llm() -> BaseChatModel:
-    """エージェントが使用するLLMを返す."""
-    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")  # noqa: F841
-    assert aws_access_key_id is not None
-    assert aws_secret_access_key is not None
-    aws_access_key_id = SecretStr(aws_access_key_id)
-    aws_secret_access_key = SecretStr(aws_secret_access_key)
-
-    # LLM 作成
-    # from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
-
-    # llm = ChatGoogleGenerativeAI(
-    #     model=os.environ.get("ENV_GEMINI_MODEL_ID", "gemini-3-flash-preview"),
-    #     api_key=os.environ.get("ENV_GEMINI_API_KEY"),
-    #     thinking_level="minimal",
-    # )
-
-    # LLM 作成
-    from langchain_aws import ChatBedrockConverse
-
-    llm = ChatBedrockConverse(
-        model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=aws_default_region,
-    )
-    return llm
 
 
 def get_tools():
@@ -147,8 +114,7 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     """Document リストから document_id と path の一覧文字列を返す."""
     lines = [f"Search results ({len(documents)} documents found):"]
     for doc in documents:
-        doc_id = doc.metadata["document_id"]
-        lines.append(f"- {{document_id: {doc_id}}}")
+        lines.append(f"- document_id: {doc.id}")
     lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
     return "\n".join(lines)
 
@@ -174,7 +140,7 @@ def format_documents(documents: Sequence[Document], obsidian_store: ObsidianLlam
             f"title: {basename(meta['path'])}",
             "===\n",
             "```yaml",
-            f"document_id: {meta['document_id']}",
+            f"document_id: {doc.id}",
             f"metadata: {json.dumps(meta_without_links, ensure_ascii=False)}",
         ]
 
@@ -183,7 +149,7 @@ def format_documents(documents: Sequence[Document], obsidian_store: ObsidianLlam
             lines.append("forward_link:")
             for linked in linked_docs:
                 link_name = basename(linked.metadata.get("path", ""))
-                link_id = linked.metadata.get("document_id", "")
+                link_id = linked.id or ""
                 lines.append(f'  "{link_id}": "{link_name}"')
 
         lines.extend(["```\n", doc.page_content])

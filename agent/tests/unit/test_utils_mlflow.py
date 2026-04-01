@@ -12,52 +12,14 @@ from agent_assistant.utils.mlflow import LangGraphChatAgent, LangGraphResponsesA
 
 
 class TestLangGraphResponsesAgent:
-    def test_predict_stream(self):
-        """predict_stream() の動作を検証する.
-
-        観点1: Message インスタンスのリストを格納した ResponsesAgentRequest が
-               エージェントに変換されて渡される
-        観点2: updates/messages 混在出力が ResponsesAgentStreamEvent として yield される
-               - updates モード: AIMessage → response.output_item.done
-               - messages モード: AIMessageChunk → response.output_text.delta
-        """
-        # 試験準備
-        m_agent = MagicMock()
-        m_agent.stream.return_value = iter(self._make_mixed_stream())
-        request = ResponsesAgentRequest(input=[Message(role="user", content="hello")])
-
-        # 試験実施
-        m_context = MagicMock()
-        wrapper = LangGraphResponsesAgent(m_agent, m_context)
-        events = list(wrapper.predict_stream(request))
-
-        # 観点1: 入力がエージェントに正しく渡される
-        m_agent.stream.assert_called_once_with(
-            {"messages": [{"role": "user", "content": "hello"}]},
-            {"recursion_limit": 100},
-            context=m_context,
-            stream_mode=["updates"],
-            # 暫定対処
-            # stream_mode=["updates", "messages"],
-        )
-        # 観点2: 出力が ResponsesAgentStreamEvent に変換される
-        assert all(isinstance(e, ResponsesAgentStreamEvent) for e in events)
-        done_events = [e for e in events if e.type == "response.output_item.done"]
-        delta_events = [e for e in events if e.type == "response.output_text.delta"]
-        assert len(done_events) == 1
-        assert len(delta_events) == 1
-        assert (
-            delta_events[0].delta  # pyright: ignore[reportAttributeAccessIssue]
-            == "streaming text"
-        )
-
     def test_predict(self):
-        """predict() の動作を検証する.
+        """推論 (同期) を正しく呼び出せるか確認.
 
-        観点2: updates/messages 混在出力のうち、updates モードの done イベントのみが
-               output に収集される
-               - updates モード → response.output_item.done → output に収集される
-               - messages モード → response.output_text.delta → output に含まれない
+        観点2:
+            updates/messages 混在出力のうち、updates モードの done イベントのみが
+            output に収集される
+            - updates モード → response.output_item.done → output に収集される
+            - messages モード → response.output_text.delta → output に含まれない
         """
         # 試験準備
         m_agent = MagicMock()
@@ -74,13 +36,53 @@ class TestLangGraphResponsesAgent:
             {"messages": [{"role": "user", "content": "hello"}]},
             {"recursion_limit": 100},
             context=m_context,
-            stream_mode=["updates"],
             # 暫定対処
             # stream_mode=["updates", "messages"],
+            stream_mode=["updates"],
         )
         # 観点2: 出力が ResponsesAgentStreamEvent に変換される
         assert len(result.output) == 1
         assert result.output[0].type == "message"
+
+    def test_predict_stream(self):
+        """推論 (ストリーム) を正しく呼び出せるか確認.
+
+        観点1:
+            Message インスタンスのリストを格納した ResponsesAgentRequest が
+            エージェントに変換されて渡される
+        観点2: updates/messages 混在出力が ResponsesAgentStreamEvent として yield される
+            - updates モード: AIMessage → response.output_item.done
+            - messages モード: AIMessageChunk → response.output_text.delta
+        """
+        # 試験準備
+        m_agent = MagicMock()
+        m_agent.stream.return_value = iter(self._make_mixed_stream())
+        request = ResponsesAgentRequest(input=[Message(role="user", content="hello")])
+
+        # 試験実施
+        m_context = MagicMock()
+        wrapper = LangGraphResponsesAgent(m_agent, m_context)
+        events = list(wrapper.predict_stream(request))
+
+        # 観点1: 入力がエージェントに正しく渡される
+        m_agent.stream.assert_called_once_with(
+            {"messages": [{"role": "user", "content": "hello"}]},
+            {"recursion_limit": 100},
+            context=m_context,
+            # 暫定対処
+            # stream_mode=["updates", "messages"],
+            stream_mode=["updates"],
+        )
+        # 観点2: 出力が ResponsesAgentStreamEvent に変換される
+        assert all(isinstance(e, ResponsesAgentStreamEvent) for e in events)
+        done_events = [e for e in events if e.type == "response.output_item.done"]
+        delta_events = [e for e in events if e.type == "response.output_text.delta"]
+        assert len(done_events) == 1
+        assert len(delta_events) == 1
+        assert (
+            delta_events[0].delta  # pyright: ignore[reportAttributeAccessIssue]
+            == "streaming text"
+        )
 
     @staticmethod
     def _make_mixed_stream():
@@ -97,7 +99,7 @@ class TestLangGraphResponsesAgent:
 
 class TestLangGraphChatAgent:
     def test_predict_01(self):
-        """Predict の動作を検証する.
+        """推論 (同期) を正しく呼び出せるか確認.
 
         観点1: invoke が正しい引数で呼び出される
         観点2: 最後の assistant メッセージのみが返ること
@@ -124,6 +126,7 @@ class TestLangGraphChatAgent:
         # 観点1
         m_agent.invoke.assert_called_once_with(
             {"messages": [{"role": "user", "content": "hello"}]},
+            {"recursion_limit": 100},
             context=m_context,
         )
         # 観点2
@@ -132,13 +135,15 @@ class TestLangGraphChatAgent:
         assert result.messages[0].content == "final response"
 
     def test_predict_stream_01(self):
-        """predict_stream の動作を検証する.
+        """推論 (ストリーム) を正しく呼び出せるか確認.
 
         観点1: stream_mode=["messages"] で呼び出される
-        観点2: "messages" モードの AIMessageChunk がテキストデルタに変換される
-        観点3: "updates" モードの model ノードの AIMessage が ChatAgentChunk として yield される
-        観点4: "updates" モードの tools ノード (ToolMessage) は ChatAgentChunk として yield される
-        観点5: content 空の AIMessageChunk はスキップされる
+        観点2: "updates" モードが正しく動作する
+            - model ノードの AIMessage が ChatAgentChunk として yield される
+            - tools ノード (ToolMessage) は ChatAgentChunk として yield される
+            - content 空の AIMessageChunk はスキップされる
+        観点3: "messages" モードが正しく動作する
+            - AIMessageChunk がテキストデルタに変換される
         """
         # 試験準備
         m_agent = MagicMock()
@@ -153,25 +158,26 @@ class TestLangGraphChatAgent:
         # 観点1
         m_agent.stream.assert_called_once_with(
             {"messages": [{"role": "user", "content": "hello"}]},
+            {"recursion_limit": 100},
             stream_mode=["messages"],
             context=m_context,
         )
         # 観点2-5: 3件が yield される
         assert len(chunks) == 3
         assert all(isinstance(c, ChatAgentChunk) for c in chunks)
-        # 観点3: updates/model の AIMessage
+        # 観点2: "updates" モードが正しく動作する
         assert chunks[0].delta.content == "agent response"
-        # 観点4: updates/tools の ToolMessage
         assert chunks[1].delta.content == "tool result"
-        # 観点2: messages の AIMessageChunk
+        # 観点3: "messages" モードが正しく動作する
         assert chunks[2].delta.content == "streaming text"
-        # 観点5: content 空の AIMessageChunk はスキップ → 3件のみ
+        # 観点3: content 空の AIMessageChunk はスキップ → 3件のみ
 
     def test_predict_stream_02(self):
-        """predict_stream の動作を検証する (model ノードに tool_calls がある場合).
+        """推論 (ストリーム) が正しく呼び出せるか確認 (model ノードに tool_calls がある場合).
 
-        観点1: "updates" モードの model ノードが tool_calls を持つ場合、
-               tool_calls のみを含む ChatAgentChunk が yield される
+        観点1:
+            "updates" モードの model ノードが tool_calls を持つ場合、tool_calls のみを
+            含む ChatAgentChunk が yield される
         観点2: tool_calls チャンクの content は空文字になること
         """
         # 試験準備

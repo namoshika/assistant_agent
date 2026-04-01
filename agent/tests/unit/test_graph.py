@@ -15,7 +15,7 @@ class _FakeChatModel(GenericFakeChatModel):
 
 
 def test_build_graph_01():
-    """build_graph() がエージェントを返し、呼び出しで LLM と tool が実行される.
+    """build_graph() がエージェントを返し、呼び出しで LLM と tool が実行できるか確認.
 
     観点1: 戻り値が CompiledStateGraph インスタンス
     観点2: インスタンスを invoke すると LLM が呼ばれ AIMessage が生成される
@@ -30,7 +30,7 @@ def test_build_graph_01():
                 HumanMessage(content="こんにちは?"),
             ]
         },
-        context=ContextSchema(obsidian_store=MagicMock()),
+        context=ContextSchema(llm=MagicMock(), obsidian_store=MagicMock()),
     )
     msg = next(m for m in result["messages"])
 

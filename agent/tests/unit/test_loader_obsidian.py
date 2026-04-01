@@ -8,7 +8,7 @@ VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
 
 
 def test_load_01():
-    """VaultLoader.load() が返す Document の metadata が正しく変換される.
+    """VaultLoader.load() が返す Document の metadata が正しく変換されるか確認.
 
     観点1: 全 Document に保証された全メタデータキーが存在し、doc.id が設定されている
     観点2: note_a.md の doc.id が path から生成した document_id (UUID5) と一致する
@@ -45,7 +45,7 @@ def test_load_01():
 
 
 def test_load_02():
-    """ObsidianLoader 単体では None フィールドが "None" 文字列になる.
+    """ObsidianLoader 単体では None フィールドが "None" 文字列になるか確認.
 
     VaultLoader が後処理で修正している根拠となるバグを確認する
     観点1: ObsidianLoader は None フロントマター値を "None" 文字列に変換する

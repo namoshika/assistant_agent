@@ -15,7 +15,7 @@ from agent_assistant.utils.serving import (
 
 
 def test_to_chat_agent_messages_01():
-    """to_chat_agent_messages に対しテストすること.
+    """ChatMessage を ChatAgentMessage へ変換できること.
 
     観点1: string content と role が正しく変換されること (user・system ロール含む)
     観点2: list[TextContentPart] content がテキスト抽出・スペース結合されること
@@ -50,7 +50,7 @@ def test_to_chat_agent_messages_01():
 
 
 def test_from_chat_agent_response_01():
-    """from_chat_agent_response に対しテストすること.
+    """ChatAgentResponse を ChatCompletionResponse へ変換できること.
 
     観点1: 単一 assistant メッセージから全フィールドが正しく生成されること (既定値フィールドを含む)
     観点2: 複数 assistant メッセージがスペース結合されること
@@ -89,7 +89,7 @@ def test_from_chat_agent_response_01():
 
 
 def test_from_chat_agent_chunk_01():
-    """from_chat_agent_chunk に対しテストすること.
+    """ChatAgentChunk から SSE 行文字列を生成できること.
 
     観点1: SSE 形式で、パース後の全フィールドが正しいこと (既定値フィールドを含む)
     観点2: 日本語テキストが Unicode エスケープされないこと
@@ -127,7 +127,7 @@ def test_from_chat_agent_chunk_01():
 
 class TestChatCompletion:
     def test_invoke_handler_01(self):
-        """ChatCompletion._invoke_handler に対しテストすること.
+        """クライアントからの Chat Completion API リクエストを正しく応答できるか確認.
 
         (o: ストリーム対応あり、x: ストリーム対応なし)
         観点1: client/agent のストリーム対応の有無の組み合わせ (o/x) ごとに正しく動作すること
@@ -203,7 +203,7 @@ class TestChatCompletion:
         )
 
     def test_list_models_01(self):
-        """ChatCompletion._list_models に対しテストすること.
+        """クライアントからのモデル一覧リクエストを正しく応答できるか確認.
 
         観点1: GET /v1/models のレスポンスに登録 model_id が含まれること
         """
