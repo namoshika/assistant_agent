@@ -15,5 +15,4 @@ wheels/
 
 # Dataset
 /docs/*
-!/docs/specs/
 !/docs/adr/
