@@ -19,7 +19,6 @@ from agent_assistant.utils.absclass import DocumentRetriever
 
 # 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）
 _JAPANESE_PARAGRAPH_SEP = "\n\n"
-_JAPANESE_CHUNKING_REGEX = r"[。？、！．，　\u200b\n ]"
 
 
 class ObsidianLlamaRetriever(DocumentRetriever):
@@ -78,7 +77,6 @@ class ObsidianLlamaRetriever(DocumentRetriever):
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
                     paragraph_separator=_JAPANESE_PARAGRAPH_SEP,
-                    secondary_chunking_regex=_JAPANESE_CHUNKING_REGEX,
                 ),
                 self._embed_model,
             ],
