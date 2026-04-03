@@ -2,12 +2,14 @@ from collections.abc import Generator
 from typing import Any, Optional
 from uuid import uuid4
 
+import mlflow
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     convert_to_openai_messages,
 )
 from langgraph.graph.state import CompiledStateGraph
+from mlflow.entities import SpanType
 from mlflow.pyfunc.model import ChatAgent, ResponsesAgent
 from mlflow.types.agent import (
     ChatAgentChunk,
@@ -110,6 +112,7 @@ class LangGraphChatAgent(ChatAgent):
         self.agent = agent
         self._context = context
 
+    @mlflow.trace(span_type=SpanType.AGENT)
     def predict(
         self,
         messages: list[ChatAgentMessage],
@@ -135,6 +138,7 @@ class LangGraphChatAgent(ChatAgent):
                 assistant_msgs.append(ChatAgentMessage(id=item.id, **msg_dict))
         return ChatAgentResponse(messages=assistant_msgs[-1:])
 
+    @mlflow.trace(span_type=SpanType.AGENT)
     def predict_stream(
         self,
         messages: list[ChatAgentMessage],
