@@ -112,6 +112,32 @@ class LangGraphChatAgent(ChatAgent):
         self.agent = agent
         self._context = context
 
+    @staticmethod
+    def _output_reducer(chunks: list[ChatAgentChunk]) -> ChatAgentResponse:
+        """MLflow 向けの出力可視化レデューサー."""
+        # ID順を保持しながらメッセージごとにチャンクを集約する
+        messages: dict[str, ChatAgentMessage] = {}
+        for chunk in chunks:
+            d = chunk.delta
+            mid = d.id or str(uuid4())
+            if mid not in messages:
+                messages[mid] = ChatAgentMessage(
+                    id=mid,
+                    role=d.role,
+                    content=d.content or "",
+                    tool_calls=d.tool_calls,
+                    tool_call_id=d.tool_call_id,
+                    name=d.name,
+                    attachments=d.attachments,
+                )
+            else:
+                msg = messages[mid]
+                if d.content:
+                    msg.content = (msg.content or "") + d.content
+                if d.tool_calls is not None:
+                    msg.tool_calls = d.tool_calls
+        return ChatAgentResponse(messages=list(messages.values()))
+
     @mlflow.trace(span_type=SpanType.AGENT)
     def predict(
         self,
@@ -138,7 +164,7 @@ class LangGraphChatAgent(ChatAgent):
                 assistant_msgs.append(ChatAgentMessage(id=item.id, **msg_dict))
         return ChatAgentResponse(messages=assistant_msgs[-1:])
 
-    @mlflow.trace(span_type=SpanType.AGENT)
+    @mlflow.trace(span_type=SpanType.AGENT, output_reducer=_output_reducer)
     def predict_stream(
         self,
         messages: list[ChatAgentMessage],
