@@ -114,7 +114,7 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     """Document リストから document_id と path の一覧文字列を返す."""
     lines = [f"Search results ({len(documents)} documents found):"]
     for doc in documents:
-        lines.append(f"- document_id: {doc.id}")
+        lines.append(f"- {{ document_id: \"{doc.id}\", path: \"{doc.metadata['path']}\" }}")
     lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
     return "\n".join(lines)
 
