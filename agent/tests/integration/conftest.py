@@ -9,17 +9,17 @@ from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy import Engine, MetaData, create_engine, text
 from sqlalchemy.orm import DeclarativeBase
 
+from agent_assistant.entities import ObsidianVaultEntity
 from agent_assistant.loader.obsidian import VaultLoader
-from agent_assistant.model import ObsidianVaultEntity
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 @pytest.fixture(scope="session")
 def sa_engine():
     """SQLAlchemy Engine (セッション全体で共有)."""
-    conn_str = os.environ.get("DEV_PG_CONNECTION_STRING")
+    conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
     if not conn_str:
-        pytest.fail("DEV_PG_CONNECTION_STRING が未設定のため失敗")
+        pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
     engine = create_engine(conn_str)
     yield engine
     engine.dispose()
@@ -60,11 +60,11 @@ def obsidian_retriever(
 ) -> Generator[ObsidianLlamaRetriever, None, None]:
     """実際の PostgreSQL に接続した ObsidianLlamaRetriever.
 
-    DEV_PG_CONNECTION_STRING と ENV_GEMINI_API_KEY 環境変数が必要。
+    ENV_PG_CONNECTION_STRING と ENV_GEMINI_API_KEY 環境変数が必要。
     """
-    conn_str = os.environ.get("DEV_PG_CONNECTION_STRING")
+    conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
     if not conn_str:
-        pytest.fail("DEV_PG_CONNECTION_STRING が未設定のため失敗")
+        pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
     env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
     if not env_gemini_api_key:
         pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")

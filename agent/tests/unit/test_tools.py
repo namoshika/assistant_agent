@@ -6,8 +6,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
-from agent_assistant import connector
-from agent_assistant.context import ContextSchema
+from agent_assistant import graph, tools
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -34,7 +33,7 @@ def test_get_weather_01():
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.get_weather)
+    agent = _make_agent(ai_msg, tools.get_weather)
 
     # 試験実施
     result = agent.invoke({"messages": [HumanMessage(content="東京の天気は?")]})
@@ -73,12 +72,12 @@ def test_obsidian_vault_search_01():
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -112,12 +111,12 @@ def test_obsidian_vault_search_02():
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
 
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="全件取得して")]},
-        context=ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -165,12 +164,12 @@ def test_obsidian_vault_search_03():
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_search, context_schema=ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
 
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -211,12 +210,12 @@ def test_obsidian_vault_get_01():
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_get, context_schema=ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_get, context_schema=graph.ContextSchema)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="note.md を取得して")]},
-        context=ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -245,7 +244,7 @@ def test_format_documents_01():
     m_store = MagicMock()
 
     # 試験実施
-    result = connector.format_documents(docs, m_store)
+    result = tools.format_documents(docs, m_store)
 
     # 結果検証
     assert isinstance(result, str)
@@ -272,7 +271,7 @@ def test_format_document_ids_01():
     ]
 
     # 試験実施
-    result = connector.format_document_ids(docs)
+    result = tools.format_document_ids(docs)
 
     # 結果検証
     # 観点1

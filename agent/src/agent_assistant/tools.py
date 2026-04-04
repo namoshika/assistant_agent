@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
-from agent_assistant.context import ContextSchema
+from agent_assistant.graph import ContextSchema
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
@@ -114,7 +114,7 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     """Document リストから document_id と path の一覧文字列を返す."""
     lines = [f"Search results ({len(documents)} documents found):"]
     for doc in documents:
-        lines.append(f"- {{ document_id: \"{doc.id}\", path: \"{doc.metadata['path']}\" }}")
+        lines.append(f'- {{ document_id: "{doc.id}", path: "{doc.metadata["path"]}" }}')
     lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
     return "\n".join(lines)
 

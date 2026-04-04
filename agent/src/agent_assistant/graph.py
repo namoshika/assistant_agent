@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -7,7 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
-from agent_assistant.context import ContextSchema
+from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 SYSTEM_PROMPT = f"""
 # Instruction
@@ -24,6 +25,12 @@ SYSTEM_PROMPT = f"""
 # Background
 現在日時: {datetime.now(ZoneInfo("Asia/Tokyo")).isoformat()}
 """  # noqa: E501
+
+
+@dataclass
+class ContextSchema:
+    llm: BaseChatModel
+    obsidian_store: ObsidianLlamaRetriever
 
 
 def build_graph(

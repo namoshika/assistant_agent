@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
 
-from agent_assistant.model import ObsidianVaultRawEntity
+from agent_assistant.entities import ObsidianVaultRawEntity
 from agent_assistant.utils.absclass import DocumentRetriever
 
 # 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）

@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -10,8 +9,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 from sqlalchemy import Engine
 
-from agent_assistant import connector, context
-from agent_assistant.loader.obsidian import PgVault
+from agent_assistant import agents, graph, tools
+from agent_assistant.loader.obsidian import VaultDb
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
@@ -35,7 +34,7 @@ def test_obsidian_vault_search_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    PgVault.sync(vault_docs, sa_engine, raw_entity)
+    VaultDb.sync(vault_docs, sa_engine, raw_entity)
     obsidian_retriever.sync_chunks()
 
     ai_msg = AIMessage(
@@ -53,12 +52,12 @@ def test_obsidian_vault_search_01(
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_search)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを検索して")]},
-        context=context.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
     )
 
     # 結果検証
@@ -81,22 +80,19 @@ def test_obsidian_vault_search_02() -> None:
     観点1: LLM が search_query のみで tool call を生成し
         search_documents が filters=None で呼ばれる
     """
-    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
-        pytest.fail("AWS 認証情報が未設定")
-
     # 試験準備
     docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
-    ctx = context.build_session()
+    llm, _ = agents.get_model()
     agent = create_agent(
-        model=ctx.llm, tools=[connector.obsidian_vault_search], context_schema=context.ContextSchema
+        model=llm, tools=[tools.obsidian_vault_search], context_schema=graph.ContextSchema
     )
 
     # 試験実施
     result = agent.invoke(
-        {"messages": [HumanMessage(content="エージェントについてのノートを検索して")]},
-        context=context.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        {"messages": [HumanMessage(content="エージェントのノートを1回検索し document_id を出す")]},
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -112,22 +108,19 @@ def test_obsidian_vault_search_03() -> None:
     観点1: LLM が MetadataFilters を含む tool call を生成し
         search_documents が filters 付きで呼ばれる
     """
-    if not os.environ.get("AWS_ACCESS_KEY_ID") or not os.environ.get("AWS_SECRET_ACCESS_KEY"):
-        pytest.fail("AWS 認証情報が未設定")
-
     # 試験準備
     docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
-    ctx = context.build_session()
+    llm, _ = agents.get_model()
     agent = create_agent(
-        model=ctx.llm, tools=[connector.obsidian_vault_search], context_schema=context.ContextSchema
+        model=llm, tools=[tools.obsidian_vault_search], context_schema=graph.ContextSchema
     )
 
     # 試験実施
     result = agent.invoke(
-        {"messages": [HumanMessage(content="2026年1月以降のノートを検索して")]},
-        context=context.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        {"messages": [HumanMessage(content="2026/01 以降のノートを検索し、 document_id を出して")]},
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
     )
 
     # 結果検証
@@ -154,7 +147,7 @@ def test_obsidian_vault_get_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    PgVault.sync([vault_docs[0]], sa_engine, raw_entity)
+    VaultDb.sync([vault_docs[0]], sa_engine, raw_entity)
     doc_id = vault_docs[0].id
     ai_msg = AIMessage(
         content="",
@@ -167,12 +160,12 @@ def test_obsidian_vault_get_01(
             }
         ],
     )
-    agent = _make_agent(ai_msg, connector.obsidian_vault_get)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_get)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを取得して")]},
-        context=context.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
     )
 
     # 結果検証
@@ -192,10 +185,10 @@ def test_obsidian_vault_get_01(
             }
         ],
     )
-    agent = _make_agent(ai_msg2, connector.obsidian_vault_get)
+    agent = _make_agent(ai_msg2, tools.obsidian_vault_get)
     result2 = agent.invoke(
         {"messages": [HumanMessage(content="nonexistent.md を取得して")]},
-        context=context.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=obsidian_retriever),
     )
     # 観点3
     tool_msg2 = next(m for m in result2["messages"] if isinstance(m, ToolMessage))
@@ -216,11 +209,11 @@ def test_format_documents_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    PgVault.sync([vault_docs[0]], sa_engine, raw_entity)
+    VaultDb.sync([vault_docs[0]], sa_engine, raw_entity)
     docs = obsidian_retriever.get_documents_by_ids([vault_docs[0].id])
 
     # 試験実施
-    result = connector.format_documents(docs, obsidian_retriever)
+    result = tools.format_documents(docs, obsidian_retriever)
 
     # 結果検証
     assert isinstance(result, str)
@@ -235,4 +228,4 @@ def _make_agent(tool_calls_msg: AIMessage, *tools: Any) -> Any:
             ]
         )
     )
-    return create_agent(model=fake_llm, tools=list(tools), context_schema=context.ContextSchema)
+    return create_agent(model=fake_llm, tools=list(tools), context_schema=graph.ContextSchema)

@@ -7,8 +7,8 @@ from langchain_core.documents import Document
 from sqlalchemy import Engine, MetaData, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
-from agent_assistant.loader.obsidian import PgVault, VaultLoader
-from agent_assistant.model import ObsidianVaultEntity
+from agent_assistant.entities import ObsidianVaultEntity
+from agent_assistant.loader.obsidian import VaultDb, VaultLoader
 
 
 @pytest.fixture()
@@ -72,7 +72,7 @@ class TestVaultLoader:
         assert has_links, "forward_links が空でない doc が 1 件もない"
 
 
-class TestPgVault:
+class TestVaultDb:
     @pytest.mark.integration
     def test_sync_01(
         self,
@@ -94,7 +94,7 @@ class TestPgVault:
         )
 
         # 試験実施（1回目）
-        PgVault.sync([note_a, note_b, note_c], sa_engine, raw_entity)
+        VaultDb.sync([note_a, note_b, note_c], sa_engine, raw_entity)
 
         # 結果検証
         # 観点1
@@ -107,7 +107,7 @@ class TestPgVault:
             assert row.path == note.metadata["path"]
 
         # 試験実施（2回目: C を削除、A を変更、B はそのまま）
-        PgVault.sync([doc_a_modified, note_b], sa_engine, raw_entity)
+        VaultDb.sync([doc_a_modified, note_b], sa_engine, raw_entity)
 
         # 結果検証
         # 観点2

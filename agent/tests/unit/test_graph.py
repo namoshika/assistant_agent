@@ -5,8 +5,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from agent_assistant.context import ContextSchema
-from agent_assistant.graph import build_graph
+from agent_assistant.graph import ContextSchema, build_graph
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -23,7 +22,7 @@ def test_build_graph_01():
     fake_llm = _FakeChatModel(messages=iter([AIMessage(content="hello")]))
 
     # 試験実施
-    agent = build_graph("test-agent", fake_llm, list())
+    agent = build_graph("test-agent", fake_llm, [])
     result = agent.invoke(
         {
             "messages": [

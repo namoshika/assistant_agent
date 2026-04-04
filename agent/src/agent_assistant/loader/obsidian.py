@@ -8,7 +8,7 @@ from obsidian_parser import Vault
 from sqlalchemy import Engine, delete, insert
 from sqlalchemy.orm import Session
 
-from agent_assistant.model import (
+from agent_assistant.entities import (
     ObsidianVaultEntity,
     ObsidianVaultRawEntity,
 )
@@ -62,7 +62,7 @@ class VaultLoader(BaseLoader):
         return result
 
 
-class PgVault:
+class VaultDb:
     """Vault のドキュメントを PostgreSQL に同期するクラス."""
 
     @staticmethod

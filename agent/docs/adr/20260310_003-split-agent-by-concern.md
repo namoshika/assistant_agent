@@ -15,7 +15,7 @@
 | ファイル | 責務 |
 |---|---|
 | `connector.py` | LLM 取得 (`get_llm`) とツール定義 (`get_tools`) |
-| `context.py` | `ContextSchema` の定義と `build_session()` によるセッション初期化 |
+| `context.py` | `ContextSchema` の定義と `build_context()` によるセッション初期化 |
 | `graph.py` | `build_graph()` によるエージェントグラフ構築 |
 
 - ツールがグローバル変数でストアを参照していた設計を廃止し、`ToolRuntime[ContextSchema]` 経由でコンテキストを受け取るパターンへ移行した

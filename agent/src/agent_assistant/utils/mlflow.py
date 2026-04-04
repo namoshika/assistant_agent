@@ -110,7 +110,7 @@ class LangGraphChatAgent(ChatAgent):
     def __init__(self, agent: CompiledStateGraph, context: Any):
         """Construct LangGraphChatAgent."""
         self.agent = agent
-        self._context = context
+        self.context = context
 
     @staticmethod
     def _output_reducer(chunks: list[ChatAgentChunk]) -> ChatAgentResponse:
@@ -147,7 +147,7 @@ class LangGraphChatAgent(ChatAgent):
     ) -> ChatAgentResponse:
         """エージェントの推論結果を返す."""
         req = {"messages": self._convert_messages_to_dict(messages)}
-        res = self.agent.invoke(req, {"recursion_limit": 100}, context=self._context)
+        res = self.agent.invoke(req, {"recursion_limit": 100}, context=self.context)
         assistant_msgs = []
         for item in res["messages"]:
             if isinstance(item, AIMessage):
@@ -182,7 +182,7 @@ class LangGraphChatAgent(ChatAgent):
             # LangGraphResponsesAgent と同様の既知問題。mlflow バグ修正後も継続確認すること。
             # stream_mode=["updates", "messages"],
             stream_mode=["messages"],
-            context=self._context,
+            context=self.context,
         ):
             if mode == "updates":
                 for node_data in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
