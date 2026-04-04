@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   agent:
     build: { context: agent }
@@ -11,10 +10,8 @@ services:
       - OPENAI_API_KEY
       - ENV_GEMINI_MODEL_ID
       - ENV_GEMINI_API_KEY
-      - DEV_PG_CONNECTION_STRING
-      - PRD_PG_CONNECTION_STRING
-      - DEV_ADMIN_PG_CONNECTION_STRING
-      - PRD_ADMIN_PG_CONNECTION_STRING      
+      - ENV_PG_CONNECTION_STRING=${DEV_PG_CONNECTION_STRING}
+      - ENV_ADMIN_PG_CONNECTION_STRING=${DEV_ADMIN_PG_CONNECTION_STRING}
     volumes:
       - .:/workspaces/agent_assistant:cached
     # ports:
