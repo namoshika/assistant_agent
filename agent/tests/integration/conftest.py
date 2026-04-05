@@ -6,23 +6,24 @@ from pathlib import Path
 import pytest
 from langchain_core.documents import Document
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-from sqlalchemy import Engine, MetaData, create_engine, text
+from sqlalchemy import MetaData, text
 from sqlalchemy.orm import DeclarativeBase
 
 from agent_assistant.entities import ObsidianVaultEntity
 from agent_assistant.loader.obsidian import VaultLoader
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from agent_assistant.utils.store_factory import PostgresStoreContext
 
 
 @pytest.fixture(scope="session")
-def sa_engine():
-    """SQLAlchemy Engine (セッション全体で共有)."""
+def factory() -> Generator[PostgresStoreContext, None, None]:
+    """PostgresStoreContext (セッション全体で共有)."""
     conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
     if not conn_str:
         pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
-    engine = create_engine(conn_str)
-    yield engine
-    engine.dispose()
+    f = PostgresStoreContext(conn_str, schema_name="app")
+    yield f
+    f.get_engine().dispose()
 
 
 @pytest.fixture()
@@ -32,11 +33,12 @@ def vault_name() -> str:
 
 
 @pytest.fixture()
-def vault_entities(sa_engine: Engine, vault_name: str) -> Generator[type, None, None]:
+def vault_entities(factory: PostgresStoreContext, vault_name: str) -> Generator[type, None, None]:
     """Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
     """
+    engine = factory.get_engine()
 
     class _TestBase(DeclarativeBase):
         metadata = MetaData("assets")
@@ -44,11 +46,11 @@ def vault_entities(sa_engine: Engine, vault_name: str) -> Generator[type, None, 
     class _TestVaultRawEntity(_TestBase, ObsidianVaultEntity):
         __tablename__ = f"{vault_name}_raw"
 
-    _TestBase.metadata.create_all(sa_engine)
+    _TestBase.metadata.create_all(engine)
     yield _TestVaultRawEntity
-    _TestBase.metadata.drop_all(sa_engine)
+    _TestBase.metadata.drop_all(engine)
 
-    with sa_engine.connect() as conn:
+    with engine.connect() as conn:
         conn.execute(text(f"DROP TABLE IF EXISTS app.data_{vault_name}_vectors CASCADE"))
         conn.execute(text(f"DROP TABLE IF EXISTS app.data_{vault_name}_docstore CASCADE"))
         conn.commit()
@@ -56,30 +58,27 @@ def vault_entities(sa_engine: Engine, vault_name: str) -> Generator[type, None, 
 
 @pytest.fixture()
 def obsidian_retriever(
-    sa_engine: Engine, vault_name: str, vault_entities: type
+    factory: PostgresStoreContext, vault_name: str, vault_entities: type
 ) -> Generator[ObsidianLlamaRetriever, None, None]:
     """実際の PostgreSQL に接続した ObsidianLlamaRetriever.
 
     ENV_PG_CONNECTION_STRING と ENV_GEMINI_API_KEY 環境変数が必要。
     """
-    conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
-    if not conn_str:
-        pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
     env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
     if not env_gemini_api_key:
         pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
 
-    raw_entity = vault_entities
     retriever = ObsidianLlamaRetriever(
-        sa_engine=sa_engine,
-        connection_string=conn_str,
+        sa_engine=factory.get_engine(),
+        store_factory=factory,
         docstore_name=f"{vault_name}_docstore",
         vectorstore_name=f"{vault_name}_vectors",
         embed_model=GoogleGenAIEmbedding(
             model="gemini-embedding-001",
             api_key=env_gemini_api_key,
         ),
-        vault_entity=raw_entity,  # pyright: ignore[reportArgumentType]
+        embed_dim=3072,
+        vault_entity=vault_entities,  # pyright: ignore[reportArgumentType]
     )
     yield retriever
 

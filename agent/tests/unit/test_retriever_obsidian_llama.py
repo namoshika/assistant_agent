@@ -1,32 +1,31 @@
 from unittest.mock import MagicMock
 
 import pytest
+from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.schema import NodeRelationship, NodeWithScore, RelatedNodeInfo, TextNode
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from pytest_mock import MockerFixture
 
 from agent_assistant.loader.obsidian import path_to_document_id
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from agent_assistant.utils.store_factory import InMemoryStoreContext
 
 _DOC_ID_A = path_to_document_id("a.md")
 _DOC_ID_B = path_to_document_id("b.md")
 
 
 @pytest.fixture
-def retriever(mocker: MockerFixture) -> ObsidianLlamaRetriever:
+def retriever() -> ObsidianLlamaRetriever:
     """ObsidianLlamaRetriever のテスト用インスタンス.
 
-    LlamaIndex の外部依存 (PGVectorStore, PostgresDocumentStore, IngestionPipeline) をモック化する。
+    InMemoryStoreContext を注入し、外部依存なしで動作させる。
     """
-    mocker.patch("agent_assistant.retriever.obsidian_llama.PGVectorStore")
-    mocker.patch("agent_assistant.retriever.obsidian_llama.PostgresDocumentStore")
-    mocker.patch("agent_assistant.retriever.obsidian_llama.IngestionPipeline")
     return ObsidianLlamaRetriever(
         sa_engine=MagicMock(),
-        connection_string="postgresql://test",
+        store_factory=InMemoryStoreContext(),
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
-        embed_model=MagicMock(),
+        embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
     )
 
@@ -189,14 +188,14 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = [m_row_a, m_row_b]
     mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
+    m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施
     retriever.sync_chunks()
 
     # 結果検証
     # 観点1
-    pipeline_run: MagicMock = retriever._pipeline.run  # type: ignore[assignment]
-    llama_docs = pipeline_run.call_args.kwargs["documents"]
+    llama_docs = m_pipeline_run.call_args.kwargs["documents"]
     assert len(llama_docs) == 2
     assert llama_docs[0].doc_id == _DOC_ID_A
     assert llama_docs[0].text == "content_a"
@@ -217,12 +216,12 @@ def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = []
     mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
+    m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施
     retriever.sync_chunks()
 
     # 結果検証
     # 観点1
-    pipeline_run: MagicMock = retriever._pipeline.run  # type: ignore[assignment]
-    llama_docs = pipeline_run.call_args.kwargs["documents"]
+    llama_docs = m_pipeline_run.call_args.kwargs["documents"]
     assert llama_docs == []

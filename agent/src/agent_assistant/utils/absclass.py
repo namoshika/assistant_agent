@@ -2,6 +2,9 @@ import abc
 from typing import Any, Sequence
 
 from langchain_core.documents import Document
+from llama_index.core.storage.docstore.types import BaseDocumentStore
+from llama_index.core.vector_stores.types import BasePydanticVectorStore
+from sqlalchemy import Engine
 
 
 class DocumentRetriever(abc.ABC):
@@ -26,4 +29,23 @@ class DocumentRetriever(abc.ABC):
     @abc.abstractmethod
     def sync_chunks(self) -> None:
         """ソースからドキュメントを取得し、チャンクに分割して VectorStore に同期する."""
+        raise NotImplementedError
+
+
+class StoreContext(abc.ABC):
+    """VectorStore / DocumentStore / SQLAlchemy Engine を生成するファクトリ抽象クラス."""
+
+    @abc.abstractmethod
+    def get_engine(self) -> Engine:
+        """SQLAlchemy Engine を生成する."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def create_vector_store(self, name: str, embed_dim: int) -> BasePydanticVectorStore:
+        """VectorStore を生成する."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def create_docstore(self, name: str) -> BaseDocumentStore:
+        """DocumentStore を生成する."""
         raise NotImplementedError

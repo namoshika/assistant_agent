@@ -1,17 +1,17 @@
 import pytest
 from langchain_core.documents import Document
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
-from sqlalchemy import Engine
 
 from agent_assistant.loader.obsidian import VaultDb, path_to_document_id
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from agent_assistant.utils.store_factory import PostgresStoreContext
 
 
 @pytest.mark.integration
 def test_search_documents_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ):
     """指定したクエリに類似する Document を取得できるか確認.
@@ -25,7 +25,7 @@ def test_search_documents_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    VaultDb.sync(vault_docs, sa_engine, raw_entity)
+    VaultDb.sync(vault_docs, factory.get_engine(), raw_entity)
     obsidian_retriever.sync_chunks()
     doc = vault_docs[0]
 
@@ -60,9 +60,9 @@ def test_search_documents_01(
 
 @pytest.mark.integration
 def test_get_documents_by_ids_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ):
     """document_ids に対応する Document を取得できるか確認.
@@ -73,7 +73,7 @@ def test_get_documents_by_ids_01(
     # 試験準備
     raw_entity = vault_entities
     doc = vault_docs[0]
-    VaultDb.sync([doc], sa_engine, raw_entity)
+    VaultDb.sync([doc], factory.get_engine(), raw_entity)
 
     # 試験実施
     assert doc.id is not None
@@ -91,9 +91,9 @@ def test_get_documents_by_ids_01(
 
 @pytest.mark.integration
 def test_get_backlinks_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ):
     """指定した document_id を参照する Document 一覧を取得できるか確認.
@@ -114,7 +114,7 @@ def test_get_backlinks_01(
     doc_b = next((d for d in vault_docs if d.id == link_tgt_id), None)
     if doc_b is None:
         pytest.skip("forward_links のリンク先が vault_docs にない")
-    VaultDb.sync([doc_a, doc_b], sa_engine, raw_entity)
+    VaultDb.sync([doc_a, doc_b], factory.get_engine(), raw_entity)
 
     # 試験実施
     results = obsidian_retriever.get_backlinks(link_tgt_id)
@@ -132,9 +132,9 @@ def test_get_backlinks_01(
 
 @pytest.mark.integration
 def test_sync_chunks_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ):
     """Vault テーブルと Chunk テーブルの同期ができるか確認.
@@ -154,7 +154,7 @@ def test_sync_chunks_01(
     assert target_doc.id is not None
 
     # --- ステップ1: 追加 ---
-    VaultDb.sync([noise_doc, target_doc], sa_engine, raw_entity)
+    VaultDb.sync([noise_doc, target_doc], factory.get_engine(), raw_entity)
     obsidian_retriever.sync_chunks()
 
     # 観点1
@@ -173,7 +173,7 @@ def test_sync_chunks_01(
         page_content=new_content,
         metadata=target_doc.metadata,
     )
-    VaultDb.sync([noise_doc, updated_target], sa_engine, raw_entity)
+    VaultDb.sync([noise_doc, updated_target], factory.get_engine(), raw_entity)
     obsidian_retriever.sync_chunks()
 
     # 観点2
@@ -185,7 +185,7 @@ def test_sync_chunks_01(
     assert noise_result.metadata == noise_doc.metadata
 
     # --- ステップ3: 削除 ---
-    VaultDb.sync([noise_doc], sa_engine, raw_entity)
+    VaultDb.sync([noise_doc], factory.get_engine(), raw_entity)
     obsidian_retriever.sync_chunks()
 
     # 観点3

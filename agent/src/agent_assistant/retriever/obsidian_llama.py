@@ -8,15 +8,12 @@ from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.vector_stores.types import MetadataFilters
-from llama_index.storage.docstore.postgres import PostgresDocumentStore
-from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import Engine, cast, select
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
 
-from agent_assistant.entities import ObsidianVaultRawEntity
-from agent_assistant.utils.absclass import DocumentRetriever
+from agent_assistant.entities import ObsidianVaultEntity, ObsidianVaultRawEntity
+from agent_assistant.utils.absclass import DocumentRetriever, StoreContext
 
 # 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）
 _JAPANESE_PARAGRAPH_SEP = "\n\n"
@@ -32,15 +29,14 @@ class ObsidianLlamaRetriever(DocumentRetriever):
     def __init__(
         self,
         sa_engine: Engine,
-        connection_string: str,
+        store_factory: StoreContext,
         docstore_name: str,
         vectorstore_name: str,
         embed_model: BaseEmbedding,
-        embed_dim: int = 3072,
-        schema_name: str = "app",
+        embed_dim: int,
         chunk_size: int = 1024,
         chunk_overlap: int = 200,
-        vault_entity: type[ObsidianVaultRawEntity] = ObsidianVaultRawEntity,
+        vault_entity: type[ObsidianVaultEntity] = ObsidianVaultRawEntity,
     ):
         """Construct ObsidianLlamaRetriever."""
         self._sa_engine = sa_engine
@@ -48,28 +44,8 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         self._embed_model = embed_model
 
         # Chunking ロジック設定
-        url = make_url(connection_string)
-        self._vector_store = PGVectorStore.from_params(
-            host=url.host,
-            port=str(url.port or 5432),
-            database=url.database,
-            user=url.username,
-            password=str(url.password or ""),
-            table_name=vectorstore_name,
-            embed_dim=embed_dim,
-            schema_name=schema_name,
-            use_jsonb=True,
-        )
-        self._docstore = PostgresDocumentStore.from_params(
-            host=url.host,
-            port=str(url.port or 5432),
-            database=url.database,
-            user=url.username,
-            password=str(url.password or ""),
-            table_name=docstore_name,
-            schema_name=schema_name,
-            use_jsonb=True,
-        )
+        self._vector_store = store_factory.create_vector_store(vectorstore_name, embed_dim)
+        self._docstore = store_factory.create_docstore(docstore_name)
 
         # Pipeline 設定
         self._pipeline = IngestionPipeline(

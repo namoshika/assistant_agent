@@ -15,4 +15,5 @@ wheels/
 
 # Dataset
 /docs/*
+/tests/data/vault_db
 !/docs/adr/

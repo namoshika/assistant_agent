@@ -4,18 +4,20 @@ from pathlib import Path
 
 import pytest
 from langchain_core.documents import Document
-from sqlalchemy import Engine, MetaData, select
+from sqlalchemy import MetaData, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
 from agent_assistant.entities import ObsidianVaultEntity
 from agent_assistant.loader.obsidian import VaultDb, VaultLoader
+from agent_assistant.utils.store_factory import PostgresStoreContext
 
 
 @pytest.fixture()
 def pg_vault_tables(
-    sa_engine: Engine,
-) -> Generator[tuple[Engine, type[ObsidianVaultEntity]], None, None]:
+    factory: PostgresStoreContext,
+) -> Generator[type[ObsidianVaultEntity], None, None]:
     """テスト専用の raw テーブルを作成し、テスト後に DROP する."""
+    engine = factory.get_engine()
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
 
     class _TestBase(DeclarativeBase):
@@ -24,9 +26,9 @@ def pg_vault_tables(
     class _TestRawEntity(_TestBase, ObsidianVaultEntity):
         __tablename__ = f"{vault_name}_raw"
 
-    _TestBase.metadata.create_all(sa_engine)
-    yield sa_engine, _TestRawEntity
-    _TestBase.metadata.drop_all(sa_engine)
+    _TestBase.metadata.create_all(engine)
+    yield _TestRawEntity
+    _TestBase.metadata.drop_all(engine)
 
 
 class TestVaultLoader:
@@ -76,7 +78,8 @@ class TestVaultDb:
     @pytest.mark.integration
     def test_sync_01(
         self,
-        pg_vault_tables: tuple[Engine, type[ObsidianVaultEntity]],
+        factory: PostgresStoreContext,
+        pg_vault_tables: type[ObsidianVaultEntity],
         vault_docs,
     ):
         """sync() を呼び出した時、引数として渡されたドキュメントで raw テーブルを洗い替えできる.
@@ -85,7 +88,8 @@ class TestVaultDb:
         観点2（2回目 sync）: A が更新され、C が削除され、B の内容が不変
         """
         # 試験準備
-        sa_engine, raw_entity = pg_vault_tables
+        raw_entity = pg_vault_tables
+        sa_engine = factory.get_engine()
         note_a, note_b, note_c = vault_docs[:3]
         doc_a_modified = Document(
             id=note_a.id,

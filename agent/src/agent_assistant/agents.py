@@ -1,7 +1,6 @@
 import os
 
 import mlflow
-import sqlalchemy
 from langchain_aws import ChatBedrockConverse
 from langchain_core.language_models import BaseChatModel
 from llama_index.core.embeddings import BaseEmbedding
@@ -12,6 +11,7 @@ from pydantic import SecretStr
 from agent_assistant import entities, graph, tools
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 from agent_assistant.utils.mlflow import LangGraphChatAgent
+from agent_assistant.utils.store_factory import PostgresStoreContext
 
 AGENT_NAME = "agent"
 mlflow.set_experiment("agent-rag")
@@ -66,15 +66,16 @@ def build_agent() -> ChatAgent:
 
     llm, emb = get_model()
 
-    sa_engine = sqlalchemy.create_engine(pg_connection_string)
+    factory = PostgresStoreContext(pg_connection_string, schema_name="app")
+    sa_engine = factory.get_engine()
     entities.ObsidianVaultBase.metadata.create_all(sa_engine)
     obsidian_store = ObsidianLlamaRetriever(
         sa_engine=sa_engine,
-        connection_string=pg_connection_string,
+        store_factory=factory,
         docstore_name=f"{env_vault_name}_docs",
         vectorstore_name=f"{env_vault_name}_vectors",
         embed_model=emb,
-        vault_entity=entities.ObsidianVaultRawEntity,
+        embed_dim=3072,
     )
 
     ctx = graph.ContextSchema(llm=llm, obsidian_store=obsidian_store)

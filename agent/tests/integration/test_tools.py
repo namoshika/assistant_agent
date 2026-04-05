@@ -7,11 +7,11 @@ from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
-from sqlalchemy import Engine
 
 from agent_assistant import agents, graph, tools
 from agent_assistant.loader.obsidian import VaultDb
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from agent_assistant.utils.store_factory import PostgresStoreContext
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -21,9 +21,9 @@ class _FakeChatModel(GenericFakeChatModel):
 
 @pytest.mark.integration
 def test_obsidian_vault_search_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ) -> None:
     """obsidian_vault_search() を呼び出した時、 クエリと意味的に近いドキュメントを返せるか確認.
@@ -34,7 +34,7 @@ def test_obsidian_vault_search_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    VaultDb.sync(vault_docs, sa_engine, raw_entity)
+    VaultDb.sync(vault_docs, factory.get_engine(), raw_entity)
     obsidian_retriever.sync_chunks()
 
     ai_msg = AIMessage(
@@ -134,9 +134,9 @@ def test_obsidian_vault_search_03() -> None:
 
 @pytest.mark.integration
 def test_obsidian_vault_get_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ) -> None:
     """obsidian_vault_get() を呼び出した時、指定した document_id のドキュメントを取得できるか確認.
@@ -147,7 +147,7 @@ def test_obsidian_vault_get_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    VaultDb.sync([vault_docs[0]], sa_engine, raw_entity)
+    VaultDb.sync([vault_docs[0]], factory.get_engine(), raw_entity)
     doc_id = vault_docs[0].id
     ai_msg = AIMessage(
         content="",
@@ -198,9 +198,9 @@ def test_obsidian_vault_get_01(
 
 @pytest.mark.integration
 def test_format_documents_01(
+    factory: PostgresStoreContext,
     obsidian_retriever: ObsidianLlamaRetriever,
     vault_entities: type,
-    sa_engine: Engine,
     vault_docs: list[Document],
 ) -> None:
     """Document リストを format_documents() に渡し、整形済み文字列を返せるか確認.
@@ -209,7 +209,7 @@ def test_format_documents_01(
     """
     # 試験準備
     raw_entity = vault_entities
-    VaultDb.sync([vault_docs[0]], sa_engine, raw_entity)
+    VaultDb.sync([vault_docs[0]], factory.get_engine(), raw_entity)
     docs = obsidian_retriever.get_documents_by_ids([vault_docs[0].id])
 
     # 試験実施
