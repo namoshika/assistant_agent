@@ -6,6 +6,7 @@ from llama_index.core.schema import NodeRelationship, NodeWithScore, RelatedNode
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from pytest_mock import MockerFixture
 
+from agent_assistant.entities import postgres
 from agent_assistant.loader.obsidian import path_to_document_id
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 from agent_assistant.utils.store_factory import InMemoryStoreContext
@@ -27,6 +28,7 @@ def retriever() -> ObsidianLlamaRetriever:
         vectorstore_name="test_vectorstore",
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
+        vault_entity=postgres.ObsidianVaultRawEntity,
     )
 
 

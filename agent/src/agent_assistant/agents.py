@@ -8,7 +8,8 @@ from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from mlflow.pyfunc.model import ChatAgent
 from pydantic import SecretStr
 
-from agent_assistant import entities, graph, tools
+from agent_assistant import graph, tools
+from agent_assistant.entities import postgres as entities
 from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
 from agent_assistant.utils.mlflow import LangGraphChatAgent
 from agent_assistant.utils.store_factory import PostgresStoreContext
@@ -76,6 +77,7 @@ def build_agent() -> ChatAgent:
         vectorstore_name=f"{env_vault_name}_vectors",
         embed_model=emb,
         embed_dim=3072,
+        vault_entity=entities.ObsidianVaultRawEntity,
     )
 
     ctx = graph.ContextSchema(llm=llm, obsidian_store=obsidian_store)

@@ -8,18 +8,17 @@ from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.vector_stores.types import MetadataFilters
-from sqlalchemy import Engine, cast, select
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from agent_assistant.entities import ObsidianVaultEntity, ObsidianVaultRawEntity
-from agent_assistant.utils.absclass import DocumentRetriever, StoreContext
+from agent_assistant.entities import base
+from agent_assistant.utils.absclass import StoreContext
 
 # 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）
 _JAPANESE_PARAGRAPH_SEP = "\n\n"
 
 
-class ObsidianLlamaRetriever(DocumentRetriever):
+class ObsidianLlamaRetriever:
     """LlamaIndex IngestionPipeline を使った Obsidian Vault レトリーバー.
 
     docstore_name / vectorstore_name / chunk_size / chunk_overlap を
@@ -34,9 +33,9 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         vectorstore_name: str,
         embed_model: BaseEmbedding,
         embed_dim: int,
+        vault_entity: type[base.ObsidianVaultEntity],
         chunk_size: int = 1024,
         chunk_overlap: int = 200,
-        vault_entity: type[ObsidianVaultEntity] = ObsidianVaultRawEntity,
     ):
         """Construct ObsidianLlamaRetriever."""
         self._sa_engine = sa_engine
@@ -44,8 +43,8 @@ class ObsidianLlamaRetriever(DocumentRetriever):
         self._embed_model = embed_model
 
         # Chunking ロジック設定
-        self._vector_store = store_factory.create_vector_store(vectorstore_name, embed_dim)
-        self._docstore = store_factory.create_docstore(docstore_name)
+        self._vector_store = store_factory.get_vector_store(vectorstore_name, embed_dim)
+        self._docstore = store_factory.get_docstore(docstore_name)
 
         # Pipeline 設定
         self._pipeline = IngestionPipeline(
@@ -109,11 +108,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
             raise ValueError("document_id must not be empty")
         with Session(self._sa_engine) as session:
             rows = session.scalars(
-                select(self._vault_entity).where(
-                    cast(self._vault_entity.document_metadata["forward_links"], JSONB).contains(
-                        [document_id]
-                    )
-                )
+                select(self._vault_entity).where(self._vault_entity.backlink_filter(document_id))
             ).all()
         return [
             Document(
@@ -133,7 +128,7 @@ class ObsidianLlamaRetriever(DocumentRetriever):
             LlamaDocument(
                 doc_id=row.document_id,
                 text=row.content,
-                metadata=row.document_metadata,
+                metadata={k: v for k, v in row.document_metadata.items() if k != "forward_links"},
             )
             for row in rows
         ]

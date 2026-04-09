@@ -7,23 +7,23 @@ from langchain_core.documents import Document
 from sqlalchemy import MetaData, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
-from agent_assistant.entities import ObsidianVaultEntity
+from agent_assistant.entities import postgres
 from agent_assistant.loader.obsidian import VaultDb, VaultLoader
 from agent_assistant.utils.store_factory import PostgresStoreContext
 
 
 @pytest.fixture()
 def pg_vault_tables(
-    factory: PostgresStoreContext,
-) -> Generator[type[ObsidianVaultEntity], None, None]:
+    pg_cxt: PostgresStoreContext,
+) -> Generator[type[postgres.ObsidianVaultEntity], None, None]:
     """テスト専用の raw テーブルを作成し、テスト後に DROP する."""
-    engine = factory.get_engine()
+    engine = pg_cxt.get_engine()
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
 
     class _TestBase(DeclarativeBase):
         metadata = MetaData("assets")
 
-    class _TestRawEntity(_TestBase, ObsidianVaultEntity):
+    class _TestRawEntity(_TestBase, postgres.ObsidianVaultEntity):
         __tablename__ = f"{vault_name}_raw"
 
     _TestBase.metadata.create_all(engine)
@@ -78,8 +78,8 @@ class TestVaultDb:
     @pytest.mark.integration
     def test_sync_01(
         self,
-        factory: PostgresStoreContext,
-        pg_vault_tables: type[ObsidianVaultEntity],
+        pg_cxt: PostgresStoreContext,
+        pg_vault_tables: type[postgres.ObsidianVaultEntity],
         vault_docs,
     ):
         """sync() を呼び出した時、引数として渡されたドキュメントで raw テーブルを洗い替えできる.
@@ -89,7 +89,7 @@ class TestVaultDb:
         """
         # 試験準備
         raw_entity = pg_vault_tables
-        sa_engine = factory.get_engine()
+        sa_engine = pg_cxt.get_engine()
         note_a, note_b, note_c = vault_docs[:3]
         doc_a_modified = Document(
             id=note_a.id,

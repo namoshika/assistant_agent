@@ -8,10 +8,7 @@ from obsidian_parser import Vault
 from sqlalchemy import Engine, delete, insert
 from sqlalchemy.orm import Session
 
-from agent_assistant.entities import (
-    ObsidianVaultEntity,
-    ObsidianVaultRawEntity,
-)
+from agent_assistant.entities import base
 
 
 def path_to_document_id(path: str) -> str:
@@ -69,7 +66,7 @@ class VaultDb:
     def sync(
         documents: list[Document],
         sa_engine: Engine,
-        raw_entity: type[ObsidianVaultEntity] = ObsidianVaultRawEntity,
+        raw_entity: type[base.ObsidianVaultEntity],
     ) -> None:
         """Vault テーブルを引数 documents の内容で洗い替えする."""
         rows = [
