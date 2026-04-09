@@ -5,7 +5,7 @@
       "Bash(find)",
       "Bash(grep)",
       "Bash(ls)",
-      "Bash(uv run pytest)",
+      "Bash(uv run pytest *)",
       "Bash(uvx ruff *)"
     ],
     "deny": [
