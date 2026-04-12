@@ -1,11 +1,12 @@
 {
     "task.autoDetect": "off",
+    "python.analysis.typeCheckingMode": "basic",
     "python.testing.pytestArgs": [
         "tests"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "python.analysis.typeCheckingMode": "basic",
+    "python.terminal.useEnvFile": true,
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
     }

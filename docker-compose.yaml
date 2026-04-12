@@ -1,17 +1,6 @@
 services:
   agent:
     build: { context: agent }
-    environment:
-      - MLFLOW_TRACKING_URI
-      - CONTEXT7_API_KEY
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_DEFAULT_REGION
-      - OPENAI_API_KEY
-      - ENV_GEMINI_MODEL_ID
-      - ENV_GEMINI_API_KEY
-      - ENV_PG_CONNECTION_STRING=${DEV_PG_CONNECTION_STRING}
-      - ENV_ADMIN_PG_CONNECTION_STRING=${DEV_ADMIN_PG_CONNECTION_STRING}
     volumes:
       - .:/workspaces/agent_assistant:cached
     # ports:
