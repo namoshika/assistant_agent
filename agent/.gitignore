@@ -18,3 +18,4 @@ wheels/
 /tests/data/vault_db/
 /tests/data/mdsite_db/
 !/docs/adr/
+!/docs/templates/
