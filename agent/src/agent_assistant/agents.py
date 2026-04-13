@@ -1,6 +1,5 @@
 import os
 
-import mlflow
 from langchain_aws import ChatBedrockConverse
 from langchain_core.language_models import BaseChatModel
 from llama_index.core.embeddings import BaseEmbedding
@@ -15,8 +14,6 @@ from agent_assistant.utils.mlflow import LangGraphChatAgent
 from agent_assistant.utils.store_factory import PostgresStoreContext
 
 AGENT_NAME = "agent"
-mlflow.set_experiment("agent-rag")
-mlflow.autolog()
 
 
 def get_model() -> tuple[BaseChatModel, BaseEmbedding]:

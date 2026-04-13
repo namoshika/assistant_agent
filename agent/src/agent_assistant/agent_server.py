@@ -1,8 +1,20 @@
+import os
+
+import mlflow
 from fastapi import FastAPI
 
 from agent_assistant import agents
 from agent_assistant.utils.serving import ChatCompletion
 
+# トレース用設定
+experiment_id = os.getenv("MLFLOW_EXPERIMENT_ID")
+if experiment_id is not None:
+    mlflow.set_experiment(experiment_id=experiment_id)
+else:
+    mlflow.set_experiment(experiment_name="agent-rag")
+mlflow.autolog()
+
+# エージェント初期化
 app = FastAPI(title="Agent Assistant")
 endpoint = ChatCompletion.bind(app)
 agent_wrapped = agents.build_agent()
