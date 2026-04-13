@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "duckdb-engine>=0.17.0",
-    "fastapi-cli>=0.0.5",
+    "fastapi>=0.135.3",
     "langchain-community>=0.4.1",
     "langchain-postgres>=0.0.17",
     "langchain>=1.2.13",
@@ -22,6 +22,7 @@ dependencies = [
     "llama-index-storage-docstore-duckdb>=0.3.0",
     "llama-index-vector-stores-postgres>=0.8.1",
     "llama-index-vector-stores-duckdb>=0.6.0",
+    "mlflow>=3.11.1",
     "obsidianmd-parser>=0.4.0",
     "sqlalchemy>=2.0.48",
 ]
@@ -49,10 +50,9 @@ ignore = ["D100", "D101", "D104", "D203", "D213"]
 [dependency-groups]
 dev = [
     "boto3>=1.42.63",
+    "fastapi-cli>=0.0.5",
     "ipykernel>=7.2.0",
     "ipywidgets>=8.1.8",
-    "litellm>=1.82.0",
-    "mlflow==3.9.0",
     "pyright>=1.1.408",
     "pytest>=9.0.2",
     "pytest-mock>=3.15.1",

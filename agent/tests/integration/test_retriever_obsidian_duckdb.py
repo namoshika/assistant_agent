@@ -161,7 +161,16 @@ def test_search_documents_01(
 
     # 試験実施・結果検証
     # 観点1
-    results = dk_obsidian_retriever.search_documents(doc.page_content[:30], top_k=10)
+    results = dk_obsidian_retriever.search_documents(
+        doc.page_content[:30],
+        top_k=10,
+        filter={
+            "filters": {
+                "filters": [{"key": "date", "value": "2026-01-01 00:00:00", "operator": ">="}],
+                "condition": "and",
+            }
+        },
+    )
     assert len(results) >= 1
     matched = next((r for r in results if r.id == doc.id), None)
     assert matched is not None

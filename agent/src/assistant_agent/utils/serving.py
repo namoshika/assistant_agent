@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 
 class ChatCompletionRequest(BaseModel):
-    """POST /v1/chat/completions リクエストボディ."""
+    """POST /api/chat/completions リクエストボディ."""
 
     model: str
     messages: list[ChatMessage]
@@ -35,7 +35,7 @@ class ChatCompletionChoice(BaseModel):
 
 
 class ChatCompletionResponse(BaseModel):
-    """POST /v1/chat/completions レスポンスボディ."""
+    """POST /api/chat/completions レスポンスボディ."""
 
     id: str
     object: Literal["chat.completion"] = "chat.completion"
@@ -55,7 +55,7 @@ class ModelInfo(BaseModel):
 
 
 class ModelList(BaseModel):
-    """GET /v1/models レスポンスボディ."""
+    """GET /api/models レスポンスボディ."""
 
     object: Literal["list"] = "list"
     data: list[ModelInfo]
@@ -207,6 +207,6 @@ class ChatCompletion:
     def bind(app: FastAPI) -> "ChatCompletion":
         """FastAPI と紐付けた ChatCompletion インスタンスを作成."""
         obj = ChatCompletion()
-        app.post("/v1/chat/completions", response_model=None)(obj._invoke_handler)
-        app.get("/v1/models")(obj._list_models)
+        app.post("/api/chat/completions", response_model=None)(obj._invoke_handler)
+        app.get("/api/models")(obj._list_models)
         return obj

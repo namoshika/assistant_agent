@@ -145,10 +145,10 @@ class TestChatCompletion:
         normal_payload = {"model": "test-model", "messages": base_messages}
 
         # 試験実施
-        resp_oo = client_s.post("/v1/chat/completions", json=stream_payload)  # case1: o, o
-        resp_ox = client_ns.post("/v1/chat/completions", json=stream_payload)  # case2: o, x
-        resp_xo = client_s.post("/v1/chat/completions", json=normal_payload)  # case3: x, o
-        resp_xx = client_ns.post("/v1/chat/completions", json=normal_payload)  # case4: x, x
+        resp_oo = client_s.post("/api/chat/completions", json=stream_payload)  # case1: o, o
+        resp_ox = client_ns.post("/api/chat/completions", json=stream_payload)  # case2: o, x
+        resp_xo = client_s.post("/api/chat/completions", json=normal_payload)  # case3: x, o
+        resp_xx = client_ns.post("/api/chat/completions", json=normal_payload)  # case4: x, x
 
         # 結果検証
         # 観点1
@@ -194,10 +194,10 @@ class TestChatCompletion:
         ChatCompletion.bind(app)
         client_bare = TestClient(app)
         unknown_payload = {"model": "unknown-model", "messages": base_messages}
-        assert client_bare.post("/v1/chat/completions", json=unknown_payload).status_code == 503
+        assert client_bare.post("/api/chat/completions", json=unknown_payload).status_code == 503
         assert (
             client_bare.post(
-                "/v1/chat/completions", json={**unknown_payload, "stream": True}
+                "/api/chat/completions", json={**unknown_payload, "stream": True}
             ).status_code
             == 503
         )
@@ -205,13 +205,13 @@ class TestChatCompletion:
     def test_list_models_01(self):
         """クライアントからのモデル一覧リクエストを正しく応答できるか確認.
 
-        観点1: GET /v1/models のレスポンスに登録 model_id が含まれること
+        観点1: GET /api/models のレスポンスに登録 model_id が含まれること
         """
         # 試験準備
         client = self._make_client(allow_stream=True)
 
         # 試験実施
-        resp = client.get("/v1/models")
+        resp = client.get("/api/models")
 
         # 結果検証
         # 観点1

@@ -8,16 +8,16 @@ from assistant_agent.agent_server import app
 def test_chat_completions_01():
     """クライアントからのリクエストを正しく応答できるか確認.
 
-    観点1: GET /v1/models でモデル一覧が返ること (model_id が含まれる)
-    観点2: POST /v1/chat/completions (非ストリーム) でエージェントが呼び出されレスポンスが返ること
-    観点3: POST /v1/chat/completions (stream=True) でエージェント関数が呼び出され、SSE が返ること
+    観点1: GET /api/models でモデル一覧が返ること (model_id が含まれる)
+    観点2: POST /api/chat/completions (非ストリーム) でエージェントが呼び出されレスポンスが返ること
+    観点3: POST /api/chat/completions (stream=True) でエージェント関数が呼び出され、SSE が返ること
     """
     # 試験準備
     client = TestClient(app)
 
     # 観点1: モデル一覧
     # 試験実施
-    models_resp = client.get("/v1/models")
+    models_resp = client.get("/api/models")
 
     # 結果検証 (観点1)
     assert models_resp.status_code == 200
@@ -27,7 +27,7 @@ def test_chat_completions_01():
     # 観点2: 非ストリーミング
     # 試験実施
     resp = client.post(
-        "/v1/chat/completions",
+        "/api/chat/completions",
         json={
             "model": "assistant_agent_v1",
             "messages": [{"role": "user", "content": "こんにちは"}],
@@ -45,7 +45,7 @@ def test_chat_completions_01():
     # 観点3: ストリーミング
     # 試験実施
     stream_resp = client.post(
-        "/v1/chat/completions",
+        "/api/chat/completions",
         json={
             "model": "assistant_agent_v1",
             "messages": [{"role": "user", "content": "こんにちは"}],
