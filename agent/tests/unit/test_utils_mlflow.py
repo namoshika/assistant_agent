@@ -8,7 +8,7 @@ from mlflow.types.responses import (
 )
 from mlflow.types.responses_helpers import Message
 
-from agent_assistant.utils.mlflow import LangGraphChatAgent, LangGraphResponsesAgent
+from assistant_agent.utils.mlflow import LangGraphChatAgent, LangGraphResponsesAgent
 
 
 class TestLangGraphResponsesAgent:

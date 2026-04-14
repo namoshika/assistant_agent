@@ -1,4 +1,4 @@
-# ADR-011: `agent_assistant` パッケージのモジュール構成
+# ADR-011: `assistant_agent` パッケージのモジュール構成
 
 - **日付**: 2026-04-05
 - **ステータス**: 採択
@@ -15,7 +15,7 @@ ADR-003 では `agent.py` を `connector.py` / `context.py` / `graph.py` の 3 �
 ### パッケージ構成
 
 ```
-src/agent_assistant/
+src/assistant_agent/
 ├── agents.py            # モデル生成・エージェント組み立てのエントリポイント
 ├── agent_server.py      # FastAPI サーバー（OpenAI 互換 API として公開）
 ├── entities.py          # SQLAlchemy ORM エンティティ定義
@@ -58,7 +58,7 @@ src/agent_assistant/
 | `graph.py` に `ContextSchema` を集約 | グラフ構築とコンテキスト定義を同一ファイルに置くことで、依存関係が明確になった |
 | `agents.py` をオーケストレーション層として新設 | モデル生成・ストア初期化・グラフ組み立てを一箇所に集約。`pack.py` と `agent_server.py` の両エントリポイントから共通利用される |
 | `loader/` サブパッケージを追加 | Vault の取り込み・DB 同期は推論パスと独立しているため分離 |
-| `retriever/` サブパッケージを追加 | ADR-005 に従い、レトリーバーはアプリ固有実装として `src/agent_assistant/retriever/` に配置 |
+| `retriever/` サブパッケージを追加 | ADR-005 に従い、レトリーバーはアプリ固有実装として `src/assistant_agent/retriever/` に配置 |
 | `utils/serving.py` を追加 | ADR-010 に従い、OpenAI 互換サーバー層を `utils/` に配置し `agent_server.py` から利用 |
 
 ## 影響・備考

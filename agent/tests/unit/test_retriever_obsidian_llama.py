@@ -6,10 +6,10 @@ from llama_index.core.schema import NodeRelationship, NodeWithScore, RelatedNode
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from pytest_mock import MockerFixture
 
-from agent_assistant.entities import postgres
-from agent_assistant.loader.obsidian import path_to_document_id
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.store_factory import InMemoryStoreContext
+from assistant_agent.entities import postgres
+from assistant_agent.loader.obsidian import path_to_document_id
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.store_factory import InMemoryStoreContext
 
 _DOC_ID_A = path_to_document_id("a.md")
 _DOC_ID_B = path_to_document_id("b.md")
@@ -60,7 +60,7 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
     m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
@@ -93,7 +93,7 @@ def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
 
@@ -116,7 +116,7 @@ def test_search_documents_03(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "agent_assistant.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
     m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
@@ -149,7 +149,7 @@ def test_get_documents_by_ids_01(retriever: ObsidianLlamaRetriever, mocker: Mock
     m_session = MagicMock()
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
-    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
 
     # 観点1: DBが逆順 (b→a) で返しても document_ids の順 (a→b) で返る
     m_session.scalars.return_value.all.return_value = [m_row_b, m_row_a]
@@ -189,7 +189,7 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = [m_row_a, m_row_b]
-    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
     m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施
@@ -217,7 +217,7 @@ def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = []
-    mocker.patch("agent_assistant.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
     m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施

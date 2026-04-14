@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 SYSTEM_PROMPT = f"""
 # Instruction

@@ -2,9 +2,9 @@ import pytest
 from langchain_core.documents import Document
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
-from agent_assistant.loader.obsidian import VaultDb, path_to_document_id
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.store_factory import PostgresStoreContext
+from assistant_agent.loader.obsidian import VaultDb, path_to_document_id
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
 @pytest.mark.integration

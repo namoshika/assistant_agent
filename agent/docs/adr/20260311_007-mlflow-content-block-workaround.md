@@ -10,7 +10,7 @@
 
 ## 決定
 
-- `src/agent_assistant/utils/mlflow.py` の `LangGraphWrapper` において、レスポンスの `content_blocks` 配列の中から `type == "text"` の要素のみを抽出し、単一の文字列に連結して扱う処理（ワークアラウンド）を追加した。
+- `src/assistant_agent/utils/mlflow.py` の `LangGraphWrapper` において、レスポンスの `content_blocks` 配列の中から `type == "text"` の要素のみを抽出し、単一の文字列に連結して扱う処理（ワークアラウンド）を追加した。
 
 ## 影響・備考
 

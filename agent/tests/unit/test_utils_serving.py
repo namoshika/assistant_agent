@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from mlflow.types.agent import ChatAgentChunk, ChatAgentMessage, ChatAgentRequest, ChatAgentResponse
 from mlflow.types.chat import ChatMessage, TextContentPart
 
-from agent_assistant.utils.serving import (
+from assistant_agent.utils.serving import (
     ChatCompletion,
     from_chat_agent_chunk,
     from_chat_agent_response,

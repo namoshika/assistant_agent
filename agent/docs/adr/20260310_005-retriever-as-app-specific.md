@@ -14,9 +14,9 @@
 
 | 旧パス | 新パス |
 |---|---|
-| `src/agent_assistant/obsidian.py` | `src/agent_assistant/loader/obsidian.py` |
-| `src/agent_assistant/utils/documentstore/obsidian.py` | `src/agent_assistant/retriever/obsidian.py` |
-| `src/agent_assistant/utils/documentstore/markdown.py` | `src/agent_assistant/retriever/markdown.py` |
+| `src/assistant_agent/obsidian.py` | `src/assistant_agent/loader/obsidian.py` |
+| `src/assistant_agent/utils/documentstore/obsidian.py` | `src/assistant_agent/retriever/obsidian.py` |
+| `src/assistant_agent/utils/documentstore/markdown.py` | `src/assistant_agent/retriever/markdown.py` |
 
 **ChunkStore の再定義:**
 

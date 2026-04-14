@@ -10,7 +10,7 @@
 
 > 記載例:
 >
-> `src/agent_assistant/utils/store_factory.py` に `DuckDBStoreContext` を追加する。
+> `src/assistant_agent/utils/store_factory.py` に `DuckDBStoreContext` を追加する。
 > DuckDB は単一ファイルで動作する組み込み OLAP DB であり、Databricks 上でもローカルでも依存を最小化したい場面に適する。
 
 ---

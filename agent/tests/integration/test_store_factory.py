@@ -7,7 +7,7 @@ from llama_index.storage.docstore.duckdb import DuckDBDocumentStore
 from llama_index.vector_stores.duckdb import DuckDBVectorStore
 from sqlalchemy import text
 
-from agent_assistant.utils.store_factory import DuckDBStoreContext
+from assistant_agent.utils.store_factory import DuckDBStoreContext
 
 
 class TestDuckDBStoreContext:

@@ -11,8 +11,8 @@ from llama_index.core.vector_stores.types import MetadataFilters
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from agent_assistant.entities import base
-from agent_assistant.utils.absclass import StoreContext
+from assistant_agent.entities import base
+from assistant_agent.utils.absclass import StoreContext
 
 # 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）
 _JAPANESE_PARAGRAPH_SEP = "\n\n"

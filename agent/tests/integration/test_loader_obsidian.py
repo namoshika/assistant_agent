@@ -7,9 +7,9 @@ from langchain_core.documents import Document
 from sqlalchemy import MetaData, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
-from agent_assistant.entities import postgres
-from agent_assistant.loader.obsidian import VaultDb, VaultLoader
-from agent_assistant.utils.store_factory import PostgresStoreContext
+from assistant_agent.entities import postgres
+from assistant_agent.loader.obsidian import VaultDb, VaultLoader
+from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
 @pytest.fixture()

@@ -23,7 +23,7 @@
 > 記載例:
 >
 > ```
-> src/agent_assistant/
+> src/assistant_agent/
 > ├── entities/
 > │   ├── base.py        # 共通基底クラス・backlink_filter 抽象定義
 > │   ├── postgres.py    # PostgreSQL 用ミックスイン・テーブルクラス
@@ -48,9 +48,9 @@
 >
 > | ファイル | 変更種別 |
 > |---|---|
-> | `src/agent_assistant/entities.py` | 削除（ディレクトリへ移行） |
-> | `src/agent_assistant/entities/base.py` | 新規作成（共通基底クラス） |
-> | `src/agent_assistant/utils/store_factory.py` | 改修（DuckDBStoreContext 追加） |
+> | `src/assistant_agent/entities.py` | 削除（ディレクトリへ移行） |
+> | `src/assistant_agent/entities/base.py` | 新規作成（共通基底クラス） |
+> | `src/assistant_agent/utils/store_factory.py` | 改修（DuckDBStoreContext 追加） |
 > | `tests/integration/test_store_factory.py` | 新規作成（DuckDB テスト追加） |
 
 ---
@@ -65,7 +65,7 @@
 
 > 記載例:
 >
-> `src/agent_assistant/entities.py` に以下が定義されている。
+> `src/assistant_agent/entities.py` に以下が定義されている。
 >
 > ```python
 > class ObsidianVaultEntity:      # 基底（JSONB 列定義込み）

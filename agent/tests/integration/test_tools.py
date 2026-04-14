@@ -8,10 +8,10 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
-from agent_assistant import agents, graph, tools
-from agent_assistant.loader.obsidian import VaultDb
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.store_factory import PostgresStoreContext
+from assistant_agent import agents, graph, tools
+from assistant_agent.loader.obsidian import VaultDb
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
 class _FakeChatModel(GenericFakeChatModel):

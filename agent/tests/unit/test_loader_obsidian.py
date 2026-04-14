@@ -2,7 +2,7 @@ from pathlib import Path
 
 from langchain_community.document_loaders import ObsidianLoader
 
-from agent_assistant.loader.obsidian import VaultLoader, path_to_document_id
+from assistant_agent.loader.obsidian import VaultLoader, path_to_document_id
 
 VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
 

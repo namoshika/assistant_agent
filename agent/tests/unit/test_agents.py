@@ -3,7 +3,7 @@ import os
 from mlflow.pyfunc.model import ChatAgent
 from pytest_mock import MockerFixture
 
-from agent_assistant.agents import build_agent
+from assistant_agent.agents import build_agent
 
 
 def test_build_agent_01(mocker: MockerFixture):
@@ -19,7 +19,7 @@ def test_build_agent_01(mocker: MockerFixture):
             "ENV_PG_CONNECTION_STRING": "postgresql://localhost/test",
         },
     )
-    mocker.patch("agent_assistant.agents.entities.ObsidianVaultBase.metadata.create_all")
+    mocker.patch("assistant_agent.agents.entities.ObsidianVaultBase.metadata.create_all")
 
     # 試験実施
     agent = build_agent()

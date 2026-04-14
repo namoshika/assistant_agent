@@ -1,5 +1,5 @@
 [project]
-name = "agent-assistant"
+name = "assistant_agent"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -36,7 +36,7 @@ markers = [
 ]
 
 [tool.fastapi]
-entrypoint = "agent_assistant.agent_server:app"
+entrypoint = "assistant_agent.agent_server:app"
 
 [tool.ruff]
 extend-exclude = ["scripts/*.ipynb", "docs"]

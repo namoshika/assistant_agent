@@ -13,7 +13,7 @@ from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine.url import make_url
 
-from agent_assistant.utils.absclass import StoreContext
+from assistant_agent.utils.absclass import StoreContext
 
 
 class PostgresStoreContext(StoreContext):

@@ -3,8 +3,8 @@ import os
 import mlflow
 from fastapi import FastAPI
 
-from agent_assistant import agents
-from agent_assistant.utils.serving import ChatCompletion
+from assistant_agent import agents
+from assistant_agent.utils.serving import ChatCompletion
 
 # トレース用設定
 experiment_id = os.getenv("MLFLOW_EXPERIMENT_ID")
@@ -20,13 +20,13 @@ endpoint = ChatCompletion.bind(app)
 agent_wrapped = agents.build_agent()
 
 
-@endpoint.regist(model_id="agent_assistant_v1")
+@endpoint.regist(model_id="assistant_agent_v1")
 def _predict(req):
     """非ストリーミング推論."""
     return agent_wrapped.predict(req.messages)
 
 
-@endpoint.regist_stream(model_id="agent_assistant_v1")
+@endpoint.regist_stream(model_id="assistant_agent_v1")
 def _predict_stream(req):
     """ストリーミング推論."""
     return agent_wrapped.predict_stream(req.messages)

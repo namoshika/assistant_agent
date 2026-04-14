@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from agent_assistant.agent_server import app
+from assistant_agent.agent_server import app
 
 
 @pytest.mark.integration
@@ -22,14 +22,14 @@ def test_chat_completions_01():
     # 結果検証 (観点1)
     assert models_resp.status_code == 200
     model_ids = {m["id"] for m in models_resp.json()["data"]}
-    assert "agent_assistant_v1" in model_ids
+    assert "assistant_agent_v1" in model_ids
 
     # 観点2: 非ストリーミング
     # 試験実施
     resp = client.post(
         "/v1/chat/completions",
         json={
-            "model": "agent_assistant_v1",
+            "model": "assistant_agent_v1",
             "messages": [{"role": "user", "content": "こんにちは"}],
         },
     )
@@ -38,7 +38,7 @@ def test_chat_completions_01():
     assert resp.status_code == 200
     body = resp.json()
     assert body["object"] == "chat.completion"
-    assert body["model"] == "agent_assistant_v1"
+    assert body["model"] == "assistant_agent_v1"
     assert body["choices"][0]["message"]["role"] == "assistant"
     assert body["choices"][0]["message"]["content"]
 
@@ -47,7 +47,7 @@ def test_chat_completions_01():
     stream_resp = client.post(
         "/v1/chat/completions",
         json={
-            "model": "agent_assistant_v1",
+            "model": "assistant_agent_v1",
             "messages": [{"role": "user", "content": "こんにちは"}],
             "stream": True,
         },

@@ -2,8 +2,8 @@ import pytest
 from sqlalchemy import MetaData, insert, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
-from agent_assistant.entities import duckdb, postgres
-from agent_assistant.utils.store_factory import DuckDBStoreContext, PostgresStoreContext
+from assistant_agent.entities import duckdb, postgres
+from assistant_agent.utils.store_factory import DuckDBStoreContext, PostgresStoreContext
 
 
 @pytest.fixture()

@@ -6,5 +6,5 @@ paths:
 
 ## ディレクトリ
 
-- `src/agent_assistant/`: ソースコード
-- `src/agent_assistant/utils/`: 共通ソースコード (ローカルと Databricks の両環境を念頭に置く)
+- `src/assistant_agent/`: ソースコード
+- `src/assistant_agent/utils/`: 共通ソースコード (ローカルと Databricks の両環境を念頭に置く)

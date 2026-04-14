@@ -7,11 +7,11 @@ from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from mlflow.pyfunc.model import ChatAgent
 from pydantic import SecretStr
 
-from agent_assistant import graph, tools
-from agent_assistant.entities import postgres as entities
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.mlflow import LangGraphChatAgent
-from agent_assistant.utils.store_factory import PostgresStoreContext
+from assistant_agent import graph, tools
+from assistant_agent.entities import postgres as entities
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.mlflow import LangGraphChatAgent
+from assistant_agent.utils.store_factory import PostgresStoreContext
 
 AGENT_NAME = "agent"
 

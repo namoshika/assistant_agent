@@ -7,8 +7,8 @@ from langchain_core.documents import Document
 from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
-from agent_assistant.graph import ContextSchema
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.graph import ContextSchema
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
 
 
 def get_tools():

@@ -62,7 +62,7 @@ Expected one of ['bool', 'str', 'bytes', 'int', 'float'] or None
 
 ## 決定
 
-`src/agent_assistant/utils/mlflow.py` の `predict_stream` にて、
+`src/assistant_agent/utils/mlflow.py` の `predict_stream` にて、
 `stream_mode` から `"messages"` をコメントアウトして除外する。
 
 現状 `predict_stream` で `"messages"` モードの出力（トークン単位のデルタ）は

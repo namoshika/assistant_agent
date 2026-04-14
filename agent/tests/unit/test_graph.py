@@ -5,7 +5,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from agent_assistant.graph import ContextSchema, build_graph
+from assistant_agent.graph import ContextSchema, build_graph
 
 
 class _FakeChatModel(GenericFakeChatModel):

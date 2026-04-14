@@ -9,10 +9,10 @@ from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy import MetaData, text
 from sqlalchemy.orm import DeclarativeBase
 
-from agent_assistant.entities import duckdb, postgres
-from agent_assistant.loader.obsidian import VaultLoader
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.store_factory import DuckDBStoreContext, PostgresStoreContext
+from assistant_agent.entities import duckdb, postgres
+from assistant_agent.loader.obsidian import VaultLoader
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.store_factory import DuckDBStoreContext, PostgresStoreContext
 
 
 @pytest.fixture()

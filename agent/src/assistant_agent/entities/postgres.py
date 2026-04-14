@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
 
-from agent_assistant.entities import base
+from assistant_agent.entities import base
 
 
 class ObsidianVaultBase(DeclarativeBase):

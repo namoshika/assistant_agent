@@ -6,7 +6,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
-from agent_assistant import graph, tools
+from assistant_agent import graph, tools
 
 
 class _FakeChatModel(GenericFakeChatModel):

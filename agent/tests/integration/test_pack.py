@@ -8,9 +8,9 @@ from mlflow.pyfunc.model import ChatAgent
 from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
 
-from agent_assistant.loader.obsidian import VaultDb
-from agent_assistant.retriever.obsidian_llama import ObsidianLlamaRetriever
-from agent_assistant.utils.store_factory import PostgresStoreContext
+from assistant_agent.loader.obsidian import VaultDb
+from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
 @pytest.mark.integration
@@ -34,11 +34,11 @@ def test_agent_01(
     raw_entity = pg_entity
     VaultDb.sync(vault_docs, pg_cxt.get_engine(), raw_entity)
     pg_obsidian_retriever.sync_chunks()
-    sys.modules.pop("agent_assistant.pack", None)
+    sys.modules.pop("assistant_agent.pack", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")
 
     # 試験実施
-    importlib.import_module("agent_assistant.pack")
+    importlib.import_module("assistant_agent.pack")
     agent_wrapped = mock_set_model.call_args.args[0]
 
     # 観点1

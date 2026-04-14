@@ -8,7 +8,7 @@ from obsidian_parser import Vault
 from sqlalchemy import Engine, delete, insert
 from sqlalchemy.orm import Session
 
-from agent_assistant.entities import base
+from assistant_agent.entities import base
 
 
 def path_to_document_id(path: str) -> str:
