@@ -36,7 +36,6 @@ def test_agent_01(
     pg_obsidian_retriever.sync_chunks()
     sys.modules.pop("agent_assistant.pack", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")
-    mocker.patch.dict(os.environ, {"ENV_VAULT_NAME": vault_name})
 
     # 試験実施
     importlib.import_module("agent_assistant.pack")

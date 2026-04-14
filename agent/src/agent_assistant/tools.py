@@ -29,7 +29,9 @@ def get_weather(city: str) -> str:
 # Tool: obsidian_vault_search
 # --------------------------------
 class ObsidianVaultSearchInput(BaseModel):
-    search_query: str = Field(description="Search word")
+    search_query: str = Field(
+        description="Search word (At least 1 character required).", default=" ", min_length=1
+    )
     filters: MetadataFilters | None = Field(
         default=None,
         description=(
@@ -67,7 +69,7 @@ def obsidian_vault_search(
     obsidian_store = runtime.context.obsidian_store
     top_k = 9999 if full_fetch else 10
     results = obsidian_store.search_documents(search_query, top_k=top_k, filters=filters)
-    return format_document_ids(results), results
+    return format_document_ids(results), results  # pyright: ignore[reportReturnType]
 
 
 # --------------------------------

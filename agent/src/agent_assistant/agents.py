@@ -58,7 +58,6 @@ def build_agent() -> ChatAgent:
         初期化済みの ChatAgent インスタンス。
 
     """
-    env_vault_name = os.getenv("ENV_VAULT_NAME", "obsidian_vault")
     pg_connection_string = os.getenv("ENV_PG_CONNECTION_STRING")
     assert pg_connection_string is not None
 
@@ -70,8 +69,8 @@ def build_agent() -> ChatAgent:
     obsidian_store = ObsidianLlamaRetriever(
         sa_engine=sa_engine,
         store_factory=factory,
-        docstore_name=f"{env_vault_name}_docs",
-        vectorstore_name=f"{env_vault_name}_vectors",
+        docstore_name="obsidian_vault_docs",
+        vectorstore_name="obsidian_vault_vectors",
         embed_model=emb,
         embed_dim=3072,
         vault_entity=entities.ObsidianVaultRawEntity,
