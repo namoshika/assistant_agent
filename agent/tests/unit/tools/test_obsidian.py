@@ -6,7 +6,8 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
-from assistant_agent import graph, tools
+import assistant_agent.tools.obsidian as tools
+from assistant_agent import graph
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -14,32 +15,6 @@ class _FakeChatModel(GenericFakeChatModel):
 
     def bind_tools(self, tools, **_):
         return self
-
-
-def test_get_weather_01():
-    """天気を取得できるか確認.
-
-    観点: ToolMessage として返り、content に引数の都市名が含まれる
-    """
-    # 試験準備
-    ai_msg = AIMessage(
-        content="",
-        tool_calls=[
-            {
-                "name": "get_weather",
-                "args": {"city": "Tokyo"},
-                "id": "1",
-                "type": "tool_call",
-            }
-        ],
-    )
-    agent = _make_agent(ai_msg, tools.get_weather)
-
-    # 試験実施
-    result = agent.invoke({"messages": [HumanMessage(content="東京の天気は?")]})
-    # 結果検証
-    tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert "Tokyo" in tool_msg.content
 
 
 def test_obsidian_vault_search_01():
@@ -228,7 +203,7 @@ def test_obsidian_vault_get_01():
     assert tool_msg.artifact is docs
 
 
-def test_format_documents_01():
+def test_format_obs_docs_01():
     """Document リストから整形済み文字列を返せるか確認.
 
     観点: 戻り値が文字列である
@@ -244,7 +219,7 @@ def test_format_documents_01():
     m_store = MagicMock()
 
     # 試験実施
-    result = tools.format_documents(docs, m_store)
+    result = tools.format_docs_obs(docs, m_store)
 
     # 結果検証
     assert isinstance(result, str)

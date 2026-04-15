@@ -8,21 +8,7 @@ from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
 from assistant_agent.graph import ContextSchema
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
-
-
-def get_tools():
-    """エージェントに使用させるツールを返す."""
-    return [get_weather, obsidian_vault_search, obsidian_vault_get]
-
-
-# --------------------------------
-# Tool: get_weather
-# --------------------------------
-@tool
-def get_weather(city: str) -> str:
-    """Get weather for a given city."""
-    return f"It's always sunny in {city}!"
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 
 
 # --------------------------------
@@ -106,7 +92,7 @@ def obsidian_vault_get(
     """
     obsidian_store = runtime.context.obsidian_store
     results = obsidian_store.get_documents_by_ids(document_ids)
-    return format_documents(results, obsidian_store), results
+    return format_docs_obs(results, obsidian_store), results
 
 
 # --------------------------------
@@ -121,7 +107,7 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     return "\n".join(lines)
 
 
-def format_documents(documents: Sequence[Document], obsidian_store: ObsidianLlamaRetriever) -> str:
+def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidianRetriever) -> str:
     """Document オブジェクトのリストを、エージェントが読みやすいテキスト形式に整形する.
 
     Args:

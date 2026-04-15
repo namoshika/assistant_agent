@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,9 +8,10 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
-from assistant_agent import agents, graph, tools
-from assistant_agent.loader.obsidian import VaultDb
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+import assistant_agent.tools.obsidian as tools
+from assistant_agent import agents, graph
+from assistant_agent.entities.base import VaultUtils
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
@@ -22,9 +23,9 @@ class _FakeChatModel(GenericFakeChatModel):
 @pytest.mark.integration
 def test_obsidian_vault_search_01(
     pg_cxt: PostgresStoreContext,
-    pg_obsidian_retriever: ObsidianLlamaRetriever,
-    pg_entity: type,
-    vault_docs: list[Document],
+    pg_retriever_obs: VaultObsidianRetriever,
+    pg_entity_obs: type,
+    docs_obs: list[Document],
 ) -> None:
     """obsidian_vault_search() を呼び出した時、 クエリと意味的に近いドキュメントを返せるか確認.
 
@@ -33,9 +34,9 @@ def test_obsidian_vault_search_01(
         artifact の各 Document が path メタデータを持つ
     """
     # 試験準備
-    raw_entity = pg_entity
-    VaultDb.sync(vault_docs, pg_cxt.get_engine(), raw_entity)
-    pg_obsidian_retriever.sync_chunks()
+    raw_entity = pg_entity_obs
+    VaultUtils.sync(docs_obs, pg_cxt.get_engine(), raw_entity)
+    pg_retriever_obs.sync_chunks()
 
     ai_msg = AIMessage(
         content="",
@@ -43,7 +44,7 @@ def test_obsidian_vault_search_01(
             {
                 "name": "obsidian_vault_search",
                 "args": {
-                    "search_query": vault_docs[0].page_content[:20],
+                    "search_query": docs_obs[0].page_content[:20],
                     "filters": None,
                     "full_fetch": False,
                 },
@@ -57,7 +58,7 @@ def test_obsidian_vault_search_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
     )
 
     # 結果検証
@@ -67,8 +68,8 @@ def test_obsidian_vault_search_01(
     assert len(tool_msg.artifact) >= 1
     # 観点2
     assert len(tool_msg.content) > 0
-    assert vault_docs[0].id is not None
-    assert vault_docs[0].id in tool_msg.content
+    assert docs_obs[0].id is not None
+    assert docs_obs[0].id in tool_msg.content
     for doc in tool_msg.artifact:
         assert "path" in doc.metadata
 
@@ -135,9 +136,9 @@ def test_obsidian_vault_search_03() -> None:
 @pytest.mark.integration
 def test_obsidian_vault_get_01(
     pg_cxt: PostgresStoreContext,
-    pg_obsidian_retriever: ObsidianLlamaRetriever,
-    pg_entity: type,
-    vault_docs: list[Document],
+    pg_retriever_obs: VaultObsidianRetriever,
+    pg_entity_obs: type,
+    docs_obs: list[Document],
 ) -> None:
     """obsidian_vault_get() を呼び出した時、指定した document_id のドキュメントを取得できるか確認.
 
@@ -146,9 +147,9 @@ def test_obsidian_vault_get_01(
     観点3: 存在しない ID を指定すると ToolMessage.artifact が空リスト、content が空文字列
     """
     # 試験準備
-    raw_entity = pg_entity
-    VaultDb.sync([vault_docs[0]], pg_cxt.get_engine(), raw_entity)
-    doc_id = vault_docs[0].id
+    raw_entity = pg_entity_obs
+    VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
+    doc_id = docs_obs[0].id
     ai_msg = AIMessage(
         content="",
         tool_calls=[
@@ -165,7 +166,7 @@ def test_obsidian_vault_get_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
     )
 
     # 結果検証
@@ -173,7 +174,7 @@ def test_obsidian_vault_get_01(
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert len(tool_msg.artifact) == 1
     # 観点2
-    assert vault_docs[0].page_content[:10] in tool_msg.content
+    assert docs_obs[0].page_content[:10] in tool_msg.content
     ai_msg2 = AIMessage(
         content="",
         tool_calls=[
@@ -188,7 +189,7 @@ def test_obsidian_vault_get_01(
     agent = _make_agent(ai_msg2, tools.obsidian_vault_get)
     result2 = agent.invoke(
         {"messages": [HumanMessage(content="nonexistent.md を取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_obsidian_retriever),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
     )
     # 観点3
     tool_msg2 = next(m for m in result2["messages"] if isinstance(m, ToolMessage))
@@ -197,23 +198,23 @@ def test_obsidian_vault_get_01(
 
 
 @pytest.mark.integration
-def test_format_documents_01(
+def test_format_obs_docs_01(
     pg_cxt: PostgresStoreContext,
-    pg_obsidian_retriever: ObsidianLlamaRetriever,
-    pg_entity: type,
-    vault_docs: list[Document],
+    pg_retriever_obs: VaultObsidianRetriever,
+    pg_entity_obs: type,
+    docs_obs: Sequence[Document],
 ) -> None:
-    """Document リストを format_documents() に渡し、整形済み文字列を返せるか確認.
+    """Document リストを format_obs_docs() に渡し、整形済み文字列を返せるか確認.
 
     観点: 戻り値が文字列である
     """
     # 試験準備
-    raw_entity = pg_entity
-    VaultDb.sync([vault_docs[0]], pg_cxt.get_engine(), raw_entity)
-    docs = pg_obsidian_retriever.get_documents_by_ids([vault_docs[0].id])
+    raw_entity = pg_entity_obs
+    VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
+    docs = pg_retriever_obs.get_documents_by_ids([docs_obs[0].id])  # pyright: ignore[reportArgumentType]
 
     # 試験実施
-    result = tools.format_documents(docs, pg_obsidian_retriever)
+    result = tools.format_docs_obs(docs, pg_retriever_obs)
 
     # 結果検証
     assert isinstance(result, str)

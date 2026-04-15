@@ -72,8 +72,6 @@ class TestDuckDBStoreContext:
         assert len(result.nodes) == 1  # pyright: ignore[reportArgumentType]
         assert result.nodes[0].node_id == "node-1"  # pyright: ignore[reportOptionalSubscript]
 
-        ctx.close()
-
     @pytest.mark.integration
     def test_get_docstore_01(self, tmp_path: Path) -> None:
         """get_docstore が DuckDBDocumentStore を返し、読み書きできること.
@@ -96,8 +94,6 @@ class TestDuckDBStoreContext:
         fetched = store.get_document("node-2")
         assert fetched is not None
         assert fetched.get_content() == "world"
-
-        ctx.close()
 
     @pytest.mark.integration
     def test_close_01(self, tmp_path: Path) -> None:

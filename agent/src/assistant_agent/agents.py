@@ -9,7 +9,7 @@ from pydantic import SecretStr
 
 from assistant_agent import graph, tools
 from assistant_agent.entities import postgres as entities
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 from assistant_agent.utils.mlflow import LangGraphChatAgent
 from assistant_agent.utils.store_factory import PostgresStoreContext
 
@@ -65,15 +65,15 @@ def build_agent() -> ChatAgent:
 
     factory = PostgresStoreContext(pg_connection_string, schema_name="app")
     sa_engine = factory.get_engine()
-    entities.ObsidianVaultBase.metadata.create_all(sa_engine)
-    obsidian_store = ObsidianLlamaRetriever(
+    entities.VaultBase.metadata.create_all(sa_engine)
+    obsidian_store = VaultObsidianRetriever(
         sa_engine=sa_engine,
         store_factory=factory,
         docstore_name="obsidian_vault_docs",
         vectorstore_name="obsidian_vault_vectors",
         embed_model=emb,
         embed_dim=3072,
-        vault_entity=entities.ObsidianVaultRawEntity,
+        vault_entity=entities.ObsidianEntity,
     )
 
     ctx = graph.ContextSchema(llm=llm, obsidian_store=obsidian_store)

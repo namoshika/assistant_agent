@@ -18,7 +18,7 @@ from assistant_agent.utils.absclass import StoreContext
 _JAPANESE_PARAGRAPH_SEP = "\n\n"
 
 
-class ObsidianLlamaRetriever:
+class VaultObsidianRetriever:
     """LlamaIndex IngestionPipeline を使った Obsidian Vault レトリーバー.
 
     docstore_name / vectorstore_name / chunk_size / chunk_overlap を
@@ -33,11 +33,11 @@ class ObsidianLlamaRetriever:
         vectorstore_name: str,
         embed_model: BaseEmbedding,
         embed_dim: int,
-        vault_entity: type[base.ObsidianVaultEntity],
+        vault_entity: type[base.ObsidianFields],
         chunk_size: int = 1024,
         chunk_overlap: int = 200,
     ):
-        """Construct ObsidianLlamaRetriever."""
+        """Construct VaultObsidianRetriever."""
         self._sa_engine = sa_engine
         self._vault_entity = vault_entity
         self._embed_model = embed_model

@@ -19,7 +19,7 @@ def test_build_agent_01(mocker: MockerFixture):
             "ENV_PG_CONNECTION_STRING": "postgresql://localhost/test",
         },
     )
-    mocker.patch("assistant_agent.agents.entities.ObsidianVaultBase.metadata.create_all")
+    mocker.patch("assistant_agent.agents.entities.VaultBase.metadata.create_all")
 
     # 試験実施
     agent = build_agent()

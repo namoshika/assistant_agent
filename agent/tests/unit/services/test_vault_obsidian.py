@@ -7,8 +7,8 @@ from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter,
 from pytest_mock import MockerFixture
 
 from assistant_agent.entities import postgres
-from assistant_agent.loader.obsidian import path_to_document_id
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.loaders.obsidian import path_to_document_id
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 from assistant_agent.utils.store_factory import InMemoryStoreContext
 
 _DOC_ID_A = path_to_document_id("a.md")
@@ -16,23 +16,23 @@ _DOC_ID_B = path_to_document_id("b.md")
 
 
 @pytest.fixture
-def retriever() -> ObsidianLlamaRetriever:
-    """ObsidianLlamaRetriever のテスト用インスタンス.
+def retriever() -> VaultObsidianRetriever:
+    """VaultObsidianRetriever のテスト用インスタンス.
 
     InMemoryStoreContext を注入し、外部依存なしで動作させる。
     """
-    return ObsidianLlamaRetriever(
+    return VaultObsidianRetriever(
         sa_engine=MagicMock(),
         store_factory=InMemoryStoreContext(),
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
-        vault_entity=postgres.ObsidianVaultRawEntity,
+        vault_entity=postgres.ObsidianEntity,
     )
 
 
-def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_search_documents_01(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """クエリで Chunk 検索し、類似する Document を取得できるか確認  (filter 省略).
 
     観点1: as_retriever が引数 similarity_top_k 付きで呼ばれていること
@@ -60,7 +60,7 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
     m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
@@ -75,7 +75,7 @@ def test_search_documents_01(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_get_docs.assert_called_once_with([_DOC_ID_A, _DOC_ID_B])
 
 
-def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_search_documents_02(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """クエリで Chunk 検索し、類似する Document を取得できるか確認 (filter 有り).
 
     観点1: as_retriever が filters 付きで呼ばれること
@@ -93,7 +93,7 @@ def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
 
@@ -105,7 +105,7 @@ def test_search_documents_02(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index.as_retriever.assert_called_once_with(similarity_top_k=5, filters=filters)
 
 
-def test_search_documents_03(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_search_documents_03(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """クエリで Chunk 検索し、類似する Document が無い場合に空リストを返せるか確認.
 
     観点1: retrieve() が空リストを返すとき get_documents_by_ids([]) が呼ばれ [] を返す
@@ -116,7 +116,7 @@ def test_search_documents_03(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "assistant_agent.retriever.obsidian_llama.VectorStoreIndex.from_vector_store",
+        "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
     m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
@@ -130,7 +130,7 @@ def test_search_documents_03(retriever: ObsidianLlamaRetriever, mocker: MockerFi
     assert result == []
 
 
-def test_get_documents_by_ids_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_get_documents_by_ids_01(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """document_ids に対応する Document を取得できるか確認.
 
     観点1: DBが逆順で返しても document_ids の順序で返ること
@@ -149,7 +149,7 @@ def test_get_documents_by_ids_01(retriever: ObsidianLlamaRetriever, mocker: Mock
     m_session = MagicMock()
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
-    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.services.vault_obsidian.Session", return_value=m_session)
 
     # 観点1: DBが逆順 (b→a) で返しても document_ids の順 (a→b) で返る
     m_session.scalars.return_value.all.return_value = [m_row_b, m_row_a]
@@ -171,7 +171,7 @@ def test_get_documents_by_ids_01(retriever: ObsidianLlamaRetriever, mocker: Mock
     assert docs == []
 
 
-def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_sync_chunks_01(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """Vault テーブルと Chunk テーブルの同期ができるか確認 (有件).
 
     観点1: 全 Document が LlamaDocument に変換され pipeline.run へ渡される
@@ -189,7 +189,7 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = [m_row_a, m_row_b]
-    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.services.vault_obsidian.Session", return_value=m_session)
     m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施
@@ -207,7 +207,7 @@ def test_sync_chunks_01(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     assert llama_docs[1].metadata == {"path": "b.md"}
 
 
-def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture):
+def test_sync_chunks_02(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """Vault テーブルと Chunk テーブルの同期ができるか確認 (0件).
 
     観点1: 空の Document リストが pipeline.run へ渡される
@@ -217,7 +217,7 @@ def test_sync_chunks_02(retriever: ObsidianLlamaRetriever, mocker: MockerFixture
     m_session.__enter__ = MagicMock(return_value=m_session)
     m_session.__exit__ = MagicMock(return_value=False)
     m_session.scalars.return_value.all.return_value = []
-    mocker.patch("assistant_agent.retriever.obsidian_llama.Session", return_value=m_session)
+    mocker.patch("assistant_agent.services.vault_obsidian.Session", return_value=m_session)
     m_pipeline_run = mocker.patch("llama_index.core.ingestion.pipeline.IngestionPipeline.run")
 
     # 試験実施

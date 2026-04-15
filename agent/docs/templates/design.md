@@ -68,9 +68,9 @@
 > `src/assistant_agent/entities.py` に以下が定義されている。
 >
 > ```python
-> class ObsidianVaultEntity:      # 基底（JSONB 列定義込み）
-> class ObsidianVaultBase(DeclarativeBase): ...
-> class ObsidianVaultRawEntity(ObsidianVaultBase, ObsidianVaultEntity): ...
+> class DocumentFields:      # 基底（JSONB 列定義込み）
+> class VaultBase(DeclarativeBase): ...
+> class ObsidianEntity(VaultBase, DocumentFields): ...
 > ```
 >
 > `backlink_filter` に PostgreSQL 固有の `JSONB.contains` が直接使われており、DuckDB では動作しない。
@@ -89,7 +89,7 @@
 > from abc import abstractmethod
 > from sqlalchemy.sql.elements import ColumnElement
 >
-> class ObsidianVaultEntity:
+> class ObsidianFields:
 >     @classmethod
 >     @abstractmethod
 >     def backlink_filter(cls, document_id: str) -> ColumnElement[bool]:

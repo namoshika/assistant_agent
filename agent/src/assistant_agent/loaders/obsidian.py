@@ -5,10 +5,6 @@ from langchain_community.document_loaders import ObsidianLoader
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
 from obsidian_parser import Vault
-from sqlalchemy import Engine, delete, insert
-from sqlalchemy.orm import Session
-
-from assistant_agent.entities import base
 
 
 def path_to_document_id(path: str) -> str:
@@ -57,29 +53,3 @@ class VaultLoader(BaseLoader):
                 target_path = str(target.path.relative_to(vault.path))
                 result.append(path_to_document_id(target_path))
         return result
-
-
-class VaultDb:
-    """Vault のドキュメントを PostgreSQL に同期するクラス."""
-
-    @staticmethod
-    def sync(
-        documents: list[Document],
-        sa_engine: Engine,
-        raw_entity: type[base.ObsidianVaultEntity],
-    ) -> None:
-        """Vault テーブルを引数 documents の内容で洗い替えする."""
-        rows = [
-            {
-                "document_id": doc.id,
-                "document_metadata": doc.metadata,
-                "content": doc.page_content,
-                "path": doc.metadata["path"],
-            }
-            for doc in documents
-        ]
-        assert rows is not None
-        with Session(sa_engine) as session:
-            session.execute(delete(raw_entity))
-            session.execute(insert(raw_entity), rows)
-            session.commit()

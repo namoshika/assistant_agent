@@ -6,22 +6,30 @@ from sqlalchemy.sql.elements import ColumnElement
 from assistant_agent.entities import base
 
 
-class ObsidianVaultBase(DeclarativeBase):
+class VaultBase(DeclarativeBase):
     metadata = MetaData("assets")
 
 
-class ObsidianVaultEntity(base.ObsidianVaultEntity):
-    """PostgreSQL 用ミックスイン. document_metadata=JSONB と backlink_filter を定義."""
+class DocumentFields(base.DocumentFields):
+    """document_metadata=JSONB と backlink_filter を定義."""
 
     document_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, sort_order=1)
 
+
+class ObsidianFields(DocumentFields, base.ObsidianFields):
     @classmethod
     def backlink_filter(cls, document_id: str) -> ColumnElement[bool]:
         """forward_links に document_id を含む行を絞り込む WHERE 句を返す."""
         return cast(cls.document_metadata["forward_links"], JSONB).contains([document_id])
 
 
-class ObsidianVaultRawEntity(ObsidianVaultBase, ObsidianVaultEntity):
-    """PostgreSQL 用テーブルクラス. backlink_filter は ObsidianVaultEntity から継承."""
+class ObsidianEntity(VaultBase, ObsidianFields):
+    """backlink_filter は DocumentFields から継承."""
 
     __tablename__ = "obsidian_vault_raw"
+
+
+class WebsiteEntity(VaultBase, DocumentFields):
+    """ウェブサイト用."""
+
+    __tablename__ = "website_raw"

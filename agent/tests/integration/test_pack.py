@@ -8,8 +8,8 @@ from mlflow.pyfunc.model import ChatAgent
 from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
 
-from assistant_agent.loader.obsidian import VaultDb
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.entities.base import VaultUtils
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 from assistant_agent.utils.store_factory import PostgresStoreContext
 
 
@@ -17,9 +17,9 @@ from assistant_agent.utils.store_factory import PostgresStoreContext
 def test_agent_01(
     mocker: MockerFixture,
     pg_cxt: PostgresStoreContext,
-    pg_obsidian_retriever: ObsidianLlamaRetriever,
-    pg_entity: type,
-    vault_docs: list[Document],
+    pg_retriever_obs: VaultObsidianRetriever,
+    pg_entity_obs: type,
+    docs_obs: list[Document],
     vault_name: str,
 ) -> None:
     """適切に初期化されたエージェントが mlflow へ登録されるか確認.
@@ -31,9 +31,9 @@ def test_agent_01(
         pytest.fail("AWS 認証情報が未設定")
 
     # 試験準備
-    raw_entity = pg_entity
-    VaultDb.sync(vault_docs, pg_cxt.get_engine(), raw_entity)
-    pg_obsidian_retriever.sync_chunks()
+    raw_entity = pg_entity_obs
+    VaultUtils.sync(docs_obs, pg_cxt.get_engine(), raw_entity)
+    pg_retriever_obs.sync_chunks()
     sys.modules.pop("assistant_agent.pack", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")
 

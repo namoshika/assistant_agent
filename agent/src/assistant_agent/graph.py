@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
-from assistant_agent.retriever.obsidian_llama import ObsidianLlamaRetriever
+from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
 
 SYSTEM_PROMPT = f"""
 # Instruction
@@ -30,7 +30,7 @@ SYSTEM_PROMPT = f"""
 @dataclass
 class ContextSchema:
     llm: BaseChatModel
-    obsidian_store: ObsidianLlamaRetriever
+    obsidian_store: VaultObsidianRetriever
 
 
 def build_graph(

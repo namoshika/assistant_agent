@@ -27,7 +27,7 @@
 > | フェーズ | 内容 |
 > |---|---|
 > | Phase 1 | DuckDB で CRUD の基本動作を実証（duckdb ネイティブ・SQLAlchemy 経由） |
-> | Phase 2 | `ObsidianLlamaRetriever` が必要とする処理が DuckDB で動作するか調査 |
+> | Phase 2 | `VaultObsidianRetriever` が必要とする処理が DuckDB で動作するか調査 |
 > | Phase n | PostgreSQL / DuckDB 共通化方針を決定 |
 
 ---
@@ -56,7 +56,7 @@
 
 > 記載例:
 >
-> - `ObsidianVaultEntity` をインターフェース的な基底クラスとし、`document_metadata` の列定義は具体クラスに持たせる
+> - `DocumentFields` をインターフェース的な基底クラスとし、`document_metadata` の列定義は具体クラスに持たせる
 > - DB の違いによる実装差異（`backlink_filter` など）はサブクラスのクラスメソッドとして定義する
 > - 列順は現行と同じ `document_id, document_metadata, content, path` を維持する
 
