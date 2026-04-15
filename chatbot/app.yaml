@@ -1,0 +1,13 @@
+command:
+  - /bin/sh
+  - -c
+  - "uv --project app run open-webui serve --host 0.0.0.0 --port ${DATABRICKS_APP_PORT}"
+env:
+  - name: ENABLE_SIGNUP
+    value: true
+  - name: DATA_DIR
+    value: ../data
+  - name: WEBUI_AUTH_TRUSTED_EMAIL_HEADER
+    value: X-Forwarded-Email
+  - name: WEBUI_AUTH_TRUSTED_NAME_HEADER
+    value: X-Forwarded-Preferred-Username

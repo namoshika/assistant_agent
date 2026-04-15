@@ -1,0 +1,51 @@
+import os
+from typing import Sequence, TypedDict
+
+from langchain.tools import ToolRuntime, tool
+from langchain_core.documents import Document
+from pydantic import BaseModel, Field
+
+import assistant_agent.utils.format as fmt
+from assistant_agent.services import VaultDatabricksRetriever
+
+
+class DatabricksContext(TypedDict):
+    sample_retriever: VaultDatabricksRetriever
+
+
+# --------------------------------
+# Tool: get_weather
+# --------------------------------
+@tool
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    return f"It's always sunny in {city}!"
+
+
+# --------------------------------
+# Tool: sample_search
+# --------------------------------
+class DatabricksSearchInput(BaseModel):
+    search_query: str = Field(
+        description="Search word (At least 1 character required).", default=" ", min_length=1
+    )
+
+
+@tool(args_schema=DatabricksSearchInput, response_format="content_and_artifact")
+def databricks_search(
+    search_query: str,
+    runtime: ToolRuntime[DatabricksContext],
+) -> tuple[str, Sequence[Document]]:
+    """Perform vector search on web pages saved in Local DB."""
+    retriever = runtime.context["sample_retriever"]
+    results = retriever.search_documents(search_query, top_k=10)
+    return fmt.format_doc_list(
+        [
+            fmt.ContentsWithFrontmatter(
+                title=os.path.basename(item.metadata["document_id"]),
+                contents=item.page_content,
+                frontmatter=None,
+            )
+            for item in results
+        ]
+    ), results

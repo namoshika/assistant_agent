@@ -1,0 +1,91 @@
+bundle:
+  name: assistant_agent
+
+variables:
+  secret_scope_name:
+  uv_path_mlflow_artifacts:
+  uc_volume:
+  uc_schema:
+
+sync:
+  include:
+    - chatbot/data/webui.db
+
+resources:
+  apps:
+    # OpenAI Compatible Server
+    agent:
+      name: assistant-agent
+      source_code_path: agent
+      permissions:
+        - service_principal_name: ${resources.apps.chatbot.service_principal_client_id}
+          level: CAN_USE
+      resources:
+        - name: aws_access_key_id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: aws_access_key_id
+            permission: READ
+        - name: aws_secret_access_key
+          secret:
+            scope: ${var.secret_scope_name}
+            key: aws_secret_access_key
+            permission: READ
+        - name: aws_default_region
+          secret:
+            scope: ${var.secret_scope_name}
+            key: aws_default_region
+            permission: READ
+        - name: gemini_api_key
+          secret:
+            scope: ${var.secret_scope_name}
+            key: gemini_api_key
+            permission: READ
+        - name: dbx_pat_agent
+          secret:
+            scope: ${var.secret_scope_name}
+            key: dbx_pat_agent
+            permission: READ
+        - name: dbx_uv_datadir_path
+          secret:
+            scope: ${var.secret_scope_name}
+            key: dbx_uv_datadir_path
+            permission: READ
+        - name: dbx_vsi_website
+          uc_securable:
+            permission: SELECT
+            securable_full_name: ${var.uc_schema}.b_website_vsi
+            securable_type: TABLE
+        - name: experiment
+          experiment:
+            experiment_id: ${resources.experiments.agent_experiment.id}
+            permission: 'CAN_EDIT'
+        - name: uc_volume
+          uc_securable:
+            securable_type: VOLUME
+            securable_full_name: ${var.uc_volume}
+            permission: WRITE_VOLUME
+
+    # Open WebUI Server
+    chatbot:
+      name: assistant-chatbot
+      source_code_path: chatbot
+
+  experiments:
+    agent_experiment:
+      name: /Workspace/Users/${workspace.current_user.userName}/${bundle.name}_${bundle.target}
+      # artifact_location: ${var.uv_path_mlflow_artifacts}
+      permissions:
+        - { level: CAN_EDIT, service_principal_name: "${resources.apps.agent.service_principal_client_id}" }
+        # - { level: CAN_READ, group_name: users }
+
+targets:
+  dev:
+    default: true
+    workspace:
+      host: ${WORKSPACE_URL}
+    variables:
+      secret_scope_name: assistant_agent
+      uv_path_mlflow_artifacts: dbfs:/Volumes/${WORKSPACE_INPUT_VOLUMEPATH}
+      uc_volume: ${WORKSPACE_INPUT_VOLUMENAME}
+      uc_schema: ${WORKSPACE_CATALOG}

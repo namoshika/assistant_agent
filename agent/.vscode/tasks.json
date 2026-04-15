@@ -6,12 +6,18 @@
         {
             "label": "Launch DevServer",
             "type": "shell",
-            "command": "uv run fastapi dev --host agent",
+            "command": "uv run --extra app fastapi dev --host agent",
             "problemMatcher": [
                 "$python"
             ],
             "isBackground": true,
             "group": "build"
+        },
+        {
+            "label": "Deploy Databricks",
+            "type": "shell",
+            "command": "databricks bundle validate && databricks bundle deploy -t dev && databricks bundle run agent -t dev",
+            "problemMatcher": []
         }
     ]
 }
