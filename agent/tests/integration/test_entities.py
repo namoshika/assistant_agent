@@ -1,5 +1,5 @@
 import pytest
-from langchain_core.documents import Document
+from llama_index.core import Document
 from sqlalchemy import Engine, MetaData, insert, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
@@ -132,7 +132,7 @@ class TestVaultUtils:
         self,
         pg_cxt: PostgresStoreContext,
         pg_entity_obs: type[postgres.DocumentFields],
-        docs_obs,
+        docs_obs: list[Document],
     ):
         """sync() を呼び出した時、引数として渡されたドキュメントで raw テーブルを洗い替えできる.
 
@@ -144,8 +144,8 @@ class TestVaultUtils:
         sa_engine = pg_cxt.get_engine()
         note_a, note_b, note_c = docs_obs[:3]
         doc_a_modified = Document(
-            id=note_a.id,
-            page_content="changed content",
+            id_=note_a.id_,
+            text="changed content",
             metadata=note_a.metadata,
         )
 
@@ -158,8 +158,8 @@ class TestVaultUtils:
             raw_rows = {row.document_id: row for row in session.scalars(select(raw_entity)).all()}
         assert len(raw_rows) == 3
         for note in (note_a, note_b, note_c):
-            row = raw_rows[note.id]
-            assert row.content == note.page_content
+            row = raw_rows[note.id_]
+            assert row.content == note.text
             assert row.path == note.metadata["path"]
 
         # 試験実施（2回目: C を削除、A を変更、B はそのまま）
@@ -169,5 +169,5 @@ class TestVaultUtils:
         # 観点2
         with Session(sa_engine) as session:
             raw_rows = {row.document_id: row for row in session.scalars(select(raw_entity)).all()}
-        assert raw_rows[note_a.id].content == "changed content"
-        assert note_c.id not in raw_rows
+        assert raw_rows[note_a.id_].content == "changed content"
+        assert note_c.id_ not in raw_rows

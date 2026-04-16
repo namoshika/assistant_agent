@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock
 
 from langchain.agents import create_agent
-from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from llama_index.core import Document
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
@@ -28,8 +28,8 @@ def test_obsidian_vault_search_01():
     # 試験準備
     docs = [
         Document(
-            id="doc-id-1",
-            page_content="ノート本文",
+            id_="doc-id-1",
+            text="ノート本文",
             metadata={"path": "notes/idea.md"},
         )
     ]
@@ -112,8 +112,8 @@ def test_obsidian_vault_search_03():
     )
     docs = [
         Document(
-            id="doc-id-1",
-            page_content="ノート本文",
+            id_="doc-id-1",
+            text="ノート本文",
             metadata={"path": "notes/idea.md"},
         )
     ]
@@ -166,8 +166,8 @@ def test_obsidian_vault_get_01():
     # 試験準備
     docs = [
         Document(
-            id="doc-id-2",
-            page_content="取得したノート",
+            id_="doc-id-2",
+            text="取得したノート",
             metadata={"path": "folder/note.md"},
         )
     ]
@@ -211,8 +211,8 @@ def test_format_obs_docs_01():
     # 試験準備
     docs = [
         Document(
-            id="doc-id-1",
-            page_content="ノート本文",
+            id_="doc-id-1",
+            text="ノート本文",
             metadata={"path": "folder/note.md", "tags": "日本語テキスト"},
         )
     ]
@@ -234,13 +234,13 @@ def test_format_document_ids_01():
     # 試験準備
     docs = [
         Document(
-            id="doc-id-1",
-            page_content="ノート本文",
+            id_="doc-id-1",
+            text="ノート本文",
             metadata={"path": "notes/idea.md"},
         ),
         Document(
-            id="doc-id-2",
-            page_content="別のノート",
+            id_="doc-id-2",
+            text="別のノート",
             metadata={"path": "folder/meeting.md"},
         ),
     ]

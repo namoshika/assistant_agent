@@ -4,7 +4,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from langchain_core.documents import Document
+from llama_index.core import Document
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy import MetaData, text
 from sqlalchemy.orm import DeclarativeBase
@@ -35,7 +35,7 @@ def vault_name() -> str:
 @pytest.fixture()
 def docs_obs() -> list[Document]:
     """VaultLoader で docs/dataset_obsidian/ から先頭 10 件を取得するフィクスチャ."""
-    return VaultLoader(Path("docs/dataset_obsidian/")).load()[:10]
+    return VaultLoader(Path("docs/dataset_obsidian/")).load_data()[:10]
 
 
 @pytest.fixture()

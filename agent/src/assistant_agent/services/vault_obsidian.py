@@ -1,9 +1,7 @@
 from typing import Any, Sequence
 
 import mlflow
-from langchain_core.documents import Document
-from llama_index.core import Document as LlamaDocument
-from llama_index.core import VectorStoreIndex
+from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
@@ -90,8 +88,8 @@ class VaultObsidianRetriever:
         # raw から全文取得
         id_to_doc = {
             row.document_id: Document(
-                id=row.document_id,
-                page_content=row.content,
+                id_=row.document_id,
+                text=row.content,
                 metadata=row.document_metadata,
             )
             for row in rows
@@ -112,8 +110,8 @@ class VaultObsidianRetriever:
             ).all()
         return [
             Document(
-                id=row.document_id,
-                page_content=row.content,
+                id_=row.document_id,
+                text=row.content,
                 metadata=row.document_metadata,
             )
             for row in rows
@@ -125,8 +123,8 @@ class VaultObsidianRetriever:
             rows = session.scalars(select(self._vault_entity)).all()
 
         llama_docs = [
-            LlamaDocument(
-                doc_id=row.document_id,
+            Document(
+                id_=row.document_id,
                 text=row.content,
                 metadata={k: v for k, v in row.document_metadata.items() if k != "forward_links"},
             )

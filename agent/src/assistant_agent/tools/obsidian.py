@@ -3,7 +3,7 @@ from os.path import basename
 from typing import Sequence
 
 from langchain.tools import ToolRuntime, tool
-from langchain_core.documents import Document
+from llama_index.core import Document
 from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
@@ -102,7 +102,7 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     """Document リストから document_id と path の一覧文字列を返す."""
     lines = [f"Search results ({len(documents)} documents found):"]
     for doc in documents:
-        lines.append(f'- {{ document_id: "{doc.id}", path: "{doc.metadata["path"]}" }}')
+        lines.append(f'- {{ document_id: "{doc.id_}", path: "{doc.metadata["path"]}" }}')
     lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
     return "\n".join(lines)
 
@@ -128,7 +128,7 @@ def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidian
             f"title: {basename(meta['path'])}",
             "===\n",
             "```yaml",
-            f"document_id: {doc.id}",
+            f"document_id: {doc.id_}",
             f"metadata: {json.dumps(meta_without_links, ensure_ascii=False)}",
         ]
 
@@ -137,10 +137,10 @@ def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidian
             lines.append("forward_link:")
             for linked in linked_docs:
                 link_name = basename(linked.metadata.get("path", ""))
-                link_id = linked.id or ""
+                link_id = linked.id_ or ""
                 lines.append(f'  "{link_id}": "{link_name}"')
 
-        lines.extend(["```\n", doc.page_content])
+        lines.extend(["```\n", doc.text])
         parts.append("\n".join(lines))
 
     return "\n\n---\n\n".join(parts)

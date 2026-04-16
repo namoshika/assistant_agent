@@ -3,7 +3,7 @@ import os
 import sys
 
 import pytest
-from langchain_core.documents import Document
+from llama_index.core import Document
 from mlflow.pyfunc.model import ChatAgent
 from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
@@ -20,7 +20,6 @@ def test_agent_01(
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
-    vault_name: str,
 ) -> None:
     """適切に初期化されたエージェントが mlflow へ登録されるか確認.
 

@@ -1,10 +1,14 @@
+import datetime
+import re
 import uuid
 from pathlib import Path
+from typing import Any, Iterable
 
-from langchain_community.document_loaders import ObsidianLoader
-from langchain_core.document_loaders import BaseLoader
-from langchain_core.documents import Document
+from llama_index.core import Document
+from llama_index.core.readers.base import BaseReader
 from obsidian_parser import Vault
+
+_FRONT_MATTER_REGEX = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 
 
 def path_to_document_id(path: str) -> str:
@@ -12,33 +16,40 @@ def path_to_document_id(path: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 
 
-class VaultLoader(BaseLoader):
+class VaultLoader(BaseReader):
     """Vault ディレクトリをロードし、forward_links を含む Document リストを返す.
 
-    ObsidianLoader (LangChain) で Document を生成し、
-    obsidianmd-parser で forward_links (document_id リスト) を補完する。
+    obsidianmd-parser で Document を生成する。
     forward_links の各値はリンク先ノートの document_id (UUID5)。
     """
 
-    def __init__(self, vault_path: str | Path) -> None:
+    def __init__(self, vault_path: Path) -> None:
         """Construct VaultLoader."""
-        self._vault_path = Path(vault_path)
+        self._vault_path = vault_path
 
-    def load(self) -> list[Document]:
+    def lazy_load_data(self, *args: Any, **load_kwargs: Any) -> Iterable[Document]:
         """Vault ディレクトリからドキュメントをロードし、メタデータを付与する."""
-        docs = ObsidianLoader(str(self._vault_path), collect_metadata=True).load()
-        vault = Vault(self._vault_path)
-        for doc in docs:
-            rel_path = str(Path(doc.metadata["path"]).relative_to(self._vault_path))
-            doc.id = path_to_document_id(rel_path)
-            # ObsidianLoader が None を "None" 文字列に変換するため元に戻す
-            doc.metadata = {k: (None if v == "None" else v) for k, v in doc.metadata.items()}
-            doc.metadata |= {
-                "path": rel_path,
-                "forward_links": self._extract_forward_links(rel_path, vault),
+        vault_path = self._vault_path.resolve()
+        vault = Vault(vault_path)
+        docs = []
+        for note in vault.notes:
+            rel_path = str(note.path.relative_to(vault_path))
+            raw_text = note.path.read_text(encoding="UTF-8")
+            # datetime.date / datetime.datetime は LlamaIndex のメタデータフィルターや
+            # DB (DuckDB / PostgreSQL JSONB) への格納時に型エラーが発生するため ISO 文字列に変換する
+            metadata = {
+                k: v.isoformat() if isinstance(v, (datetime.date, datetime.datetime)) else v
+                for k, v in note.frontmatter.items()
             }
-            for key in ("created", "last_modified", "last_accessed", "source"):
-                doc.metadata.pop(key, None)
+            metadata["path"] = rel_path
+            metadata["forward_links"] = self._extract_forward_links(rel_path, vault)
+            docs.append(
+                Document(
+                    id_=path_to_document_id(rel_path),
+                    text=_FRONT_MATTER_REGEX.sub("", raw_text),
+                    metadata=metadata,
+                )
+            )
         return docs
 
     def _extract_forward_links(self, rel_path: str, vault: Vault) -> list[str]:

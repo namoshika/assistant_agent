@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-from langchain_core.documents import Document
+from llama_index.core import Document
 from sqlalchemy import Engine, String, delete, insert
 from sqlalchemy.orm import Mapped, Session, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
@@ -35,9 +35,9 @@ class VaultUtils:
         """テーブルを引数 documents の内容で洗い替えする."""
         rows = [
             {
-                "document_id": doc.id,
+                "document_id": doc.id_,
                 "document_metadata": doc.metadata,
-                "content": doc.page_content,
+                "content": doc.text,
                 "path": doc.metadata["path"],
             }
             for doc in documents

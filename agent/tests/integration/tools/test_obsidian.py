@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from langchain.agents import create_agent
-from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from llama_index.core import Document
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
@@ -44,7 +44,7 @@ def test_obsidian_vault_search_01(
             {
                 "name": "obsidian_vault_search",
                 "args": {
-                    "search_query": docs_obs[0].page_content[:20],
+                    "search_query": docs_obs[0].text[:20],
                     "filters": None,
                     "full_fetch": False,
                 },
@@ -68,8 +68,8 @@ def test_obsidian_vault_search_01(
     assert len(tool_msg.artifact) >= 1
     # 観点2
     assert len(tool_msg.content) > 0
-    assert docs_obs[0].id is not None
-    assert docs_obs[0].id in tool_msg.content
+    assert docs_obs[0].id_ is not None
+    assert docs_obs[0].id_ in tool_msg.content
     for doc in tool_msg.artifact:
         assert "path" in doc.metadata
 
@@ -82,7 +82,7 @@ def test_obsidian_vault_search_02() -> None:
         search_documents が filters=None で呼ばれる
     """
     # 試験準備
-    docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    docs = [Document(id_="doc-1", text="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
@@ -110,7 +110,7 @@ def test_obsidian_vault_search_03() -> None:
         search_documents が filters 付きで呼ばれる
     """
     # 試験準備
-    docs = [Document(id="doc-1", page_content="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    docs = [Document(id_="doc-1", text="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
@@ -149,7 +149,7 @@ def test_obsidian_vault_get_01(
     # 試験準備
     raw_entity = pg_entity_obs
     VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
-    doc_id = docs_obs[0].id
+    doc_id = docs_obs[0].id_
     ai_msg = AIMessage(
         content="",
         tool_calls=[
@@ -174,7 +174,7 @@ def test_obsidian_vault_get_01(
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert len(tool_msg.artifact) == 1
     # 観点2
-    assert docs_obs[0].page_content[:10] in tool_msg.content
+    assert docs_obs[0].text[:10] in tool_msg.content
     ai_msg2 = AIMessage(
         content="",
         tool_calls=[
@@ -211,7 +211,7 @@ def test_format_obs_docs_01(
     # 試験準備
     raw_entity = pg_entity_obs
     VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
-    docs = pg_retriever_obs.get_documents_by_ids([docs_obs[0].id])  # pyright: ignore[reportArgumentType]
+    docs = pg_retriever_obs.get_documents_by_ids([docs_obs[0].id_])  # pyright: ignore[reportArgumentType]
 
     # 試験実施
     result = tools.format_docs_obs(docs, pg_retriever_obs)

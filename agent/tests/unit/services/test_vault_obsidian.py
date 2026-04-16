@@ -155,15 +155,15 @@ def test_get_documents_by_ids_01(retriever: VaultObsidianRetriever, mocker: Mock
     m_session.scalars.return_value.all.return_value = [m_row_b, m_row_a]
     docs = retriever.get_documents_by_ids([_DOC_ID_A, _DOC_ID_B])
     assert len(docs) == 2
-    assert docs[0].page_content == "content_a"
-    assert docs[1].page_content == "content_b"
+    assert docs[0].text == "content_a"
+    assert docs[1].text == "content_b"
 
     # 観点2: 存在しない ID はスキップ
     m_session.scalars.return_value.all.return_value = [m_row_a]
     unknown_id = "00000000-0000-0000-0000-000000000000"
     docs = retriever.get_documents_by_ids([_DOC_ID_A, unknown_id])
     assert len(docs) == 1
-    assert docs[0].page_content == "content_a"
+    assert docs[0].text == "content_a"
 
     # 観点3: 空リスト入力 → 空リストを返す
     m_session.scalars.return_value.all.return_value = []
