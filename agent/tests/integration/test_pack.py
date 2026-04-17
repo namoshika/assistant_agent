@@ -9,8 +9,8 @@ from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
 
 from assistant_agent.entities.base import VaultUtils
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.store_factory import PostgresStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 @pytest.mark.integration

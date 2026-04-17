@@ -3,26 +3,22 @@ import os
 from langchain_aws import ChatBedrockConverse
 from langchain_core.language_models import BaseChatModel
 from llama_index.core.embeddings import BaseEmbedding
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from mlflow.pyfunc.model import ChatAgent
 from pydantic import SecretStr
 
 from assistant_agent import graph, tools
 from assistant_agent.entities import postgres as entities
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.mlflow import LangGraphChatAgent
-from assistant_agent.utils.store_factory import PostgresStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils import absclass, mlflow
+from assistant_agent.utils.store_context import PostgresStoreContext
 
 AGENT_NAME = "agent"
 
 
 def get_model() -> tuple[BaseChatModel, BaseEmbedding]:
-    """LLM と埋め込みモデルを生成して返す.
-
-    Returns:
-        (llm, emb) のタプル。
-
-    """
+    """LLM と埋め込みモデルを生成して返す."""
     aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
@@ -51,6 +47,28 @@ def get_model() -> tuple[BaseChatModel, BaseEmbedding]:
     return llm, emb
 
 
+def get_retriever_obsidian(
+    store_ctx: absclass.StoreContext, emb: BaseEmbedding
+) -> VaultObsidianRetriever:
+    """Obsidian レトリーバーを生成して返す."""
+    retriever = VaultObsidianRetriever(
+        docstore_name="obsidian_vault_docs",
+        vectorstore_name="obsidian_vault_vectors",
+        store_context=store_ctx,
+        transformations=[
+            SentenceSplitter(
+                chunk_size=1024,
+                chunk_overlap=200,
+                paragraph_separator="\n\n",
+            ),
+        ],
+        embed_model=emb,
+        embed_dim=3072,
+        vault_entity=entities.ObsidianEntity,
+    )
+    return retriever
+
+
 def build_agent() -> ChatAgent:
     """エージェントがセッション開始した際の初期化を行う.
 
@@ -62,22 +80,14 @@ def build_agent() -> ChatAgent:
     assert pg_connection_string is not None
 
     llm, emb = get_model()
-
-    factory = PostgresStoreContext(pg_connection_string, schema_name="app")
-    sa_engine = factory.get_engine()
+    store_ctx = PostgresStoreContext(pg_connection_string, schema_name="app")
+    sa_engine = store_ctx.get_engine()
     entities.VaultBase.metadata.create_all(sa_engine)
-    obsidian_store = VaultObsidianRetriever(
-        sa_engine=sa_engine,
-        store_factory=factory,
-        docstore_name="obsidian_vault_docs",
-        vectorstore_name="obsidian_vault_vectors",
-        embed_model=emb,
-        embed_dim=3072,
-        vault_entity=entities.ObsidianEntity,
-    )
 
-    ctx = graph.ContextSchema(llm=llm, obsidian_store=obsidian_store)
+    # エージェント初期化
+    ret_obsidian = get_retriever_obsidian(store_ctx, emb)
+    ctx = graph.ContextSchema(llm=llm, obsidian_retriever=ret_obsidian)
     agent = graph.build_graph(AGENT_NAME, ctx.llm, tools.get_tools())
-    agent_wrapped = LangGraphChatAgent(agent, ctx)  # pyright: ignore[reportArgumentType]
+    agent_wrapped = mlflow.LangGraphChatAgent(agent, ctx)  # pyright: ignore[reportArgumentType]
 
     return agent_wrapped

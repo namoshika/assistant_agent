@@ -29,14 +29,14 @@
 > │   ├── postgres.py    # PostgreSQL 用ミックスイン・テーブルクラス
 > │   └── duckdb.py      # DuckDB 用ミックスイン・テーブルクラス
 > └── utils/
->     └── store_factory.py  # StoreContext 実装群（DuckDBStoreContext 追加）
+>     └── store_context.py  # StoreContext 実装群（DuckDBStoreContext 追加）
 > ```
 >
 > | モジュール | 責務 |
 > |---|---|
 > | `entities/base.py` | DB 非依存の列定義と `backlink_filter` の抽象インターフェース |
 > | `entities/postgres.py` | PostgreSQL 固有の JSONB 型と `backlink_filter` 実装 |
-> | `utils/store_factory.py` | VectorStore / DocumentStore の生成を DB 種別ごとに隠蔽 |
+> | `utils/store_context.py` | VectorStore / DocumentStore の生成を DB 種別ごとに隠蔽 |
 
 ---
 
@@ -50,8 +50,8 @@
 > |---|---|
 > | `src/assistant_agent/entities.py` | 削除（ディレクトリへ移行） |
 > | `src/assistant_agent/entities/base.py` | 新規作成（共通基底クラス） |
-> | `src/assistant_agent/utils/store_factory.py` | 改修（DuckDBStoreContext 追加） |
-> | `tests/integration/test_store_factory.py` | 新規作成（DuckDB テスト追加） |
+> | `src/assistant_agent/utils/store_context.py` | 改修（DuckDBStoreContext 追加） |
+> | `tests/integration/test_store_context.py` | 新規作成（DuckDB テスト追加） |
 
 ---
 
@@ -108,7 +108,7 @@
 
 > 追加ありの場合の例:
 >
-> `tests/unit/test_store_factory.py` の Chroma 関連テスト4件をすべて削除し、関連インポートも削除する。
+> `tests/unit/test_store_context.py` の Chroma 関連テスト4件をすべて削除し、関連インポートも削除する。
 
 ### テスト（結合）
 

@@ -2,14 +2,15 @@ from unittest.mock import MagicMock
 
 import pytest
 from llama_index.core.embeddings import BaseEmbedding
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import NodeRelationship, NodeWithScore, RelatedNodeInfo, TextNode
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 from pytest_mock import MockerFixture
 
-from assistant_agent.entities import postgres
+from assistant_agent.entities import duckdb
 from assistant_agent.loaders.obsidian import path_to_document_id
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.store_factory import InMemoryStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.store_context import DuckDBStoreContext
 
 _DOC_ID_A = path_to_document_id("a.md")
 _DOC_ID_B = path_to_document_id("b.md")
@@ -19,39 +20,50 @@ _DOC_ID_B = path_to_document_id("b.md")
 def retriever() -> VaultObsidianRetriever:
     """VaultObsidianRetriever のテスト用インスタンス.
 
-    InMemoryStoreContext を注入し、外部依存なしで動作させる。
+    DuckDBStoreContext を注入し、外部依存なしで動作させる。
     """
     return VaultObsidianRetriever(
-        sa_engine=MagicMock(),
-        store_factory=InMemoryStoreContext(),
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
+        store_context=DuckDBStoreContext(),
+        transformations=[SentenceSplitter()],
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
-        vault_entity=postgres.ObsidianEntity,
+        vault_entity=duckdb.ObsidianEntity,
     )
 
 
 def test_search_documents_01(retriever: VaultObsidianRetriever, mocker: MockerFixture):
-    """クエリで Chunk 検索し、類似する Document を取得できるか確認  (filter 省略).
+    """クエリで Chunk 検索し、類似する Document を取得できるか確認 (filter 省略).
+
+    返却 Document は id_ + metadata のみ保持し text は空。
 
     観点1: as_retriever が引数 similarity_top_k 付きで呼ばれていること
     観点2: ref_doc_id が重複除去される (a.md は chunk1/chunk3 の 2 件あるが 1 件に集約)
-    観点3: 初出順の deduplicated IDs が get_documents_by_ids に渡される
+    観点3: 初出順で Document が返され、id_ と metadata が node から正しく引き継がれる
 
     TODO: 階層型レトリーバー導入の段階で試験内容を見直す
     """
     # 試験準備
     node_a1 = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)}),
+        node=TextNode(
+            relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)},
+            metadata={"file_path": "a.md"},
+        ),
         score=0.9,
     )
     node_b = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_B)}),
+        node=TextNode(
+            relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_B)},
+            metadata={"file_path": "b.md"},
+        ),
         score=0.8,
     )
     node_a2 = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)}),
+        node=TextNode(
+            relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)},
+            metadata={"file_path": "a.md"},
+        ),
         score=0.7,
     )
 
@@ -63,20 +75,22 @@ def test_search_documents_01(retriever: VaultObsidianRetriever, mocker: MockerFi
         "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
-    m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
-
     # 試験実施
-    retriever.search_documents("テスト", top_k=5, filters=None)
+    result = retriever.search_documents("テスト", top_k=5, filters=None)
 
     # 結果検証
     # 観点1
     m_index.as_retriever.assert_called_once_with(similarity_top_k=5, filters=None)
-    # 観点2 & 観点3: 重複除去かつ初出順の ID リストが渡される
-    m_get_docs.assert_called_once_with([_DOC_ID_A, _DOC_ID_B])
+    # 観点2 & 観点3
+    assert len(result) == 2
+    assert result[0].id_ == _DOC_ID_A
+    assert result[0].metadata == {"file_path": "a.md"}
+    assert result[1].id_ == _DOC_ID_B
+    assert result[1].metadata == {"file_path": "b.md"}
 
 
 def test_search_documents_02(retriever: VaultObsidianRetriever, mocker: MockerFixture):
-    """クエリで Chunk 検索し、類似する Document を取得できるか確認 (filter 有り).
+    """クエリで Chunk 検索し、類似する Document リストを取得できるか確認 (filter 有り).
 
     観点1: as_retriever が filters 付きで呼ばれること
     """
@@ -108,7 +122,7 @@ def test_search_documents_02(retriever: VaultObsidianRetriever, mocker: MockerFi
 def test_search_documents_03(retriever: VaultObsidianRetriever, mocker: MockerFixture):
     """クエリで Chunk 検索し、類似する Document が無い場合に空リストを返せるか確認.
 
-    観点1: retrieve() が空リストを返すとき get_documents_by_ids([]) が呼ばれ [] を返す
+    観点1: retrieve() が空リストを返すとき [] を返す
     """
     # 試験準備
     m_llama_retriever = MagicMock()
@@ -119,14 +133,11 @@ def test_search_documents_03(retriever: VaultObsidianRetriever, mocker: MockerFi
         "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
-    m_get_docs = mocker.patch.object(retriever, "get_documents_by_ids", return_value=[])
-
     # 試験実施
     result = retriever.search_documents("クエリ", top_k=5, filters=None)
 
     # 結果検証
     # 観点1
-    m_get_docs.assert_called_once_with([])
     assert result == []
 
 
@@ -141,10 +152,10 @@ def test_get_documents_by_ids_01(retriever: VaultObsidianRetriever, mocker: Mock
     m_row_a, m_row_b = MagicMock(), MagicMock()
     m_row_a.document_id = _DOC_ID_A
     m_row_a.content = "content_a"
-    m_row_a.document_metadata = {"path": "a.md"}
+    m_row_a.document_metadata = {"file_path": "a.md"}
     m_row_b.document_id = _DOC_ID_B
     m_row_b.content = "content_b"
-    m_row_b.document_metadata = {"path": "b.md"}
+    m_row_b.document_metadata = {"file_path": "b.md"}
 
     m_session = MagicMock()
     m_session.__enter__ = MagicMock(return_value=m_session)
@@ -175,15 +186,24 @@ def test_sync_chunks_01(retriever: VaultObsidianRetriever, mocker: MockerFixture
     """Vault テーブルと Chunk テーブルの同期ができるか確認 (有件).
 
     観点1: 全 Document が LlamaDocument に変換され pipeline.run へ渡される
+    観点2: forward_links はメタデータから除外される
+    観点3: LlamaIndex 非対応型は str に変換され、対応型 (str/int/float/None) はそのまま渡される
     """
     # 試験準備
     m_row_a, m_row_b = MagicMock(), MagicMock()
     m_row_a.document_id = _DOC_ID_A
     m_row_a.content = "content_a"
-    m_row_a.document_metadata = {"path": "a.md"}
+    m_row_a.document_metadata = {
+        "file_path": "a.md",
+        "forward_links": ["id1", "id2"],
+        "tags": ["tag1", "tag2"],
+        "count": 3,
+        "score": 1.5,
+        "note": None,
+    }
     m_row_b.document_id = _DOC_ID_B
     m_row_b.content = "content_b"
-    m_row_b.document_metadata = {"path": "b.md"}
+    m_row_b.document_metadata = {"file_path": "b.md"}
 
     m_session = MagicMock()
     m_session.__enter__ = MagicMock(return_value=m_session)
@@ -196,15 +216,22 @@ def test_sync_chunks_01(retriever: VaultObsidianRetriever, mocker: MockerFixture
     retriever.sync_chunks()
 
     # 結果検証
-    # 観点1
     llama_docs = m_pipeline_run.call_args.kwargs["documents"]
+    # 観点1
     assert len(llama_docs) == 2
     assert llama_docs[0].doc_id == _DOC_ID_A
     assert llama_docs[0].text == "content_a"
-    assert llama_docs[0].metadata == {"path": "a.md"}
     assert llama_docs[1].doc_id == _DOC_ID_B
     assert llama_docs[1].text == "content_b"
-    assert llama_docs[1].metadata == {"path": "b.md"}
+    # 観点2
+    assert "forward_links" not in llama_docs[0].metadata
+    # 観点3
+    assert llama_docs[0].metadata["tags"] == "['tag1', 'tag2']"
+    assert llama_docs[0].metadata["file_path"] == "a.md"
+    assert llama_docs[0].metadata["count"] == 3
+    assert llama_docs[0].metadata["score"] == 1.5
+    assert llama_docs[0].metadata["note"] is None
+    assert llama_docs[1].metadata == {"file_path": "b.md"}
 
 
 def test_sync_chunks_02(retriever: VaultObsidianRetriever, mocker: MockerFixture):

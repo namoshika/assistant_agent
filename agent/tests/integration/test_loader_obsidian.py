@@ -7,8 +7,8 @@ from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
 from assistant_agent.entities import postgres
-from assistant_agent.loaders.obsidian import VaultLoader
-from assistant_agent.utils.store_factory import PostgresStoreContext
+from assistant_agent.loaders import ObsidianReader
+from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 @pytest.fixture()
@@ -47,14 +47,14 @@ def test_load_01():
         pytest.fail("Vault が存在しないため失敗")
 
     # 試験実施
-    docs = VaultLoader(vault_path).load_data()
+    docs = ObsidianReader(vault_path).load_data()
 
     # 結果検証
     # 観点1
     assert len(docs) >= 1
     for doc in docs:
         # 観点2
-        path = doc.metadata["path"]
+        path = doc.metadata["file_path"]
         assert not Path(path).is_absolute(), f"path が絶対パス: {path}"
         assert path != ""
         # 観点3

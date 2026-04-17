@@ -1,13 +1,108 @@
+import os
+import uuid
 from pathlib import Path
 
 import pytest
 from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from llama_index.core.vector_stores.types import VectorStoreQuery
 from llama_index.storage.docstore.duckdb import DuckDBDocumentStore
+from llama_index.storage.docstore.postgres import PostgresDocumentStore
 from llama_index.vector_stores.duckdb import DuckDBVectorStore
+from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import text
 
-from assistant_agent.utils.store_factory import DuckDBStoreContext
+from assistant_agent.utils.store_context import DuckDBStoreContext, PostgresStoreContext
+
+
+class TestPostgresStoreContext:
+    @pytest.mark.integration
+    def test_get_engine_01(self) -> None:
+        """get_engine が Engine を返すこと.
+
+        観点1: Engine インスタンスが返ること
+        観点2: 同一インスタンスが返ること（キャッシュ）
+        観点3: SELECT 1 で PostgreSQL と通信できること
+        """
+        conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
+        if not conn_str:
+            pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
+        ctx = PostgresStoreContext(conn_str, schema_name="app")
+
+        # 試験実施
+        engine = ctx.get_engine()
+
+        # 結果検証
+        # 観点1
+        assert engine is not None
+        # 観点2
+        assert ctx.get_engine() is engine
+        # 観点3
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT 1")).scalar()
+        assert result == 1
+        engine.dispose()
+
+    @pytest.mark.integration
+    def test_get_vector_store_01(self) -> None:
+        """get_vector_store が PGVectorStore を返し、読み書きできること.
+
+        観点1: PGVectorStore インスタンスが返ること
+        観点2: add() + query() で実際に PostgreSQL と読み書きできること
+        """
+        conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
+        if not conn_str:
+            pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
+        name = f"test_{uuid.uuid4().hex[:8]}_vec"
+        ctx = PostgresStoreContext(conn_str, schema_name="app")
+        engine = ctx.get_engine()
+
+        # 試験実施
+        store = ctx.get_vector_store(name, embed_dim=3)
+
+        # 結果検証
+        # 観点1
+        assert isinstance(store, PGVectorStore)
+        # 観点2
+        node = TextNode(id_="node-1", text="hello", embedding=[0.1, 0.2, 0.3])
+        store.add([node])
+        result = store.query(VectorStoreQuery(query_embedding=[0.1, 0.2, 0.3], similarity_top_k=1))
+        assert len(result.nodes) == 1  # pyright: ignore[reportArgumentType]
+        assert result.nodes[0].node_id == "node-1"  # pyright: ignore[reportOptionalSubscript]
+        with engine.connect() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS app.data_{name} CASCADE"))
+            conn.commit()
+        engine.dispose()
+
+    @pytest.mark.integration
+    def test_get_docstore_01(self) -> None:
+        """get_docstore が PostgresDocumentStore を返し、読み書きできること.
+
+        観点1: PostgresDocumentStore インスタンスが返ること
+        観点2: add_documents() + get_document() で実際に PostgreSQL と読み書きできること
+        """
+        conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
+        if not conn_str:
+            pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
+        name = f"test_{uuid.uuid4().hex[:8]}_doc"
+        ctx = PostgresStoreContext(conn_str, schema_name="app")
+        engine = ctx.get_engine()
+
+        # 試験実施
+        store = ctx.get_docstore(name)
+
+        # 結果検証
+        # 観点1
+        assert isinstance(store, PostgresDocumentStore)
+        # 観点2
+        node = TextNode(id_="node-2", text="world")
+        store.add_documents([node])
+        fetched = store.get_document("node-2")
+        assert fetched is not None
+        assert fetched.get_content() == "world"
+        with engine.connect() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS app.data_{name} CASCADE"))
+            conn.commit()
+        engine.dispose()
 
 
 class TestDuckDBStoreContext:

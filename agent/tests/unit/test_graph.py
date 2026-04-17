@@ -29,7 +29,7 @@ def test_build_graph_01():
                 HumanMessage(content="こんにちは?"),
             ]
         },
-        context=ContextSchema(llm=MagicMock(), obsidian_store=MagicMock()),
+        context=ContextSchema(llm=MagicMock(), obsidian_retriever=MagicMock()),
     )
     msg = next(m for m in result["messages"])
 

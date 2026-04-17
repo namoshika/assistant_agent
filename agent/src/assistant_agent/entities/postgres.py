@@ -26,7 +26,7 @@ class ObsidianFields(DocumentFields, base.ObsidianFields):
 class ObsidianEntity(VaultBase, ObsidianFields):
     """backlink_filter は DocumentFields から継承."""
 
-    __tablename__ = "obsidian_vault_raw"
+    __tablename__ = "obsidian_raw"
 
 
 class WebsiteEntity(VaultBase, DocumentFields):

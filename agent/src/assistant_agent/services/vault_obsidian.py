@@ -4,56 +4,51 @@ import mlflow
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import TransformComponent
 from llama_index.core.vector_stores.types import MetadataFilters
-from sqlalchemy import Engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from assistant_agent.entities import base
 from assistant_agent.utils.absclass import StoreContext
 
-# 日本語テキスト向け区切り文字（TextChunker._JAPANESE_SEPARATORS と同等）
-_JAPANESE_PARAGRAPH_SEP = "\n\n"
-
 
 class VaultObsidianRetriever:
-    """LlamaIndex IngestionPipeline を使った Obsidian Vault レトリーバー.
-
-    docstore_name / vectorstore_name / chunk_size / chunk_overlap を
-    コンストラクタで指定することで、複数の設定のインスタンスを作成できる。
-    """
+    """Obsidian Vault レトリーバー."""
 
     def __init__(
         self,
-        sa_engine: Engine,
-        store_factory: StoreContext,
         docstore_name: str,
         vectorstore_name: str,
+        store_context: StoreContext,
+        transformations: Sequence[TransformComponent],
         embed_model: BaseEmbedding,
         embed_dim: int,
         vault_entity: type[base.ObsidianFields],
-        chunk_size: int = 1024,
-        chunk_overlap: int = 200,
     ):
-        """Construct VaultObsidianRetriever."""
-        self._sa_engine = sa_engine
+        """Construct VaultObsidianRetriever.
+
+        Args:
+            docstore_name: ドキュメントストアの識別名。
+            vectorstore_name: ベクターストアの識別名。
+            store_context: ベクターストア、ドキュメントストアを生成するファクトリ。
+            transformations: ドキュメントの変換処理リスト (埋め込みを除く)。
+            embed_model: テキスト埋め込みモデル。
+            embed_dim: 埋め込みベクトルの次元数。
+            vault_entity: Vault テーブルに対応する ORM エンティティクラス。
+
+        """
         self._vault_entity = vault_entity
         self._embed_model = embed_model
 
         # Chunking ロジック設定
-        self._vector_store = store_factory.get_vector_store(vectorstore_name, embed_dim)
-        self._docstore = store_factory.get_docstore(docstore_name)
+        self._sa_engine = store_context.get_engine()
+        self._vector_store = store_context.get_vector_store(vectorstore_name, embed_dim)
+        self._docstore = store_context.get_docstore(docstore_name)
 
         # Pipeline 設定
         self._pipeline = IngestionPipeline(
-            transformations=[
-                SentenceSplitter(
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
-                    paragraph_separator=_JAPANESE_PARAGRAPH_SEP,
-                ),
-                self._embed_model,
-            ],
+            transformations=list(transformations) + [embed_model],
             docstore=self._docstore,
             vector_store=self._vector_store,
             docstore_strategy=DocstoreStrategy.UPSERTS_AND_DELETE,
@@ -61,7 +56,11 @@ class VaultObsidianRetriever:
 
     @mlflow.trace(span_type="RETRIEVER")
     def search_documents(self, query: str, top_k: int, **kwargs: Any) -> Sequence[Document]:
-        """チャンク類似検索 → document_id 重複除去 → raw から全文取得."""
+        """チャンク類似検索 → document_id 重複除去して返す.
+
+        返却する Document は id_ と metadata のみを保持し、text は空文字列である。
+        全文が必要な場合は get_documents_by_ids を使用すること。
+        """
         filters: MetadataFilters | None = kwargs.get("filters")
 
         # チャンク類似検索
@@ -69,13 +68,13 @@ class VaultObsidianRetriever:
         retriever = index.as_retriever(similarity_top_k=top_k, filters=filters)
         nodes = retriever.retrieve(query)
 
-        # document_id 重複除去
-        sorted_ids = list(
-            dict.fromkeys(n.node.ref_doc_id for n in nodes if n.node.ref_doc_id is not None)
-        )
-
-        # raw から全文取得
-        return self.get_documents_by_ids(sorted_ids)
+        # document_id 重複除去しつつ Document (id_ + metadata のみ) を構築
+        seen: dict[str, Document] = {}
+        for n in nodes:
+            doc_id = n.node.ref_doc_id
+            if doc_id is not None and doc_id not in seen:
+                seen[doc_id] = Document(id_=doc_id, text="", metadata=n.node.metadata)
+        return list(seen.values())
 
     @mlflow.trace(span_type="RETRIEVER")
     def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
@@ -126,7 +125,11 @@ class VaultObsidianRetriever:
             Document(
                 id_=row.document_id,
                 text=row.content,
-                metadata={k: v for k, v in row.document_metadata.items() if k != "forward_links"},
+                metadata={
+                    k: v if isinstance(v, (str, int, float)) or v is None else str(v)
+                    for k, v in row.document_metadata.items()
+                    if k != "forward_links"
+                },
             )
             for row in rows
         ]

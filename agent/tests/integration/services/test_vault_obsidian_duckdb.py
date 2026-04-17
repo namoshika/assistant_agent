@@ -4,8 +4,8 @@ from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter,
 
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.loaders.obsidian import path_to_document_id
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.store_factory import DuckDBStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.store_context import DuckDBStoreContext
 
 
 @pytest.mark.integration
@@ -150,7 +150,7 @@ def test_search_documents_01(
 
     前提: VaultUtils.sync + sync_chunks 済み
 
-    観点1: フィルタなし — 1件以上の結果が返り、id, text, metadata が一致する
+    観点1: フィルタなし — 1件以上の結果が返り、id, metadata が一致する
     観点2: フィルタあり — 指定条件に合致する Document のみ返る
         ケース1: date >= "2026-01-01 00:00:00" で絞ると 2025 年以前が除外される
         ケース2: path text_match "01_Inbox" で絞ると該当フォルダのみ返る
@@ -175,8 +175,7 @@ def test_search_documents_01(
     assert len(results) >= 1
     matched = next((r for r in results if r.id_ == doc.id_), None)
     assert matched is not None
-    assert matched.text == doc.text
-    assert matched.metadata == doc.metadata
+    assert matched.metadata == {k: v for k, v in doc.metadata.items() if k != "forward_links"}
 
     # 観点2 ケース1: date フィルタ
     date_filter = MetadataFilters(
@@ -189,8 +188,10 @@ def test_search_documents_01(
 
     # 観点2 ケース2: path フィルタ
     path_filter = MetadataFilters(
-        filters=[MetadataFilter(key="path", value="01_Inbox", operator=FilterOperator.TEXT_MATCH)]
+        filters=[
+            MetadataFilter(key="file_path", value="01_Inbox", operator=FilterOperator.TEXT_MATCH)
+        ]
     )
     results_path = dk_retriever_obs.search_documents("project", top_k=10, filters=path_filter)
     assert len(results_path) >= 1
-    assert all("01_Inbox" in r.metadata["path"] for r in results_path)
+    assert all("01_Inbox" in r.metadata["file_path"] for r in results_path)

@@ -11,8 +11,8 @@ from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 import assistant_agent.tools.obsidian as tools
 from assistant_agent import agents, graph
 from assistant_agent.entities.base import VaultUtils
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.store_factory import PostgresStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -58,7 +58,7 @@ def test_obsidian_vault_search_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
     )
 
     # 結果検証
@@ -71,7 +71,7 @@ def test_obsidian_vault_search_01(
     assert docs_obs[0].id_ is not None
     assert docs_obs[0].id_ in tool_msg.content
     for doc in tool_msg.artifact:
-        assert "path" in doc.metadata
+        assert "file_path" in doc.metadata
 
 
 @pytest.mark.integration
@@ -82,7 +82,7 @@ def test_obsidian_vault_search_02() -> None:
         search_documents が filters=None で呼ばれる
     """
     # 試験準備
-    docs = [Document(id_="doc-1", text="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
@@ -93,7 +93,7 @@ def test_obsidian_vault_search_02() -> None:
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="エージェントのノートを1回検索し document_id を出す")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -110,7 +110,7 @@ def test_obsidian_vault_search_03() -> None:
         search_documents が filters 付きで呼ばれる
     """
     # 試験準備
-    docs = [Document(id_="doc-1", text="本文", metadata={"path": "02_Daily/2026-01-01.md"})]
+    docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
@@ -121,7 +121,7 @@ def test_obsidian_vault_search_03() -> None:
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="2026/01 以降のノートを検索し、 document_id を出して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -166,7 +166,7 @@ def test_obsidian_vault_get_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
     )
 
     # 結果検証
@@ -189,7 +189,7 @@ def test_obsidian_vault_get_01(
     agent = _make_agent(ai_msg2, tools.obsidian_vault_get)
     result2 = agent.invoke(
         {"messages": [HumanMessage(content="nonexistent.md を取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=pg_retriever_obs),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
     )
     # 観点3
     tool_msg2 = next(m for m in result2["messages"] if isinstance(m, ToolMessage))

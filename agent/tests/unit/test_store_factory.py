@@ -1,4 +1,4 @@
-from assistant_agent.utils.store_factory import DuckDBStoreContext
+from assistant_agent.utils.store_context import DuckDBStoreContext
 
 
 def test_get_engine_01() -> None:

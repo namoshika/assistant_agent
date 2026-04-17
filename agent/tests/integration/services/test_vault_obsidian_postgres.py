@@ -5,8 +5,8 @@ from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter,
 from assistant_agent.entities import postgres
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.loaders.obsidian import path_to_document_id
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
-from assistant_agent.utils.store_factory import PostgresStoreContext
+from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 @pytest.mark.integration
@@ -16,12 +16,13 @@ def test_search_documents_01(
     pg_entity_obs: type[postgres.ObsidianFields],
     docs_obs: list[Document],
 ):
-    """指定したクエリに類似する Document を取得できるか確認.
+    """指定したクエリに類似する Document (id_ + metadata のみ) を取得できるか確認.
 
     前提: VaultUtils.sync + sync_chunks 済み
 
-    観点1: フィルタなし — 1件以上の結果が返り、id, text, metadata が一致する
-    観点2: フィルタあり — 指定条件に合致するDocumentのみ返る
+    観点1: フィルタなし — 1件以上の結果が返り、対象の document_id と
+        metadata["file_path"] が含まれる
+    観点2: フィルタあり — 指定条件に合致する Document のみ返る
         ケース1: date >= "2026-01-01 00:00:00" で絞ると 2025 年以前が除外される
         ケース2: path text_match "01_Inbox" で絞ると該当フォルダのみ返る
     """
@@ -37,8 +38,7 @@ def test_search_documents_01(
     assert len(results) >= 1
     matched = next((r for r in results if r.id_ == doc.id_), None)
     assert matched is not None
-    assert matched.text == doc.text
-    assert matched.metadata == doc.metadata
+    assert matched.metadata["file_path"] == doc.metadata["file_path"]
 
     # 観点2 ケース1: date フィルタ
     date_filter = MetadataFilters(
@@ -47,15 +47,17 @@ def test_search_documents_01(
         ]
     )
     results_date = pg_retriever_obs.search_documents(doc.text[:30], top_k=10, filters=date_filter)
-    assert all(r.metadata["date"] >= "2026-01-01 00:00:00" for r in results_date)
+    assert all(d.metadata["date"] >= "2026-01-01 00:00:00" for d in results_date)
 
     # 観点2 ケース2: path フィルタ
     path_filter = MetadataFilters(
-        filters=[MetadataFilter(key="path", value="01_Inbox", operator=FilterOperator.TEXT_MATCH)]
+        filters=[
+            MetadataFilter(key="file_path", value="01_Inbox", operator=FilterOperator.TEXT_MATCH)
+        ]
     )
     results_path = pg_retriever_obs.search_documents("project", top_k=10, filters=path_filter)
     assert len(results_path) >= 1
-    assert all("01_Inbox" in r.metadata["path"] for r in results_path)
+    assert all("01_Inbox" in d.metadata["file_path"] for d in results_path)
 
 
 @pytest.mark.integration

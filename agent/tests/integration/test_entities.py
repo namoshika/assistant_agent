@@ -5,7 +5,7 @@ from sqlalchemy.orm import DeclarativeBase, Session
 
 from assistant_agent.entities import duckdb, postgres
 from assistant_agent.entities.base import VaultUtils
-from assistant_agent.utils.store_factory import DuckDBStoreContext, PostgresStoreContext
+from assistant_agent.utils.store_context import DuckDBStoreContext, PostgresStoreContext
 
 
 @pytest.fixture()
@@ -60,13 +60,13 @@ class TestObsidianFields:
                         "document_id": "id-A",
                         "document_metadata": {"forward_links": ["id-B"]},
                         "content": "A",
-                        "path": "A.md",
+                        "file_path": "A.md",
                     },
                     {
                         "document_id": "id-B",
                         "document_metadata": {"forward_links": []},
                         "content": "B",
-                        "path": "B.md",
+                        "file_path": "B.md",
                     },
                 ],
             )
@@ -102,13 +102,13 @@ class TestObsidianFields:
                         "document_id": "id-A",
                         "document_metadata": {"forward_links": ["id-B"]},
                         "content": "A",
-                        "path": "A.md",
+                        "file_path": "A.md",
                     },
                     {
                         "document_id": "id-B",
                         "document_metadata": {"forward_links": []},
                         "content": "B",
-                        "path": "B.md",
+                        "file_path": "B.md",
                     },
                 ],
             )
@@ -160,7 +160,7 @@ class TestVaultUtils:
         for note in (note_a, note_b, note_c):
             row = raw_rows[note.id_]
             assert row.content == note.text
-            assert row.path == note.metadata["path"]
+            assert row.file_path == note.metadata["file_path"]
 
         # 試験実施（2回目: C を削除、A を変更、B はそのまま）
         VaultUtils.sync([doc_a_modified, note_b], sa_engine, raw_entity)

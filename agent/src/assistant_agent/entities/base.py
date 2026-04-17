@@ -12,7 +12,7 @@ class DocumentFields:
     document_id: Mapped[str] = mapped_column(String, primary_key=True, sort_order=0)
     document_metadata: Mapped[dict]  # mapped_column なし。sort_order=1 は具体クラスで指定
     content: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
-    path: Mapped[str] = mapped_column(String, nullable=False, unique=True, sort_order=3)
+    file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True, sort_order=3)
 
 
 class ObsidianFields(DocumentFields):
@@ -38,7 +38,7 @@ class VaultUtils:
                 "document_id": doc.id_,
                 "document_metadata": doc.metadata,
                 "content": doc.text,
-                "path": doc.metadata["path"],
+                "file_path": doc.metadata["file_path"],
             }
             for doc in documents
         ]

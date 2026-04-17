@@ -30,7 +30,7 @@ def test_obsidian_vault_search_01():
         Document(
             id_="doc-id-1",
             text="ノート本文",
-            metadata={"path": "notes/idea.md"},
+            metadata={"file_path": "notes/idea.md"},
         )
     ]
     m_store = MagicMock()
@@ -52,7 +52,7 @@ def test_obsidian_vault_search_01():
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -91,7 +91,7 @@ def test_obsidian_vault_search_02():
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="全件取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -114,7 +114,7 @@ def test_obsidian_vault_search_03():
         Document(
             id_="doc-id-1",
             text="ノート本文",
-            metadata={"path": "notes/idea.md"},
+            metadata={"file_path": "notes/idea.md"},
         )
     ]
     m_store = MagicMock()
@@ -144,7 +144,7 @@ def test_obsidian_vault_search_03():
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -168,7 +168,7 @@ def test_obsidian_vault_get_01():
         Document(
             id_="doc-id-2",
             text="取得したノート",
-            metadata={"path": "folder/note.md"},
+            metadata={"file_path": "folder/note.md"},
         )
     ]
     m_store = MagicMock()
@@ -190,7 +190,7 @@ def test_obsidian_vault_get_01():
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="note.md を取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_store=m_store),
+        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
     )
 
     # 結果検証
@@ -213,7 +213,7 @@ def test_format_obs_docs_01():
         Document(
             id_="doc-id-1",
             text="ノート本文",
-            metadata={"path": "folder/note.md", "tags": "日本語テキスト"},
+            metadata={"file_path": "folder/note.md", "tags": "日本語テキスト"},
         )
     ]
     m_store = MagicMock()
@@ -236,12 +236,12 @@ def test_format_document_ids_01():
         Document(
             id_="doc-id-1",
             text="ノート本文",
-            metadata={"path": "notes/idea.md"},
+            metadata={"file_path": "notes/idea.md"},
         ),
         Document(
             id_="doc-id-2",
             text="別のノート",
-            metadata={"path": "folder/meeting.md"},
+            metadata={"file_path": "folder/meeting.md"},
         ),
     ]
 

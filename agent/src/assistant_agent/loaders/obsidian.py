@@ -16,7 +16,7 @@ def path_to_document_id(path: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 
 
-class VaultLoader(BaseReader):
+class ObsidianReader(BaseReader):
     """Vault ディレクトリをロードし、forward_links を含む Document リストを返す.
 
     obsidianmd-parser で Document を生成する。
@@ -24,7 +24,7 @@ class VaultLoader(BaseReader):
     """
 
     def __init__(self, vault_path: Path) -> None:
-        """Construct VaultLoader."""
+        """Construct ObsidianReader."""
         self._vault_path = vault_path
 
     def lazy_load_data(self, *args: Any, **load_kwargs: Any) -> Iterable[Document]:
@@ -41,7 +41,7 @@ class VaultLoader(BaseReader):
                 k: v.isoformat() if isinstance(v, (datetime.date, datetime.datetime)) else v
                 for k, v in note.frontmatter.items()
             }
-            metadata["path"] = rel_path
+            metadata["file_path"] = rel_path
             metadata["forward_links"] = self._extract_forward_links(rel_path, vault)
             docs.append(
                 Document(

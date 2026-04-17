@@ -8,7 +8,7 @@ from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
 from assistant_agent.graph import ContextSchema
-from assistant_agent.services.vault_obsidian import VaultObsidianRetriever
+from assistant_agent.services import VaultObsidianRetriever
 
 
 # --------------------------------
@@ -23,7 +23,7 @@ class ObsidianVaultSearchInput(BaseModel):
         description=(
             "Metadata filter. Set to null if not needed.\n"
             "Available metadata fields (specified in the key of each element in filters.filters):\n"
-            "- path (str): Vault-relative file path. Example: '02_Daily/2024-01-01.md'.\n"
+            "- file_path (str): Vault-relative file path. Example: '02_Daily/2024-01-01.md'.\n"
             "  Use operator='text_match' for partial matching of folder/file names.\n"
             "- date (str): Note creation date/time. 'YYYY-MM-DD HH:MM:SS' format.\n"
             "  Use operator='>=' / '<=' / '>' / '<' for date range filtering.\n"
@@ -52,9 +52,9 @@ def obsidian_vault_search(
     runtime: ToolRuntime[ContextSchema],
 ) -> tuple[str, list[Document]]:
     """Perform vector search on Obsidian vault with metadata filters."""
-    obsidian_store = runtime.context.obsidian_store
+    retriever = runtime.context.obsidian_retriever
     top_k = 9999 if full_fetch else 10
-    results = obsidian_store.search_documents(search_query, top_k=top_k, filters=filters)
+    results = retriever.search_documents(search_query, top_k=top_k, filters=filters)
     return format_document_ids(results), results  # pyright: ignore[reportReturnType]
 
 
@@ -80,7 +80,7 @@ def obsidian_vault_get(
     document_id: (Document identifier)
     metadata:
         date: (Document creation date)
-        path: (Document path)
+        file_path: (Document path)
         tags: (Category tags)
     ```
 
@@ -90,9 +90,9 @@ def obsidian_vault_get(
     Can be the linked note retrieved by calling the "obsidian_vault_get" tool with a document_id.
     The document_id can be got by matching the wikilink with forward_link in the frontmatter.
     """
-    obsidian_store = runtime.context.obsidian_store
-    results = obsidian_store.get_documents_by_ids(document_ids)
-    return format_docs_obs(results, obsidian_store), results
+    retriever = runtime.context.obsidian_retriever
+    results = retriever.get_documents_by_ids(document_ids)
+    return format_docs_obs(results, retriever), results
 
 
 # --------------------------------
@@ -102,17 +102,17 @@ def format_document_ids(documents: Sequence[Document]) -> str:
     """Document リストから document_id と path の一覧文字列を返す."""
     lines = [f"Search results ({len(documents)} documents found):"]
     for doc in documents:
-        lines.append(f'- {{ document_id: "{doc.id_}", path: "{doc.metadata["path"]}" }}')
+        lines.append(f'- {{ document_id: "{doc.id_}", path: "{doc.metadata["file_path"]}" }}')
     lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
     return "\n".join(lines)
 
 
-def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidianRetriever) -> str:
+def format_docs_obs(documents: Sequence[Document], retriever: VaultObsidianRetriever) -> str:
     """Document オブジェクトのリストを、エージェントが読みやすいテキスト形式に整形する.
 
     Args:
         documents: 整形対象の Document リスト。
-        obsidian_store: リンク情報の解決に使用するレトリーバー。
+        retriever: リンク情報の解決に使用するレトリーバー。
 
     Returns:
         メタデータ、前方リンク、および本文を含む整形済み文字列。
@@ -125,7 +125,7 @@ def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidian
         meta_without_links = {k: v for k, v in meta.items() if k != "forward_links"}
 
         lines = [
-            f"title: {basename(meta['path'])}",
+            f"title: {basename(meta['file_path'])}",
             "===\n",
             "```yaml",
             f"document_id: {doc.id_}",
@@ -133,10 +133,10 @@ def format_docs_obs(documents: Sequence[Document], obsidian_store: VaultObsidian
         ]
 
         if forward_links:
-            linked_docs = obsidian_store.get_documents_by_ids(forward_links)
+            linked_docs = retriever.get_documents_by_ids(forward_links)
             lines.append("forward_link:")
             for linked in linked_docs:
-                link_name = basename(linked.metadata.get("path", ""))
+                link_name = basename(linked.metadata.get("file_path", ""))
                 link_id = linked.id_ or ""
                 lines.append(f'  "{link_id}": "{link_name}"')
 
