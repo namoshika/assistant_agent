@@ -29,7 +29,7 @@ class ObsidianEntity(VaultBase, ObsidianFields):
     __tablename__ = "obsidian_raw"
 
 
-class WebsiteEntity(VaultBase, DocumentFields):
-    """ウェブサイト用."""
+class SampleEntity(VaultBase, DocumentFields):
+    """サンプルデータ用."""
 
-    __tablename__ = "website_raw"
+    __tablename__ = "sample_raw"

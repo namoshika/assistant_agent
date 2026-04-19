@@ -32,7 +32,7 @@ def retriever() -> VaultSampleRetriever:
         transformations=[SentenceSplitter()],
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
-        vault_entity=postgres.WebsiteEntity,
+        vault_entity=postgres.SampleEntity,
     )
 
 

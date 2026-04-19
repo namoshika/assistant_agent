@@ -98,7 +98,6 @@ def obsidian_vault_get(
 
     contents = [
         ContentsWithFrontmatter(
-            id=doc.id_,
             title=os.path.basename(doc.metadata["file_path"]),
             contents=doc.text,
             frontmatter={
@@ -113,6 +112,6 @@ def obsidian_vault_get(
 
 def _format_links(document_ids: list[str], retriever: VaultObsidianRetriever):
     return {
-        doc.id_: os.path.basename(doc.metadata.get("file_path", ""))
+        doc.id_: os.path.basename(doc.metadata["file_path"])
         for doc in retriever.get_documents_by_ids(document_ids)
     }

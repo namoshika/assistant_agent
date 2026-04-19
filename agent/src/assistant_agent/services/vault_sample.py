@@ -59,12 +59,10 @@ class VaultSampleRetriever:
     @mlflow.trace(span_type="RETRIEVER")
     def search_documents(self, query: str, top_k: int) -> Sequence[NodeWithScore]:
         """チャンク類似検索."""
-        # チャンク類似検索
         index = VectorStoreIndex.from_vector_store(self._vector_store, self._embed_model)
         retriever = index.as_retriever(similarity_top_k=top_k)
         nodes = retriever.retrieve(query)
 
-        # チャンクを返す
         return nodes
 
     def sync_chunks(self) -> None:
@@ -80,7 +78,7 @@ class VaultSampleRetriever:
         self._pipeline.run(documents=llama_docs)
 
 
-@ContextRegistry.register("website_retriever")
+@ContextRegistry.register("sample_retriever")
 def build(store_ctx: StoreContext, emb: BaseEmbedding, **_: Any) -> VaultSampleRetriever:
     """Sample レトリーバーを生成する."""
     return VaultSampleRetriever(
@@ -92,5 +90,5 @@ def build(store_ctx: StoreContext, emb: BaseEmbedding, **_: Any) -> VaultSampleR
         ],
         embed_model=emb,
         embed_dim=3072,
-        vault_entity=entities.WebsiteEntity,
+        vault_entity=entities.SampleEntity,
     )

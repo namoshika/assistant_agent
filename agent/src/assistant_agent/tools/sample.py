@@ -1,7 +1,51 @@
-from langchain.tools import tool
+import os
+from typing import Sequence, TypedDict
+
+from langchain.tools import ToolRuntime, tool
+from llama_index.core.schema import NodeWithScore
+from pydantic import BaseModel, Field
+
+import assistant_agent.utils.format as fmt
+from assistant_agent.services import VaultSampleRetriever
 
 
+class SampleContext(TypedDict):
+    sample_retriever: VaultSampleRetriever
+
+
+# --------------------------------
+# Tool: get_weather
+# --------------------------------
 @tool
 def get_weather(city: str) -> str:
     """Get weather for a given city."""
     return f"It's always sunny in {city}!"
+
+
+# --------------------------------
+# Tool: sample_search
+# --------------------------------
+class SampleSearchInput(BaseModel):
+    search_query: str = Field(
+        description="Search word (At least 1 character required).", default=" ", min_length=1
+    )
+
+
+@tool(args_schema=SampleSearchInput, response_format="content_and_artifact")
+def sample_search(
+    search_query: str,
+    runtime: ToolRuntime[SampleContext],
+) -> tuple[str, Sequence[NodeWithScore]]:
+    """Perform vector search on web pages saved in Local DB."""
+    retriever = runtime.context["sample_retriever"]
+    results = retriever.search_documents(search_query, top_k=10)
+    return fmt.format_doc_list(
+        [
+            fmt.ContentsWithFrontmatter(
+                title=os.path.basename(item.metadata["file_path"]),
+                contents=item.text,
+                frontmatter=None,
+            )
+            for item in results
+        ]
+    ), results

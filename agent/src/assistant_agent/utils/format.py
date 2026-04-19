@@ -13,7 +13,8 @@ Search results ({{ documents | length }} documents found):
 {% for doc in documents -%}
 - { document_id: "{{ doc.id_ }}", file_path: "{{ doc.metadata['file_path'] }}" }
 {% endfor %}
-Use obsidian_vault_get with document_ids to retrieve full content."""
+Use obsidian_vault_get with document_ids to retrieve full content.
+"""
 
 
 def format_doc_ids(documents: Sequence[Document]) -> str:
@@ -33,10 +34,11 @@ _DOCS_OBS_TMPL_STR = """\
 title: {{ doc.title }}
 ===
 
+{% if doc.frontmatter -%}
 ```yaml
-document_id: {{ doc.id }}
-{{ to_yaml(doc.frontmatter) }}
+{{ to_yaml(doc.frontmatter) -}}
 ```
+{%- endif %}
 
 {{ doc.contents }}
 {%- if not loop.last %}
@@ -44,7 +46,8 @@ document_id: {{ doc.id }}
 ---
 
 {% endif %}
-{%- endfor %}"""
+{%- endfor -%}
+"""
 
 
 TPayload: TypeAlias = str | int | float
@@ -52,10 +55,11 @@ TPayload: TypeAlias = str | int | float
 
 @dataclass
 class ContentsWithFrontmatter:
-    id: str
     title: str
     contents: str
-    frontmatter: dict[str, TPayload | list[TPayload | dict[str, TPayload]] | dict[str, TPayload]]
+    frontmatter: (
+        dict[str, TPayload | list[TPayload | dict[str, TPayload]] | dict[str, TPayload]] | None
+    )
 
 
 def format_doc_list(documents: Sequence[ContentsWithFrontmatter]) -> str:
