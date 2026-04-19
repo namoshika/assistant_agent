@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -8,7 +7,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
-from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.context import CommonContext
 
 SYSTEM_PROMPT = f"""
 # Instruction
@@ -27,15 +26,9 @@ SYSTEM_PROMPT = f"""
 """  # noqa: E501
 
 
-@dataclass
-class ContextSchema:
-    llm: BaseChatModel
-    obsidian_retriever: VaultObsidianRetriever
-
-
 def build_graph(
     agent_name: str, llm: BaseChatModel, tools: list[BaseTool]
-) -> CompiledStateGraph[Any, ContextSchema, Any, Any]:
+) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
     """エージェントのグラフ構造を構築する.
 
     Args:
@@ -51,7 +44,7 @@ def build_graph(
         model=llm,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
-        context_schema=ContextSchema,
+        context_schema=CommonContext,
         name=agent_name,
     )
     return agentic_graph

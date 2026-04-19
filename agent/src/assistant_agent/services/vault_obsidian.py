@@ -4,13 +4,16 @@ import mlflow
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import TransformComponent
 from llama_index.core.vector_stores.types import MetadataFilters
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from assistant_agent.entities import base
+from assistant_agent.entities import postgres as entities
 from assistant_agent.utils.absclass import StoreContext
+from assistant_agent.utils.context import ContextRegistry
 
 
 class VaultObsidianRetriever:
@@ -135,3 +138,37 @@ class VaultObsidianRetriever:
         ]
 
         self._pipeline.run(documents=llama_docs)
+
+
+@ContextRegistry.register("obsidian_retriever")
+def build(store_ctx: StoreContext, emb: BaseEmbedding, **_: Any) -> VaultObsidianRetriever:
+    """Obsidian レトリーバーを生成する (chunk_size=1024)."""
+    return VaultObsidianRetriever(
+        docstore_name="obsidian_vault_docs",
+        vectorstore_name="obsidian_vault_vectors",
+        store_context=store_ctx,
+        transformations=[
+            SentenceSplitter(chunk_size=1024, chunk_overlap=200, paragraph_separator="\n\n")
+        ],
+        embed_model=emb,
+        embed_dim=3072,
+        vault_entity=entities.ObsidianEntity,
+    )
+
+
+@ContextRegistry.register("obsidian_retriever", variant="chunk_512")
+def build_chunk_512(
+    store_ctx: StoreContext, emb: BaseEmbedding, **_: Any
+) -> VaultObsidianRetriever:
+    """Obsidian レトリーバーを生成する (chunk_size=512)."""
+    return VaultObsidianRetriever(
+        docstore_name="obsidian_vault_docs",
+        vectorstore_name="obsidian_vault_vectors",
+        store_context=store_ctx,
+        transformations=[
+            SentenceSplitter(chunk_size=512, chunk_overlap=80, paragraph_separator="\n\n")
+        ],
+        embed_model=emb,
+        embed_dim=3072,
+        vault_entity=entities.ObsidianEntity,
+    )

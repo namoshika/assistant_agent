@@ -7,7 +7,6 @@ from llama_index.core import Document
 from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
-from assistant_agent import graph
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -47,12 +46,12 @@ def test_obsidian_vault_search_01():
             }
         ],
     )
-    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context={"obsidian_retriever": m_store},
     )
 
     # 結果検証
@@ -86,12 +85,12 @@ def test_obsidian_vault_search_02():
             }
         ],
     )
-    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="全件取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context={"obsidian_retriever": m_store},
     )
 
     # 結果検証
@@ -139,12 +138,12 @@ def test_obsidian_vault_search_03():
             }
         ],
     )
-    agent = _make_agent(ai_msg, tools.obsidian_vault_search, context_schema=graph.ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
     agent.invoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context={"obsidian_retriever": m_store},
     )
 
     # 結果検証
@@ -185,12 +184,12 @@ def test_obsidian_vault_get_01():
             }
         ],
     )
-    agent = _make_agent(ai_msg, tools.obsidian_vault_get, context_schema=graph.ContextSchema)
+    agent = _make_agent(ai_msg, tools.obsidian_vault_get)
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="note.md を取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context={"obsidian_retriever": m_store},
     )
 
     # 結果検証
@@ -258,7 +257,7 @@ def test_format_document_ids_01():
     assert "別のノート" not in result
 
 
-def _make_agent(tool_calls_msg: AIMessage, *tools, context_schema=None):
+def _make_agent(tool_calls_msg: AIMessage, *tools):
     """テスト用エージェントを生成するヘルパー."""
     fake_llm = _FakeChatModel(
         messages=iter(
@@ -268,4 +267,4 @@ def _make_agent(tool_calls_msg: AIMessage, *tools, context_schema=None):
             ]
         )
     )
-    return create_agent(model=fake_llm, tools=list(tools), context_schema=context_schema)
+    return create_agent(model=fake_llm, tools=list(tools))

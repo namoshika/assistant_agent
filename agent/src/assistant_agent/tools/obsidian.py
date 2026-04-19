@@ -1,14 +1,17 @@
 import json
 from os.path import basename
-from typing import Sequence
+from typing import Sequence, TypedDict
 
 from langchain.tools import ToolRuntime, tool
 from llama_index.core import Document
 from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
-from assistant_agent.graph import ContextSchema
 from assistant_agent.services import VaultObsidianRetriever
+
+
+class ObsidianContext(TypedDict):
+    obsidian_retriever: VaultObsidianRetriever
 
 
 # --------------------------------
@@ -49,10 +52,10 @@ def obsidian_vault_search(
     search_query: str,
     filters: MetadataFilters | None,
     full_fetch: bool,
-    runtime: ToolRuntime[ContextSchema],
+    runtime: ToolRuntime[ObsidianContext],
 ) -> tuple[str, list[Document]]:
     """Perform vector search on Obsidian vault with metadata filters."""
-    retriever = runtime.context.obsidian_retriever
+    retriever = runtime.context["obsidian_retriever"]
     top_k = 9999 if full_fetch else 10
     results = retriever.search_documents(search_query, top_k=top_k, filters=filters)
     return format_document_ids(results), results  # pyright: ignore[reportReturnType]
@@ -69,7 +72,7 @@ class ObsidianVaultGetInput(BaseModel):
 
 @tool(args_schema=ObsidianVaultGetInput, response_format="content_and_artifact")
 def obsidian_vault_get(
-    document_ids: Sequence[str], runtime: ToolRuntime[ContextSchema]
+    document_ids: Sequence[str], runtime: ToolRuntime[ObsidianContext]
 ) -> tuple[str, Sequence[Document]]:
     """Return the text of Obsidian notes specified by document_id.
 
@@ -90,7 +93,7 @@ def obsidian_vault_get(
     Can be the linked note retrieved by calling the "obsidian_vault_get" tool with a document_id.
     The document_id can be got by matching the wikilink with forward_link in the frontmatter.
     """
-    retriever = runtime.context.obsidian_retriever
+    retriever = runtime.context["obsidian_retriever"]
     results = retriever.get_documents_by_ids(document_ids)
     return format_docs_obs(results, retriever), results
 

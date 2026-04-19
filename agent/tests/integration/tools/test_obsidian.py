@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,9 +9,10 @@ from llama_index.core import Document
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
-from assistant_agent import agents, graph
+from assistant_agent import agents
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.context import CommonContext
 from assistant_agent.utils.store_context import PostgresStoreContext
 
 
@@ -58,7 +59,7 @@ def test_obsidian_vault_search_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを検索して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
+        context={"obsidian_retriever": pg_retriever_obs},
     )
 
     # 結果検証
@@ -87,13 +88,13 @@ def test_obsidian_vault_search_02() -> None:
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
     agent = create_agent(
-        model=llm, tools=[tools.obsidian_vault_search], context_schema=graph.ContextSchema
+        model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="エージェントのノートを1回検索し document_id を出す")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context=cast(CommonContext, {"obsidian_retriever": m_store}),
     )
 
     # 結果検証
@@ -115,13 +116,13 @@ def test_obsidian_vault_search_03() -> None:
     m_store.search_documents.return_value = docs
     llm, _ = agents.get_model()
     agent = create_agent(
-        model=llm, tools=[tools.obsidian_vault_search], context_schema=graph.ContextSchema
+        model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
 
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="2026/01 以降のノートを検索し、 document_id を出して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=m_store),
+        context=cast(CommonContext, {"obsidian_retriever": m_store}),
     )
 
     # 結果検証
@@ -166,7 +167,7 @@ def test_obsidian_vault_get_01(
     # 試験実施
     result = agent.invoke(
         {"messages": [HumanMessage(content="ノートを取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
+        context=cast(CommonContext, {"obsidian_retriever": pg_retriever_obs}),
     )
 
     # 結果検証
@@ -189,7 +190,7 @@ def test_obsidian_vault_get_01(
     agent = _make_agent(ai_msg2, tools.obsidian_vault_get)
     result2 = agent.invoke(
         {"messages": [HumanMessage(content="nonexistent.md を取得して")]},
-        context=graph.ContextSchema(llm=MagicMock(), obsidian_retriever=pg_retriever_obs),
+        context=cast(CommonContext, {"obsidian_retriever": pg_retriever_obs}),
     )
     # 観点3
     tool_msg2 = next(m for m in result2["messages"] if isinstance(m, ToolMessage))
@@ -229,4 +230,4 @@ def _make_agent(tool_calls_msg: AIMessage, *tools: Any) -> Any:
             ]
         )
     )
-    return create_agent(model=fake_llm, tools=list(tools), context_schema=graph.ContextSchema)
+    return create_agent(model=fake_llm, tools=list(tools))

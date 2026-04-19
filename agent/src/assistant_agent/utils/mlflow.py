@@ -24,9 +24,11 @@ from mlflow.types.responses import (
     to_chat_completions_input,
 )
 
+from assistant_agent.utils.context import CommonContext
+
 
 class LangGraphResponsesAgent(ResponsesAgent):
-    def __init__(self, agent: CompiledStateGraph[Any, Any, Any, Any], context: Any):
+    def __init__(self, agent: CompiledStateGraph[Any, Any, Any, Any], context: CommonContext):
         """Construct LangGraphResponsesAgent."""
         self._agent = agent
         self._context = context
@@ -107,7 +109,9 @@ class LangGraphResponsesAgent(ResponsesAgent):
 
 
 class LangGraphChatAgent(ChatAgent):
-    def __init__(self, agent: CompiledStateGraph, context: Any):
+    def __init__(
+        self, agent: CompiledStateGraph[Any, CommonContext, Any, Any], context: CommonContext
+    ):
         """Construct LangGraphChatAgent."""
         self.agent = agent
         self.context = context

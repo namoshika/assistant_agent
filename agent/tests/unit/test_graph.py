@@ -1,11 +1,11 @@
 from typing import Any
-from unittest.mock import MagicMock
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from assistant_agent.graph import ContextSchema, build_graph
+from assistant_agent.graph import build_graph
+from assistant_agent.utils.context import CommonContext
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -29,7 +29,7 @@ def test_build_graph_01():
                 HumanMessage(content="こんにちは?"),
             ]
         },
-        context=ContextSchema(llm=MagicMock(), obsidian_retriever=MagicMock()),
+        context=CommonContext(),
     )
     msg = next(m for m in result["messages"])
 

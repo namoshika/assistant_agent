@@ -1,15 +1,18 @@
-from typing import Sequence
+from typing import Any, Sequence
 
 import mlflow
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import NodeWithScore, TransformComponent
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from assistant_agent.entities import base
+from assistant_agent.entities import postgres as entities
 from assistant_agent.utils.absclass import StoreContext
+from assistant_agent.utils.context import ContextRegistry
 
 
 class VaultSampleRetriever:
@@ -75,3 +78,19 @@ class VaultSampleRetriever:
         ]
 
         self._pipeline.run(documents=llama_docs)
+
+
+@ContextRegistry.register("website_retriever")
+def build(store_ctx: StoreContext, emb: BaseEmbedding, **_: Any) -> VaultSampleRetriever:
+    """Sample レトリーバーを生成する."""
+    return VaultSampleRetriever(
+        "sample_docstore",
+        "sample_vectors",
+        store_context=store_ctx,
+        transformations=[
+            SentenceSplitter(chunk_size=800, chunk_overlap=80, paragraph_separator="\n\n")
+        ],
+        embed_model=emb,
+        embed_dim=3072,
+        vault_entity=entities.WebsiteEntity,
+    )
