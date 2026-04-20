@@ -1,5 +1,4 @@
-import json
-from os.path import basename
+import os
 from typing import Sequence, TypedDict
 
 from langchain.tools import ToolRuntime, tool
@@ -8,6 +7,7 @@ from llama_index.core.vector_stores.types import MetadataFilters
 from pydantic import BaseModel, Field
 
 from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.utils.format import ContentsWithFrontmatter, format_doc_ids, format_doc_list
 
 
 class ObsidianContext(TypedDict):
@@ -17,7 +17,7 @@ class ObsidianContext(TypedDict):
 # --------------------------------
 # Tool: obsidian_vault_search
 # --------------------------------
-class ObsidianVaultSearchInput(BaseModel):
+class SearchToolInput(BaseModel):
     search_query: str = Field(
         description="Search word (At least 1 character required).", default=" ", min_length=1
     )
@@ -47,7 +47,7 @@ class ObsidianVaultSearchInput(BaseModel):
     )
 
 
-@tool(args_schema=ObsidianVaultSearchInput, response_format="content_and_artifact")
+@tool(args_schema=SearchToolInput, response_format="content_and_artifact")
 def obsidian_vault_search(
     search_query: str,
     filters: MetadataFilters | None,
@@ -58,19 +58,19 @@ def obsidian_vault_search(
     retriever = runtime.context["obsidian_retriever"]
     top_k = 9999 if full_fetch else 10
     results = retriever.search_documents(search_query, top_k=top_k, filters=filters)
-    return format_document_ids(results), results  # pyright: ignore[reportReturnType]
+    return format_doc_ids(results), results  # pyright: ignore[reportReturnType]
 
 
 # --------------------------------
 # Tool: obsidian_vault_get
 # --------------------------------
-class ObsidianVaultGetInput(BaseModel):
+class GetToolInput(BaseModel):
     document_ids: list[str] = Field(
         description="List of document_ids of the notes to retrieve (unlimited number of elements)"
     )
 
 
-@tool(args_schema=ObsidianVaultGetInput, response_format="content_and_artifact")
+@tool(args_schema=GetToolInput, response_format="content_and_artifact")
 def obsidian_vault_get(
     document_ids: Sequence[str], runtime: ToolRuntime[ObsidianContext]
 ) -> tuple[str, Sequence[Document]]:
@@ -94,56 +94,25 @@ def obsidian_vault_get(
     The document_id can be got by matching the wikilink with forward_link in the frontmatter.
     """
     retriever = runtime.context["obsidian_retriever"]
-    results = retriever.get_documents_by_ids(document_ids)
-    return format_docs_obs(results, retriever), results
+    docs = retriever.get_documents_by_ids(document_ids)
+
+    contents = [
+        ContentsWithFrontmatter(
+            id=doc.id_,
+            title=os.path.basename(doc.metadata["file_path"]),
+            contents=doc.text,
+            frontmatter={
+                k: _format_links(v, retriever) if k == "forward_links" else v
+                for k, v in doc.metadata.items()
+            },
+        )
+        for doc in docs
+    ]
+    return format_doc_list(contents), docs
 
 
-# --------------------------------
-# Utilities
-# --------------------------------
-def format_document_ids(documents: Sequence[Document]) -> str:
-    """Document リストから document_id と path の一覧文字列を返す."""
-    lines = [f"Search results ({len(documents)} documents found):"]
-    for doc in documents:
-        lines.append(f'- {{ document_id: "{doc.id_}", path: "{doc.metadata["file_path"]}" }}')
-    lines.append("\nUse obsidian_vault_get with document_ids to retrieve full content.")
-    return "\n".join(lines)
-
-
-def format_docs_obs(documents: Sequence[Document], retriever: VaultObsidianRetriever) -> str:
-    """Document オブジェクトのリストを、エージェントが読みやすいテキスト形式に整形する.
-
-    Args:
-        documents: 整形対象の Document リスト。
-        retriever: リンク情報の解決に使用するレトリーバー。
-
-    Returns:
-        メタデータ、前方リンク、および本文を含む整形済み文字列。
-
-    """
-    parts = []
-    for doc in documents:
-        meta = doc.metadata
-        forward_links: list[str] = meta.get("forward_links") or []
-        meta_without_links = {k: v for k, v in meta.items() if k != "forward_links"}
-
-        lines = [
-            f"title: {basename(meta['file_path'])}",
-            "===\n",
-            "```yaml",
-            f"document_id: {doc.id_}",
-            f"metadata: {json.dumps(meta_without_links, ensure_ascii=False)}",
-        ]
-
-        if forward_links:
-            linked_docs = retriever.get_documents_by_ids(forward_links)
-            lines.append("forward_link:")
-            for linked in linked_docs:
-                link_name = basename(linked.metadata.get("file_path", ""))
-                link_id = linked.id_ or ""
-                lines.append(f'  "{link_id}": "{link_name}"')
-
-        lines.extend(["```\n", doc.text])
-        parts.append("\n".join(lines))
-
-    return "\n\n---\n\n".join(parts)
+def _format_links(document_ids: list[str], retriever: VaultObsidianRetriever):
+    return {
+        doc.id_: os.path.basename(doc.metadata.get("file_path", ""))
+        for doc in retriever.get_documents_by_ids(document_ids)
+    }

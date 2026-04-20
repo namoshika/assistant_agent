@@ -202,61 +202,6 @@ def test_obsidian_vault_get_01():
     assert tool_msg.artifact is docs
 
 
-def test_format_obs_docs_01():
-    """Document リストから整形済み文字列を返せるか確認.
-
-    観点: 戻り値が文字列である
-    """
-    # 試験準備
-    docs = [
-        Document(
-            id_="doc-id-1",
-            text="ノート本文",
-            metadata={"file_path": "folder/note.md", "tags": "日本語テキスト"},
-        )
-    ]
-    m_store = MagicMock()
-
-    # 試験実施
-    result = tools.format_docs_obs(docs, m_store)
-
-    # 結果検証
-    assert isinstance(result, str)
-
-
-def test_format_document_ids_01():
-    """Document リストから document_id と path の一覧文字列を返せるか確認.
-
-    観点1: 戻り値が文字列である
-    観点2: document_id と path が含まれ、page_content は含まれない
-    """
-    # 試験準備
-    docs = [
-        Document(
-            id_="doc-id-1",
-            text="ノート本文",
-            metadata={"file_path": "notes/idea.md"},
-        ),
-        Document(
-            id_="doc-id-2",
-            text="別のノート",
-            metadata={"file_path": "folder/meeting.md"},
-        ),
-    ]
-
-    # 試験実施
-    result = tools.format_document_ids(docs)
-
-    # 結果検証
-    # 観点1
-    assert isinstance(result, str)
-    # 観点2
-    assert "doc-id-1" in result
-    assert "doc-id-2" in result
-    assert "ノート本文" not in result
-    assert "別のノート" not in result
-
-
 def _make_agent(tool_calls_msg: AIMessage, *tools):
     """テスト用エージェントを生成するヘルパー."""
     fake_llm = _FakeChatModel(

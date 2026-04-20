@@ -198,29 +198,6 @@ def test_obsidian_vault_get_01(
     assert tool_msg2.content == ""
 
 
-@pytest.mark.integration
-def test_format_obs_docs_01(
-    pg_cxt: PostgresStoreContext,
-    pg_retriever_obs: VaultObsidianRetriever,
-    pg_entity_obs: type,
-    docs_obs: Sequence[Document],
-) -> None:
-    """Document リストを format_obs_docs() に渡し、整形済み文字列を返せるか確認.
-
-    観点: 戻り値が文字列である
-    """
-    # 試験準備
-    raw_entity = pg_entity_obs
-    VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
-    docs = pg_retriever_obs.get_documents_by_ids([docs_obs[0].id_])  # pyright: ignore[reportArgumentType]
-
-    # 試験実施
-    result = tools.format_docs_obs(docs, pg_retriever_obs)
-
-    # 結果検証
-    assert isinstance(result, str)
-
-
 def _make_agent(tool_calls_msg: AIMessage, *tools: Any) -> Any:
     fake_llm = _FakeChatModel(
         messages=iter(
