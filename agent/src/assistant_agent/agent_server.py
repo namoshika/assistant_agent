@@ -12,7 +12,10 @@ if experiment_id is not None:
     mlflow.set_experiment(experiment_id=experiment_id)
 else:
     mlflow.set_experiment(experiment_name="agent-rag")
-mlflow.autolog()
+mlflow.bedrock.autolog()  # pyright: ignore[reportPrivateImportUsage]
+mlflow.gemini.autolog()  # pyright: ignore[reportPrivateImportUsage]
+mlflow.langchain.autolog()  # pyright: ignore[reportPrivateImportUsage]
+mlflow.llama_index.autolog()  # pyright: ignore[reportPrivateImportUsage]
 
 # エージェント初期化
 app = FastAPI(title="Agent Assistant")

@@ -2,8 +2,9 @@ import os
 import uuid
 from pathlib import Path
 
+import duckdb
 import pytest
-from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
+from llama_index.core.schema import TextNode
 from llama_index.core.vector_stores.types import VectorStoreQuery
 from llama_index.storage.docstore.duckdb import DuckDBDocumentStore
 from llama_index.storage.docstore.postgres import PostgresDocumentStore
@@ -113,7 +114,8 @@ class TestDuckDBStoreContext:
         観点1: インメモリで Engine が返ること
         観点2: ファイル永続化で Engine が返ること
         観点3: 同一インスタンスが返ること（キャッシュ）
-        観点4: 返った Engine で SELECT 1 が実行でき DuckDB と通信できること
+        観点4: 返った Engine で SELECT 1 が実行でき DuckDB と通信できること (Writable)
+        観点5: 返った Engine で SELECT 1 が実行でき DuckDB と通信できること (Read Only)
         """
         # 観点1: インメモリ
         ctx_mem = DuckDBStoreContext()
@@ -128,7 +130,7 @@ class TestDuckDBStoreContext:
             result = conn.execute(text("SELECT 1")).scalar()
         assert result == 1
 
-        # 観点2: ファイル永続化
+        # 観点2: ファイル永続化 (Writable)
         ctx_file = DuckDBStoreContext(persist_dir=tmp_path)
         engine_file = ctx_file.get_engine()
         assert engine_file is not None
@@ -142,6 +144,16 @@ class TestDuckDBStoreContext:
         assert result == 1
 
         ctx_mem.close()
+        ctx_file.close()
+
+        # ----------
+        # 観点5: ファイル永続化 (Read Only)
+        ctx_file = DuckDBStoreContext(persist_dir=tmp_path, read_only=True)
+        engine_file = ctx_file.get_engine()
+        assert engine_file is not None
+        with engine_file.connect() as conn:
+            result = conn.execute(text("SELECT 1")).scalar()
+        assert result == 1
         ctx_file.close()
 
     @pytest.mark.integration
@@ -168,6 +180,34 @@ class TestDuckDBStoreContext:
         assert result.nodes[0].node_id == "node-1"  # pyright: ignore[reportOptionalSubscript]
 
     @pytest.mark.integration
+    def test_get_vector_store_02(self, tmp_path: Path) -> None:
+        """DuckDBVectorStore が client 引数で渡した接続を無視すること（llamaindex バグの再現確認）.
+
+        観点1: add() の書き込みが渡した接続には反映されないこと
+
+        llamaindex のバグ（Pydantic PrivateAttr リセット）により client 引数が無視され
+        独自接続が生成される。バグ修正時にこのテストが失敗するようになる。
+        """
+        # 試験準備: llamaindex.duckdb とは別ファイルを向く接続を用意
+        other_db = tmp_path / "other.duckdb"
+        conn = duckdb.connect(str(other_db))
+        conn.execute(
+            "CREATE TABLE test_vec"
+            " (node_id VARCHAR PRIMARY KEY, text TEXT, embedding FLOAT[3], metadata_ JSON)"
+        )
+        vs = DuckDBVectorStore(
+            "llamaindex.duckdb", "test_vec", 3, persist_dir=str(tmp_path), client=conn
+        )
+
+        # 試験実施
+        vs.add([TextNode(id_="node-1", text="hello", embedding=[0.1, 0.2, 0.3])])
+
+        # 結果検証
+        # 観点1: バグにより渡した接続（other.duckdb）には書き込まれないこと
+        rows = conn.execute("SELECT count(*) FROM test_vec").fetchone()[0]  # pyright: ignore[reportOptionalSubscript]
+        assert rows == 0
+
+    @pytest.mark.integration
     def test_get_docstore_01(self, tmp_path: Path) -> None:
         """get_docstore が DuckDBDocumentStore を返し、読み書きできること.
 
@@ -192,14 +232,13 @@ class TestDuckDBStoreContext:
 
     @pytest.mark.integration
     def test_close_01(self, tmp_path: Path) -> None:
-        """close() が CHECKPOINT を実行すること.
+        """close() が entity.duckdb の CHECKPOINT を実行すること.
 
-        観点1: CHECKPOINT により WAL ファイルが消えること
+        観点1: CHECKPOINT により entity.duckdb.wal ファイルが消えること
         """
         ctx = DuckDBStoreContext(persist_dir=tmp_path)
         engine = ctx.get_engine()
         wal_entity = tmp_path / "entity.duckdb.wal"
-        wal_llama = tmp_path / "llamaindex.duckdb.wal"
 
         # entity.duckdb に WAL を発生させる
         with engine.connect() as conn:
@@ -208,17 +247,9 @@ class TestDuckDBStoreContext:
             conn.commit()
         assert wal_entity.exists()
 
-        # llamaindex.duckdb に WAL を発生させる
-        vs = ctx.get_vector_store("vectors", embed_dim=2)
-        node = TextNode(id_="n1", text="hello", embedding=[0.1, 0.9])
-        node.relationships[NodeRelationship.SOURCE] = RelatedNodeInfo(node_id="doc1")
-        vs.add([node])
-        assert wal_llama.exists()
-
         # 試験実施
         ctx.close()
 
         # 結果検証
-        # 観点1: CHECKPOINT により両 WAL ファイルが消えること
+        # 観点1: CHECKPOINT により entity.duckdb.wal ファイルが消えること
         assert not wal_entity.exists()
-        assert not wal_llama.exists()

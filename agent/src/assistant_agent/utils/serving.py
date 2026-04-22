@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Iterator
 from typing import Callable, Literal, Optional, Union
 
 from fastapi import FastAPI, HTTPException
@@ -10,11 +10,10 @@ from mlflow.types.agent import ChatAgentChunk, ChatAgentMessage, ChatAgentReques
 from mlflow.types.chat import ChatMessage, TextContentPart
 from pydantic import BaseModel
 
+
 # ---------------------------------------------------------------------------
 # Request / Response Models (OpenAI Chat Completions API 互換)
 # ---------------------------------------------------------------------------
-
-
 class ChatCompletionRequest(BaseModel):
     """POST /api/chat/completions リクエストボディ."""
 
@@ -82,8 +81,6 @@ class ChatCompletionChunk(BaseModel):
 # ---------------------------------------------------------------------------
 # ブリッジ関数: ChatMessage ↔ ChatAgentMessage
 # ---------------------------------------------------------------------------
-
-
 def to_chat_agent_messages(messages: list[ChatMessage]) -> list[ChatAgentMessage]:
     """OpenAI ChatMessage を MLflow ChatAgentMessage へ変換."""
     result = []
@@ -133,17 +130,13 @@ def from_chat_agent_chunk(chunk_id: str, chunk: ChatAgentChunk, model: str) -> s
 # ---------------------------------------------------------------------------
 # ChatCompletion ディスパッチャ
 # ---------------------------------------------------------------------------
-
-
 class ChatCompletion:
     """OpenAI Chat Completions API 互換エンドポイントのディスパッチャ."""
 
     def __init__(self) -> None:
         """Construct ChatCompletion."""
         self._registered_funcs: dict[str, Callable[[ChatAgentRequest], ChatAgentResponse]] = {}
-        self._stream_funcs: dict[
-            str, Callable[[ChatAgentRequest], Generator[ChatAgentChunk, None, None]]
-        ] = {}
+        self._stream_funcs: dict[str, Callable[[ChatAgentRequest], Iterator[ChatAgentChunk]]] = {}
 
     def regist(self, model_id: str) -> Callable:
         """メソッドを Chat Completion API 呼び出し対象へ登録."""
@@ -158,7 +151,7 @@ class ChatCompletion:
         """メソッドをストリーミング Chat Completion API 呼び出し対象へ登録."""
 
         def _decorator(
-            func: Callable[[ChatAgentRequest], Generator[ChatAgentChunk, None, None]],
+            func: Callable[[ChatAgentRequest], Iterator[ChatAgentChunk]],
         ) -> Callable:
             self._stream_funcs[model_id] = func
             return func
@@ -183,7 +176,7 @@ class ChatCompletion:
             chunk_id = f"chatcmpl-{uuid.uuid4().hex}"
             model_id = request.model
 
-            def generate() -> Generator[str, None, None]:
+            def generate() -> Iterator[str]:
                 for chunk in stream_handler(agent_request):
                     yield from_chat_agent_chunk(chunk_id, chunk, model_id)
                 yield "data: [DONE]\n\n"

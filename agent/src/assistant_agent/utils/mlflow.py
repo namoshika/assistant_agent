@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import Iterator
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -42,9 +42,7 @@ class LangGraphResponsesAgent(ResponsesAgent):
         ]
         return ResponsesAgentResponse(output=outputs, custom_outputs=request.custom_inputs)
 
-    def predict_stream(
-        self, request: ResponsesAgentRequest
-    ) -> Generator[ResponsesAgentStreamEvent, None, None]:
+    def predict_stream(self, request: ResponsesAgentRequest) -> Iterator[ResponsesAgentStreamEvent]:
         """エージェントの推論結果 (Streaming) を返す."""
         cc_msgs = to_chat_completions_input(
             request.input  # pyright: ignore[reportArgumentType]
@@ -174,7 +172,7 @@ class LangGraphChatAgent(ChatAgent):
         messages: list[ChatAgentMessage],
         context: Optional[ChatContext] = None,
         custom_inputs: Optional[dict[str, Any]] = None,
-    ) -> Generator[ChatAgentChunk, None, None]:
+    ) -> Iterator[ChatAgentChunk]:
         """エージェントの推論結果 (Streaming) を返す."""
         request = {"messages": self._convert_messages_to_dict(messages)}
         for mode, chunk in self.agent.stream(

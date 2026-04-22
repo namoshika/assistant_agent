@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import duckdb
 from llama_index.core.storage.docstore.types import BaseDocumentStore
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from llama_index.storage.docstore.duckdb import DuckDBDocumentStore
@@ -70,17 +69,16 @@ class DuckDBStoreContext(StoreContext):
         StoreContext.close()  # CHECKPOINT を実行し WAL を安全にフラッシュ
     """
 
-    def __init__(self, persist_dir: Path | None = None) -> None:
+    def __init__(self, persist_dir: Path | None = None, read_only: bool = False) -> None:
         """Construct DuckDBStoreContext."""
         self._persist_dir = persist_dir
         self._dbname = ":memory:" if persist_dir is None else "llamaindex.duckdb"
-        self._conn = duckdb.connect(
-            ":memory:" if persist_dir is None else str(persist_dir / self._dbname)
-        )
+        effective_read_only = read_only if persist_dir is not None else False
         self._engine: Engine = create_engine(
-            "duckdb:///:memory:"
+            url="duckdb:///:memory:"
             if persist_dir is None
-            else f"duckdb:///{persist_dir / 'entity.duckdb'}"
+            else f"duckdb:///{persist_dir / 'entity.duckdb'}",
+            connect_args={"read_only": effective_read_only},
         )
 
     def get_engine(self) -> Engine:
@@ -89,25 +87,23 @@ class DuckDBStoreContext(StoreContext):
 
     def get_vector_store(self, name: str, embed_dim: int) -> BasePydanticVectorStore:
         """DuckDBVectorStore を生成する."""
-        return DuckDBVectorStore(
-            self._dbname, name, embed_dim, persist_dir=str(self._persist_dir), client=self._conn
-        )
+        return DuckDBVectorStore(self._dbname, name, embed_dim, persist_dir=str(self._persist_dir))
 
     def get_docstore(self, name: str) -> BaseDocumentStore:
         """DuckDBDocumentStore を生成する."""
-        kvstore = DuckDBKVStore(
-            self._dbname, name, persist_dir=str(self._persist_dir), client=self._conn
-        )
+        kvstore = DuckDBKVStore(self._dbname, name, persist_dir=str(self._persist_dir))
         return DuckDBDocumentStore(duckdb_kvstore=kvstore)
 
-    def close(self) -> None:
-        """Engine の接続を解放し CHECKPOINT で WAL をフラッシュする.
+    def flush(self) -> None:
+        """CHECKPOINT で WAL をフラッシュする.
 
         CHECKPOINT はデータ永続化の代替ではなく安全策。
         呼び出し元が session.commit() を適切に呼ぶことが前提。
         """
-        self._conn.execute("CHECKPOINT")
-        self._conn.close()
         with self._engine.connect() as conn:
             conn.execute(text("CHECKPOINT"))
+
+    def close(self) -> None:
+        """Engine の接続を解放する."""
+        self.flush()
         self._engine.dispose()

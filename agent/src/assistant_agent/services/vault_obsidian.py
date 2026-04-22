@@ -1,3 +1,4 @@
+import os
 from typing import Any, Sequence
 
 import mlflow
@@ -7,6 +8,7 @@ from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import TransformComponent
 from llama_index.core.vector_stores.types import MetadataFilters
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -141,34 +143,44 @@ class VaultObsidianRetriever:
 
 
 @ContextRegistry.register("obsidian_retriever")
-def build(store_ctx: StoreContext, emb: BaseEmbedding, **_: Any) -> VaultObsidianRetriever:
+def build(store_ctx: StoreContext, **_: Any) -> VaultObsidianRetriever:
     """Obsidian レトリーバーを生成する (chunk_size=1024)."""
+    env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
+    assert env_gemini_api_key is not None
+
     return VaultObsidianRetriever(
-        docstore_name="obsidian_vault_docs",
-        vectorstore_name="obsidian_vault_vectors",
+        docstore_name="obsidian_docs",
+        vectorstore_name="obsidian_vectors",
         store_context=store_ctx,
         transformations=[
             SentenceSplitter(chunk_size=1024, chunk_overlap=200, paragraph_separator="\n\n")
         ],
-        embed_model=emb,
+        embed_model=GoogleGenAIEmbedding(
+            model="gemini-embedding-001",
+            api_key=env_gemini_api_key,
+        ),
         embed_dim=3072,
         vault_entity=entities.ObsidianEntity,
     )
 
 
 @ContextRegistry.register("obsidian_retriever", variant="chunk_512")
-def build_chunk_512(
-    store_ctx: StoreContext, emb: BaseEmbedding, **_: Any
-) -> VaultObsidianRetriever:
+def build_chunk_512(store_ctx: StoreContext, **_: Any) -> VaultObsidianRetriever:
     """Obsidian レトリーバーを生成する (chunk_size=512)."""
+    env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
+    assert env_gemini_api_key is not None
+
     return VaultObsidianRetriever(
-        docstore_name="obsidian_vault_docs",
-        vectorstore_name="obsidian_vault_vectors",
+        docstore_name="obsidian_docs",
+        vectorstore_name="obsidian_vectors",
         store_context=store_ctx,
         transformations=[
             SentenceSplitter(chunk_size=512, chunk_overlap=80, paragraph_separator="\n\n")
         ],
-        embed_model=emb,
+        embed_model=GoogleGenAIEmbedding(
+            model="gemini-embedding-001",
+            api_key=env_gemini_api_key,
+        ),
         embed_dim=3072,
         vault_entity=entities.ObsidianEntity,
     )

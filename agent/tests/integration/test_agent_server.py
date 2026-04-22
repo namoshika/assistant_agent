@@ -1,8 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from assistant_agent.agent_server import app
-
 
 @pytest.mark.integration
 def test_chat_completions_01():
@@ -13,6 +11,8 @@ def test_chat_completions_01():
     観点3: POST /api/chat/completions (stream=True) でエージェント関数が呼び出され、SSE が返ること
     """
     # 試験準備
+    from assistant_agent.agent_server import app
+
     client = TestClient(app)
 
     # 観点1: モデル一覧

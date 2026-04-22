@@ -1,4 +1,4 @@
-from typing import Any, Sequence, cast
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -86,7 +86,7 @@ def test_obsidian_vault_search_02() -> None:
     docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
-    llm, _ = agents.get_model()
+    llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
@@ -114,7 +114,7 @@ def test_obsidian_vault_search_03() -> None:
     docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
-    llm, _ = agents.get_model()
+    llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )

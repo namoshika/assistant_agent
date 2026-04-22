@@ -15,6 +15,7 @@ dependencies = [
     "langchain-google-genai>=4.2.1",
     "langchain-postgres>=0.0.17",
     "llama-index>=0.14.18",
+    "llama-index-embeddings-databricks>=0.5.1",
     "llama-index-embeddings-google-genai>=0.5.0",
     "llama-index-llms-google-genai>=0.8.7",
     "llama-index-storage-docstore-duckdb>=0.3.0",

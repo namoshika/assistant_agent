@@ -62,7 +62,7 @@ def test_search_documents_01(retriever: VaultSampleRetriever, mocker: MockerFixt
     m_index = MagicMock()
     m_index.as_retriever.return_value = m_llama_retriever
     mocker.patch(
-        "assistant_agent.services.vault_obsidian.VectorStoreIndex.from_vector_store",
+        "assistant_agent.services.vault_sample.VectorStoreIndex.from_vector_store",
         return_value=m_index,
     )
 

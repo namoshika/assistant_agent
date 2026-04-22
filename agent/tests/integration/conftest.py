@@ -1,6 +1,6 @@
 import os
 import uuid
-from collections.abc import Generator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -17,7 +17,7 @@ from assistant_agent.utils.store_context import DuckDBStoreContext, PostgresStor
 
 
 @pytest.fixture(scope="session")
-def pg_cxt() -> Generator[PostgresStoreContext, None, None]:
+def pg_cxt() -> Iterator[PostgresStoreContext]:
     """PostgresStoreContext (セッション全体で共有)."""
     conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
     if not conn_str:
@@ -40,7 +40,7 @@ def docs_obs() -> list[Document]:
 
 
 @pytest.fixture()
-def pg_entity_obs(pg_cxt: PostgresStoreContext, vault_name: str) -> Generator[type, None, None]:
+def pg_entity_obs(pg_cxt: PostgresStoreContext, vault_name: str) -> Iterator[type]:
     """Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -61,7 +61,7 @@ def pg_entity_obs(pg_cxt: PostgresStoreContext, vault_name: str) -> Generator[ty
 @pytest.fixture()
 def pg_retriever_obs(
     pg_cxt: PostgresStoreContext, vault_name: str, pg_entity_obs: type
-) -> Generator[VaultObsidianRetriever, None, None]:
+) -> Iterator[VaultObsidianRetriever]:
     """実際の PostgreSQL に接続した VaultObsidianRetriever.
 
     ENV_PG_CONNECTION_STRING と ENV_GEMINI_API_KEY 環境変数が必要。
@@ -104,7 +104,7 @@ def docs_smpl() -> list[Document]:
 
 
 @pytest.fixture()
-def pg_entity_smpl(pg_cxt: PostgresStoreContext, vault_name: str) -> Generator[type, None, None]:
+def pg_entity_smpl(pg_cxt: PostgresStoreContext, vault_name: str) -> Iterator[type]:
     """サンプル用 Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -125,7 +125,7 @@ def pg_entity_smpl(pg_cxt: PostgresStoreContext, vault_name: str) -> Generator[t
 @pytest.fixture()
 def pg_retriever_smpl(
     pg_cxt: PostgresStoreContext, vault_name: str, pg_entity_smpl: type
-) -> Generator[VaultSampleRetriever, None, None]:
+) -> Iterator[VaultSampleRetriever]:
     """実際の PostgreSQL に接続した VaultSampleRetriever."""
     env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
     if not env_gemini_api_key:
@@ -152,20 +152,20 @@ def pg_retriever_smpl(
 
 
 @pytest.fixture(scope="session")
-def dk_cxt(tmp_path_factory: pytest.TempPathFactory) -> Generator[DuckDBStoreContext, None, None]:
+def dk_cxt(tmp_path_factory: pytest.TempPathFactory) -> Iterator[DuckDBStoreContext]:
     """DuckDBStoreContext（セッション全体で共有）.
 
     tmp_path は function スコープのため session スコープには使用不可。
     session スコープ対応の tmp_path_factory を使う。
     """
     persist_dir = tmp_path_factory.mktemp("duckdb")
-    ctx = DuckDBStoreContext(persist_dir=persist_dir)
+    ctx = DuckDBStoreContext(persist_dir=str(persist_dir))
     yield ctx
     ctx.close()
 
 
 @pytest.fixture()
-def dk_entity_obs(dk_cxt: DuckDBStoreContext, vault_name: str) -> Generator[type, None, None]:
+def dk_entity_obs(dk_cxt: DuckDBStoreContext, vault_name: str) -> Iterator[type]:
     """DuckDB 用 Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -186,7 +186,7 @@ def dk_entity_obs(dk_cxt: DuckDBStoreContext, vault_name: str) -> Generator[type
 @pytest.fixture()
 def dk_retriever_obs(
     dk_cxt: DuckDBStoreContext, vault_name: str, dk_entity_obs: type
-) -> Generator[VaultObsidianRetriever, None, None]:
+) -> Iterator[VaultObsidianRetriever]:
     """実際の DuckDB に接続した VaultObsidianRetriever.
 
     ENV_GEMINI_API_KEY 環境変数が必要。

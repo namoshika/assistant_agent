@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Generator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,9 +12,7 @@ from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 @pytest.fixture()
-def pg_vault_tables(
-    pg_cxt: PostgresStoreContext,
-) -> Generator[type[postgres.DocumentFields], None, None]:
+def pg_vault_tables(pg_cxt: PostgresStoreContext) -> Iterator[type[postgres.DocumentFields]]:
     """テスト専用の raw テーブルを作成し、テスト後に DROP する."""
     engine = pg_cxt.get_engine()
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
