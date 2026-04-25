@@ -7,9 +7,10 @@ from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.ingestion import DocstoreStrategy, IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import TransformComponent
-from llama_index.core.vector_stores.types import MetadataFilters
+from llama_index.core.storage.docstore.types import BaseDocumentStore
+from llama_index.core.vector_stores.types import BasePydanticVectorStore, MetadataFilters
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-from sqlalchemy import select
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from assistant_agent.entities import base
@@ -45,19 +46,37 @@ class VaultObsidianRetriever:
         """
         self._vault_entity = vault_entity
         self._embed_model = embed_model
+        self._store_context = store_context
+        self._docstore_name = docstore_name
+        self._vectorstore_name = vectorstore_name
+        self._transformations = transformations
+        self._embed_dim = embed_dim
+        self._initialized: bool = False
 
-        # Chunking ロジック設定
-        self._sa_engine = store_context.get_engine()
-        self._vector_store = store_context.get_vector_store(vectorstore_name, embed_dim)
-        self._docstore = store_context.get_docstore(docstore_name)
+    _sa_engine: Engine
+    _vector_store: BasePydanticVectorStore
+    _docstore: BaseDocumentStore
+    _pipeline: IngestionPipeline
 
-        # Pipeline 設定
+    def initialize(self) -> None:
+        """ストアと Pipeline を遅延初期化する。2回目以降の呼び出しはスキップ.
+
+        派生クラスでオーバーライドする場合は super().initialize() を呼び出すこと。
+        """
+        if self._initialized:
+            return
+        self._sa_engine = self._store_context.get_engine()
+        self._vector_store = self._store_context.get_vector_store(
+            self._vectorstore_name, self._embed_dim
+        )
+        self._docstore = self._store_context.get_docstore(self._docstore_name)
         self._pipeline = IngestionPipeline(
-            transformations=list(transformations) + [embed_model],
+            transformations=list(self._transformations) + [self._embed_model],
             docstore=self._docstore,
             vector_store=self._vector_store,
             docstore_strategy=DocstoreStrategy.UPSERTS_AND_DELETE,
         )
+        self._initialized = True
 
     @mlflow.trace(span_type="RETRIEVER")
     def search_documents(self, query: str, top_k: int, **kwargs: Any) -> Sequence[Document]:
@@ -66,6 +85,7 @@ class VaultObsidianRetriever:
         返却する Document は id_ と metadata のみを保持し、text は空文字列である。
         全文が必要な場合は get_documents_by_ids を使用すること。
         """
+        self.initialize()
         filters: MetadataFilters | None = kwargs.get("filters")
 
         # チャンク類似検索
@@ -84,6 +104,7 @@ class VaultObsidianRetriever:
     @mlflow.trace(span_type="RETRIEVER")
     def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
         """document_id の完全一致する Document を取得する."""
+        self.initialize()
         with Session(self._sa_engine) as session:
             rows = session.scalars(
                 select(self._vault_entity).where(self._vault_entity.document_id.in_(document_ids))
@@ -106,6 +127,7 @@ class VaultObsidianRetriever:
         doc_metadata["forward_links"] は document_id のリストを格納している前提。
         document_id が空文字列の場合は ValueError を raise する。
         """
+        self.initialize()
         if not document_id:
             raise ValueError("document_id must not be empty")
         with Session(self._sa_engine) as session:
@@ -123,6 +145,7 @@ class VaultObsidianRetriever:
 
     def sync_chunks(self) -> None:
         """Vault テーブルの全ドキュメントを pipeline に渡して Chunk 層を更新."""
+        self.initialize()
         with Session(self._sa_engine) as session:
             rows = session.scalars(select(self._vault_entity)).all()
 

@@ -6,7 +6,7 @@
         {
             "label": "Launch DevServer",
             "type": "shell",
-            "command": "uv run fastapi dev --host agent --reload",
+            "command": "uv run fastapi dev --host agent",
             "problemMatcher": [
                 "$python"
             ],

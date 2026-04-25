@@ -22,11 +22,6 @@ from assistant_agent.utils.context import ContextRegistry
 class VaultSampleRetriever:
     """レトリーバー参考実装."""
 
-    _sa_engine: Engine
-    _vector_store: BasePydanticVectorStore
-    _docstore: BaseDocumentStore
-    _pipeline: IngestionPipeline
-
     def __init__(
         self,
         docstore_name: str,
@@ -57,6 +52,11 @@ class VaultSampleRetriever:
         self._transformations = transformations
         self._embed_dim = embed_dim
         self._initialized: bool = False
+
+    _sa_engine: Engine
+    _vector_store: BasePydanticVectorStore
+    _docstore: BaseDocumentStore
+    _pipeline: IngestionPipeline
 
     def initialize(self) -> None:
         """ストアと Pipeline を遅延初期化する。2回目以降の呼び出しはスキップ.

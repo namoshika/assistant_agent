@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from llama_index.core.storage.docstore.types import BaseDocumentStore
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from llama_index.storage.docstore.duckdb import DuckDBDocumentStore
@@ -59,25 +57,31 @@ class PostgresStoreContext(StoreContext):
 class DuckDBStoreContext(StoreContext):
     """DuckDB バックエンドの StoreContext 実装.
 
-    persist_dir=None でインメモリ、Path 指定でファイル永続化。
     LlamaIndex と SQLAlchemy Engine は同一ファイルへの同時接続が不可のため
     ファイルを分けて管理する:
         LlamaIndex 用: {persist_dir}/llamaindex.duckdb（VectorStore / Docstore 共有接続）
         SQLAlchemy 用: {persist_dir}/entity.duckdb
 
-    利用終了時:
-        StoreContext.close()  # CHECKPOINT を実行し WAL を安全にフラッシュ
+    永続化モード毎に、各オブジェクトを以下の様に初期化する.
+    persist_dir: ":memory:" (デフォルト)
+        create_engine(url="duckdb:///:memory:")
+        DuckDBVectorStore(database_name=":memory:")           # persist_dir 引数は渡さない
+        DuckDBKVStore(database_name=":memory:")               # persist_dir 引数は渡さない
+    persist_dir: "(path)"
+        create_engine(url="duckdb:///(path)/entity.duckdb")
+        DuckDBVectorStore(database_name="llamaindex.duckdb", persist_dir="(path)")
+        DuckDBKVStore(database_name="llamaindex.duckdb", persist_dir="(path)")
     """
 
-    def __init__(self, persist_dir: Path | None = None, read_only: bool = False) -> None:
+    def __init__(self, persist_dir: str = ":memory:", read_only: bool = False) -> None:
         """Construct DuckDBStoreContext."""
         self._persist_dir = persist_dir
-        self._dbname = ":memory:" if persist_dir is None else "llamaindex.duckdb"
-        effective_read_only = read_only if persist_dir is not None else False
+        is_memory = persist_dir == ":memory:"
+        self._is_memory = is_memory
+        self._dbname = ":memory:" if is_memory else "llamaindex.duckdb"
+        effective_read_only = False if is_memory else read_only
         self._engine: Engine = create_engine(
-            url="duckdb:///:memory:"
-            if persist_dir is None
-            else f"duckdb:///{persist_dir / 'entity.duckdb'}",
+            url="duckdb:///:memory:" if is_memory else f"duckdb:///{persist_dir}/entity.duckdb",
             connect_args={"read_only": effective_read_only},
         )
 
@@ -87,11 +91,19 @@ class DuckDBStoreContext(StoreContext):
 
     def get_vector_store(self, name: str, embed_dim: int) -> BasePydanticVectorStore:
         """DuckDBVectorStore を生成する."""
-        return DuckDBVectorStore(self._dbname, name, embed_dim, persist_dir=str(self._persist_dir))
+        if self._is_memory:
+            return DuckDBVectorStore(self._dbname, name, embed_dim)
+        else:
+            return DuckDBVectorStore(
+                self._dbname, name, embed_dim, persist_dir=str(self._persist_dir)
+            )
 
     def get_docstore(self, name: str) -> BaseDocumentStore:
         """DuckDBDocumentStore を生成する."""
-        kvstore = DuckDBKVStore(self._dbname, name, persist_dir=str(self._persist_dir))
+        if self._is_memory:
+            kvstore = DuckDBKVStore(self._dbname, name)
+        else:
+            kvstore = DuckDBKVStore(self._dbname, name, persist_dir=str(self._persist_dir))
         return DuckDBDocumentStore(duckdb_kvstore=kvstore)
 
     def flush(self) -> None:
