@@ -10,7 +10,7 @@ from pytest_mock import MockerFixture
 from assistant_agent.entities import duckdb
 from assistant_agent.loaders.obsidian import path_to_document_id
 from assistant_agent.services import VaultObsidianRetriever
-from assistant_agent.utils.store_context import DuckDBStoreContext
+from assistant_agent.store import DuckDBStoreConnector
 
 _DOC_ID_A = path_to_document_id("a.md")
 _DOC_ID_B = path_to_document_id("b.md")
@@ -20,12 +20,12 @@ _DOC_ID_B = path_to_document_id("b.md")
 def retriever() -> VaultObsidianRetriever:
     """VaultObsidianRetriever のテスト用インスタンス.
 
-    DuckDBStoreContext を注入し、外部依存なしで動作させる。
+    DuckDBStoreConnector を注入し、外部依存なしで動作させる。
     """
     return VaultObsidianRetriever(
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
-        store_context=DuckDBStoreContext(),
+        store_conn=DuckDBStoreConnector(),
         transformations=[SentenceSplitter()],
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
@@ -40,7 +40,7 @@ def test_initialize_01(mocker: MockerFixture):
     観点2: search_documents の呼び出しが initialize() をトリガーすること（初回のみ）
     """
     # 試験準備
-    m_store_ctx = MagicMock()
+    m_store_conn = MagicMock()
     mocker.patch(
         "assistant_agent.services.vault_obsidian.IngestionPipeline",
         return_value=MagicMock(),
@@ -52,7 +52,7 @@ def test_initialize_01(mocker: MockerFixture):
     retriever = VaultObsidianRetriever(
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
-        store_context=m_store_ctx,
+        store_conn=m_store_conn,
         transformations=[SentenceSplitter()],
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,
@@ -62,15 +62,15 @@ def test_initialize_01(mocker: MockerFixture):
     # 観点1: initialize() を2回呼んでもストア生成は1回
     retriever.initialize()
     retriever.initialize()
-    m_store_ctx.get_engine.assert_called_once()
-    m_store_ctx.get_vector_store.assert_called_once()
-    m_store_ctx.get_docstore.assert_called_once()
+    m_store_conn.get_engine.assert_called_once()
+    m_store_conn.get_vector_store.assert_called_once()
+    m_store_conn.get_docstore.assert_called_once()
 
     # 観点2: search_documents 呼び出しで initialize() が再実行されないこと（呼び出し回数が増えない）
     retriever.search_documents("テスト", top_k=1, filters=None)
-    m_store_ctx.get_engine.assert_called_once()
-    m_store_ctx.get_vector_store.assert_called_once()
-    m_store_ctx.get_docstore.assert_called_once()
+    m_store_conn.get_engine.assert_called_once()
+    m_store_conn.get_vector_store.assert_called_once()
+    m_store_conn.get_docstore.assert_called_once()
 
 
 def test_search_documents_01(retriever: VaultObsidianRetriever, mocker: MockerFixture):

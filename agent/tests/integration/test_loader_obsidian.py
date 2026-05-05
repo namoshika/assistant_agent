@@ -8,13 +8,13 @@ from sqlalchemy.orm import DeclarativeBase
 
 from assistant_agent.entities import postgres
 from assistant_agent.loaders import ObsidianReader
-from assistant_agent.utils.store_context import PostgresStoreContext
+from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.fixture()
-def pg_vault_tables(pg_cxt: PostgresStoreContext) -> Iterator[type[postgres.DocumentFields]]:
+def pg_vault_tables(pg_conn: PostgresStoreConnector) -> Iterator[type[postgres.DocumentFields]]:
     """テスト専用の raw テーブルを作成し、テスト後に DROP する."""
-    engine = pg_cxt.get_engine()
+    engine = pg_conn.get_engine()
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
 
     class _TestBase(DeclarativeBase):

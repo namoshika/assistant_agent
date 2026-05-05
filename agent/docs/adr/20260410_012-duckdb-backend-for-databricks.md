@@ -34,4 +34,4 @@ DuckDB を採用した理由は以下のとおり。
 - DuckDB バックエンドの位置づけは **PoC・デモ向け**であり、本番適用を前提としない
 - Databricks 本番環境への適用は Lakebase の ap-northeast-1 提供開始を待つことになる（時期未定）
 - 本番適用を急ぐ場合は独自 ETL パイプラインの作り込みが必要だが、LlamaIndex の豊富な機能で迅速に検証できるというコンセプトから逸脱するため現時点では採用しない
-- DuckDB バックエンドの調査・PoC の詳細は `docs/experimental/20260408_duckdb_store_context/` を参照
+- DuckDB バックエンドの調査・PoC の詳細は `docs/experimental/20260408_duckdb_store_connector/` を参照

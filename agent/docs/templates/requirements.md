@@ -1,6 +1,6 @@
 # Requirements: {機能名}
 
-<!-- 機能名はタスクの内容を端的に表す名詞句で記載する。例: "DuckDB StoreContext" -->
+<!-- 機能名はタスクの内容を端的に表す名詞句で記載する。例: "DuckDB StoreConnector" -->
 
 ---
 
@@ -10,7 +10,7 @@
 
 > 記載例:
 >
-> `src/assistant_agent/utils/store_context.py` に `DuckDBStoreContext` を追加する。
+> `src/assistant_agent/store.py` に `DuckDBStoreConnector` を追加する。
 > DuckDB は単一ファイルで動作する組み込み OLAP DB であり、Databricks 上でもローカルでも依存を最小化したい場面に適する。
 
 ---
@@ -44,7 +44,7 @@
 
 > 記載例:
 >
-> - `StoreContext` を継承し、`get_vector_store()` / `get_docstore()` / `get_engine()` を実装する
+> - `StoreConnector` を継承し、`get_vector_store()` / `get_docstore()` / `get_engine()` を実装する
 > - インメモリモード（`persist_dir=None`）とファイル永続化モード（`persist_dir` 指定）の両方に対応する
 > - LlamaIndex と SQLAlchemy Engine は同一 DuckDB ファイルへの同時接続が不可のため、**ファイルを分けて管理する**
 >   - LlamaIndex 用: `{persist_dir}/{name}_llamaindex.duckdb`

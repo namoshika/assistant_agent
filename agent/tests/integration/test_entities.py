@@ -5,13 +5,13 @@ from sqlalchemy.orm import DeclarativeBase, Session
 
 from assistant_agent.entities import duckdb, postgres
 from assistant_agent.entities.base import VaultUtils
-from assistant_agent.utils.store_context import DuckDBStoreContext, PostgresStoreContext
+from assistant_agent.store import DuckDBStoreConnector, PostgresStoreConnector
 
 
 @pytest.fixture()
-def pg_backlink_entity(pg_cxt: PostgresStoreContext):
+def pg_backlink_entity(pg_conn: PostgresStoreConnector):
     """PostgreSQL 用バックリンクフィルタ検証テーブル."""
-    engine = pg_cxt.get_engine()
+    engine = pg_conn.get_engine()
 
     class _TestBase(DeclarativeBase):
         metadata = MetaData("assets")
@@ -25,7 +25,7 @@ def pg_backlink_entity(pg_cxt: PostgresStoreContext):
 
 
 @pytest.fixture()
-def dk_backlink_entity(dk_cxt: DuckDBStoreContext):
+def dk_backlink_entity(dk_cxt: DuckDBStoreConnector):
     """DuckDB 用バックリンクフィルタ検証テーブル."""
     engine = dk_cxt.get_engine()
 
@@ -130,7 +130,7 @@ class TestVaultUtils:
     @pytest.mark.integration
     def test_sync_01(
         self,
-        pg_cxt: PostgresStoreContext,
+        pg_conn: PostgresStoreConnector,
         pg_entity_obs: type[postgres.DocumentFields],
         docs_obs: list[Document],
     ):
@@ -141,7 +141,7 @@ class TestVaultUtils:
         """
         # 試験準備
         raw_entity = pg_entity_obs
-        sa_engine = pg_cxt.get_engine()
+        sa_engine = pg_conn.get_engine()
         note_a, note_b, note_c = docs_obs[:3]
         doc_a_modified = Document(
             id_=note_a.id_,

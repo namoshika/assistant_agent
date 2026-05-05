@@ -8,14 +8,14 @@ from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine.url import make_url
 
-from assistant_agent.utils.absclass import StoreContext
+from assistant_agent.utils.absclass import StoreConnector
 
 
-class PostgresStoreContext(StoreContext):
-    """PostgreSQL バックエンドの StoreContext 実装."""
+class PostgresStoreConnector(StoreConnector):
+    """PostgreSQL バックエンドの StoreConnector 実装."""
 
     def __init__(self, connection_string: str, schema_name: str) -> None:
-        """Construct PostgresStoreContext."""
+        """Construct PostgresStoreConnector."""
         self._url = make_url(connection_string)
         self._schema_name = schema_name
         self._engine: Engine | None = None
@@ -54,8 +54,8 @@ class PostgresStoreContext(StoreContext):
         )
 
 
-class DuckDBStoreContext(StoreContext):
-    """DuckDB バックエンドの StoreContext 実装.
+class DuckDBStoreConnector(StoreConnector):
+    """DuckDB バックエンドの StoreConnector 実装.
 
     LlamaIndex と SQLAlchemy Engine は同一ファイルへの同時接続が不可のため
     ファイルを分けて管理する:
@@ -74,7 +74,7 @@ class DuckDBStoreContext(StoreContext):
     """
 
     def __init__(self, persist_dir: str = ":memory:", read_only: bool = False) -> None:
-        """Construct DuckDBStoreContext."""
+        """Construct DuckDBStoreConnector."""
         self._persist_dir = persist_dir
         is_memory = persist_dir == ":memory:"
         self._is_memory = is_memory

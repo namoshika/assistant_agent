@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock, patch
 
-from assistant_agent.utils.store_context import DuckDBStoreContext
+from assistant_agent.store import DuckDBStoreConnector
 
 
-class TestDuckDBStoreContext:
+class TestDuckDBStoreConnector:
     def test_persist_01(self) -> None:
-        """DuckDBStoreContext がインメモリモードで各コンポーネントを初期化すること.
+        """DuckDBStoreConnector がインメモリモードで各コンポーネントを初期化すること.
 
         観点1: get_engine が create_engine(url="duckdb:///:memory:") で初期化すること
         観点2: get_engine の1回目と2回目が同一インスタンスを返すこと
@@ -21,20 +21,20 @@ class TestDuckDBStoreContext:
 
         with (
             patch(
-                "assistant_agent.utils.store_context.create_engine", return_value=mock_engine
+                "assistant_agent.store.create_engine", return_value=mock_engine
             ) as mock_ce,
             patch(
-                "assistant_agent.utils.store_context.DuckDBVectorStore", return_value=mock_vs
+                "assistant_agent.store.DuckDBVectorStore", return_value=mock_vs
             ) as mock_dv,
             patch(
-                "assistant_agent.utils.store_context.DuckDBKVStore", return_value=mock_kvstore
+                "assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore
             ) as mock_kv,
             patch(
-                "assistant_agent.utils.store_context.DuckDBDocumentStore",
+                "assistant_agent.store.DuckDBDocumentStore",
                 return_value=mock_docstore,
             ),
         ):
-            ctx = DuckDBStoreContext()
+            ctx = DuckDBStoreConnector()
 
             # 観点1
             mock_ce.assert_called_once_with(
@@ -55,7 +55,7 @@ class TestDuckDBStoreContext:
             mock_kv.assert_called_once_with(":memory:", "doc_store")
 
     def test_persist_02(self, tmp_path) -> None:
-        """DuckDBStoreContext がファイル永続化モードで各コンポーネントを初期化すること.
+        """DuckDBStoreConnector がファイル永続化モードで各コンポーネントを初期化すること.
 
         観点1: get_engine が create_engine(url="duckdb:///{path}/entity.duckdb") で初期化すること
         観点2: get_engine の1回目と2回目が同一インスタンスを返すこと
@@ -72,20 +72,20 @@ class TestDuckDBStoreContext:
 
         with (
             patch(
-                "assistant_agent.utils.store_context.create_engine", return_value=mock_engine
+                "assistant_agent.store.create_engine", return_value=mock_engine
             ) as mock_ce,
             patch(
-                "assistant_agent.utils.store_context.DuckDBVectorStore", return_value=mock_vs
+                "assistant_agent.store.DuckDBVectorStore", return_value=mock_vs
             ) as mock_dv,
             patch(
-                "assistant_agent.utils.store_context.DuckDBKVStore", return_value=mock_kvstore
+                "assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore
             ) as mock_kv,
             patch(
-                "assistant_agent.utils.store_context.DuckDBDocumentStore",
+                "assistant_agent.store.DuckDBDocumentStore",
                 return_value=mock_docstore,
             ),
         ):
-            ctx = DuckDBStoreContext(persist_dir=persist_dir)
+            ctx = DuckDBStoreConnector(persist_dir=persist_dir)
 
             # 観点1
             mock_ce.assert_called_once_with(

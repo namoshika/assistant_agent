@@ -12,8 +12,8 @@ import assistant_agent.tools.obsidian as tools
 from assistant_agent import agents
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.store import PostgresStoreConnector
 from assistant_agent.utils.context import CommonContext
-from assistant_agent.utils.store_context import PostgresStoreContext
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -23,7 +23,7 @@ class _FakeChatModel(GenericFakeChatModel):
 
 @pytest.mark.integration
 def test_obsidian_vault_search_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
@@ -36,7 +36,7 @@ def test_obsidian_vault_search_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync(docs_obs, pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync(docs_obs, pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
 
     ai_msg = AIMessage(
@@ -136,7 +136,7 @@ def test_obsidian_vault_search_03() -> None:
 
 @pytest.mark.integration
 def test_obsidian_vault_get_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
@@ -149,7 +149,7 @@ def test_obsidian_vault_get_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync([docs_obs[0]], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([docs_obs[0]], pg_conn.get_engine(), raw_entity)
     doc_id = docs_obs[0].id_
     ai_msg = AIMessage(
         content="",

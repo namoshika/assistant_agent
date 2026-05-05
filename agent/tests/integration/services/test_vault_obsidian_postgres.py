@@ -6,12 +6,12 @@ from assistant_agent.entities import postgres
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.loaders.obsidian import path_to_document_id
 from assistant_agent.services import VaultObsidianRetriever
-from assistant_agent.utils.store_context import PostgresStoreContext
+from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.mark.integration
 def test_search_documents_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type[postgres.ObsidianFields],
     docs_obs: list[Document],
@@ -28,7 +28,7 @@ def test_search_documents_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync(docs_obs, pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync(docs_obs, pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
     doc = docs_obs[0]
 
@@ -62,7 +62,7 @@ def test_search_documents_01(
 
 @pytest.mark.integration
 def test_get_documents_by_ids_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
@@ -75,7 +75,7 @@ def test_get_documents_by_ids_01(
     # 試験準備
     raw_entity = pg_entity_obs
     doc = docs_obs[0]
-    VaultUtils.sync([doc], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([doc], pg_conn.get_engine(), raw_entity)
 
     # 試験実施
     assert doc.id_ is not None
@@ -93,7 +93,7 @@ def test_get_documents_by_ids_01(
 
 @pytest.mark.integration
 def test_get_backlinks_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
@@ -116,7 +116,7 @@ def test_get_backlinks_01(
     doc_b = next((d for d in docs_obs if d.id_ == link_tgt_id), None)
     if doc_b is None:
         pytest.skip("forward_links のリンク先が vault_docs にない")
-    VaultUtils.sync([doc_a, doc_b], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([doc_a, doc_b], pg_conn.get_engine(), raw_entity)
 
     # 試験実施
     results = pg_retriever_obs.get_backlinks(link_tgt_id)
@@ -134,7 +134,7 @@ def test_get_backlinks_01(
 
 @pytest.mark.integration
 def test_sync_chunks_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
     docs_obs: list[Document],
@@ -156,7 +156,7 @@ def test_sync_chunks_01(
     assert target_doc.id_ is not None
 
     # --- ステップ1: 追加 ---
-    VaultUtils.sync([noise_doc, target_doc], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([noise_doc, target_doc], pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
 
     # 観点1
@@ -175,7 +175,7 @@ def test_sync_chunks_01(
         text=new_content,
         metadata=target_doc.metadata,
     )
-    VaultUtils.sync([noise_doc, updated_target], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([noise_doc, updated_target], pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
 
     # 観点2
@@ -187,7 +187,7 @@ def test_sync_chunks_01(
     assert noise_result.metadata == noise_doc.metadata
 
     # --- ステップ3: 削除 ---
-    VaultUtils.sync([noise_doc], pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync([noise_doc], pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
 
     # 観点3

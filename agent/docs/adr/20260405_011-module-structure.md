@@ -28,10 +28,10 @@ src/assistant_agent/
 ├── retriever/
 │   └── vault_obsidian.py  # LlamaIndex を使った Vault レトリーバー (VaultObsidianRetriever)
 └── utils/
-    ├── absclass.py      # 抽象基底クラス (StoreContext)
+    ├── absclass.py      # 抽象基底クラス (StoreConnector)
     ├── mlflow.py        # MLflow ラッパー (LangGraphChatAgent / LangGraphResponsesAgent)
     ├── serving.py       # OpenAI Chat Completions API 互換ディスパッチャ (ChatCompletion)
-    └── store_context.py # DB バックエンド別 StoreContext 実装
+    └── store_connector.py # DB バックエンド別 StoreConnector 実装
 ```
 
 ### 各モジュールの責務
@@ -46,8 +46,8 @@ src/assistant_agent/
 | `tools.py` | `get_tools()` が返す `@tool` 関数群。`ToolRuntime[ContextSchema]` 経由でコンテキストを受け取る |
 | `loader/obsidian.py` | `ObsidianReader`（Vault ディレクトリ → Document リスト変換）|
 | `retriever/vault_obsidian.py` | `VaultObsidianRetriever`。LlamaIndex IngestionPipeline でチャンク管理し、ベクター検索・ID 引き当て・バックリンク取得・Chunk 層の同期を提供する |
-| `utils/absclass.py` | `StoreContext` 抽象クラス。VectorStore / DocumentStore / SQLAlchemy Engine の生成インタフェースを規定 |
-| `utils/store_context.py` | `StoreContext` の DB バックエンド別実装。`agents.py` から利用される |
+| `utils/absclass.py` | `StoreConnector` 抽象クラス。VectorStore / DocumentStore / SQLAlchemy Engine の生成インタフェースを規定 |
+| `utils/store_connector.py` | `StoreConnector` の DB バックエンド別実装。`agents.py` から利用される |
 | `utils/mlflow.py` | `LangGraphChatAgent`（`ChatAgent` サブクラス）・`LangGraphResponsesAgent`（`ResponsesAgent` サブクラス）の MLflow ラッパー |
 | `utils/serving.py` | `ChatCompletion` ディスパッチャ。OpenAI Chat Completions API 互換の `/api/chat/completions`・`/api/models` エンドポイントを FastAPI に公開し、`ChatMessage` ↔ `ChatAgentMessage` の変換も担う |
 
@@ -64,7 +64,7 @@ src/assistant_agent/
 | `utils/serving.py` を追加 | ADR-010 に従い、OpenAI 互換サーバー層を `utils/` に配置し `agent_server.py` から利用 |
 | `entities.py` を `entities/` サブパッケージへ分割 | DB 別の ORM 実装を分離しつつ、共通の基底クラスを `base.py` に集約 |
 | `utils/absclass.py` の `DocumentRetriever` を廃止 | レトリーバー抽象クラスとして設計されていたが、実態と乖離したため削除 |
-| `utils/absclass.py` に `StoreContext` を追加 | VectorStore / DocumentStore / Engine の生成インタフェースを抽象化。`utils/store_context.py` に DB バックエンド別実装を配置 |
+| `utils/absclass.py` に `StoreConnector` を追加 | VectorStore / DocumentStore / Engine の生成インタフェースを抽象化。`utils/store_connector.py` に DB バックエンド別実装を配置 |
 
 ## 影響・備考
 

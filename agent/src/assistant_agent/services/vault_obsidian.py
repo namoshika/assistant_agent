@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from assistant_agent.entities import base
 from assistant_agent.entities import postgres as entities
-from assistant_agent.utils.absclass import StoreContext
+from assistant_agent.utils.absclass import StoreConnector
 from assistant_agent.utils.context import ContextRegistry
 
 
@@ -26,7 +26,7 @@ class VaultObsidianRetriever:
         self,
         docstore_name: str,
         vectorstore_name: str,
-        store_context: StoreContext,
+        store_conn: StoreConnector,
         transformations: Sequence[TransformComponent],
         embed_model: BaseEmbedding,
         embed_dim: int,
@@ -37,7 +37,7 @@ class VaultObsidianRetriever:
         Args:
             docstore_name: ドキュメントストアの識別名。
             vectorstore_name: ベクターストアの識別名。
-            store_context: ベクターストア、ドキュメントストアを生成するファクトリ。
+            store_conn: ベクターストア、ドキュメントストアを生成するファクトリ。
             transformations: ドキュメントの変換処理リスト (埋め込みを除く)。
             embed_model: テキスト埋め込みモデル。
             embed_dim: 埋め込みベクトルの次元数。
@@ -46,7 +46,7 @@ class VaultObsidianRetriever:
         """
         self._vault_entity = vault_entity
         self._embed_model = embed_model
-        self._store_context = store_context
+        self._store_conn = store_conn
         self._docstore_name = docstore_name
         self._vectorstore_name = vectorstore_name
         self._transformations = transformations
@@ -65,11 +65,11 @@ class VaultObsidianRetriever:
         """
         if self._initialized:
             return
-        self._sa_engine = self._store_context.get_engine()
-        self._vector_store = self._store_context.get_vector_store(
+        self._sa_engine = self._store_conn.get_engine()
+        self._vector_store = self._store_conn.get_vector_store(
             self._vectorstore_name, self._embed_dim
         )
-        self._docstore = self._store_context.get_docstore(self._docstore_name)
+        self._docstore = self._store_conn.get_docstore(self._docstore_name)
         self._pipeline = IngestionPipeline(
             transformations=list(self._transformations) + [self._embed_model],
             docstore=self._docstore,
@@ -166,15 +166,17 @@ class VaultObsidianRetriever:
 
 
 @ContextRegistry.register("obsidian_retriever")
-def build(store_ctx: StoreContext, **_: Any) -> VaultObsidianRetriever:
+def build(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsidianRetriever | None:
     """Obsidian レトリーバーを生成する (chunk_size=1024)."""
+    if store_conn is None:
+        return None
     env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
     assert env_gemini_api_key is not None
 
     return VaultObsidianRetriever(
         docstore_name="obsidian_docs",
         vectorstore_name="obsidian_vectors",
-        store_context=store_ctx,
+        store_conn=store_conn,
         transformations=[
             SentenceSplitter(chunk_size=1024, chunk_overlap=200, paragraph_separator="\n\n")
         ],
@@ -188,15 +190,17 @@ def build(store_ctx: StoreContext, **_: Any) -> VaultObsidianRetriever:
 
 
 @ContextRegistry.register("obsidian_retriever", variant="chunk_512")
-def build_chunk_512(store_ctx: StoreContext, **_: Any) -> VaultObsidianRetriever:
+def build_c512(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsidianRetriever | None:
     """Obsidian レトリーバーを生成する (chunk_size=512)."""
+    if store_conn is None:
+        return None
     env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
     assert env_gemini_api_key is not None
 
     return VaultObsidianRetriever(
         docstore_name="obsidian_docs",
         vectorstore_name="obsidian_vectors",
-        store_context=store_ctx,
+        store_conn=store_conn,
         transformations=[
             SentenceSplitter(chunk_size=512, chunk_overlap=80, paragraph_separator="\n\n")
         ],

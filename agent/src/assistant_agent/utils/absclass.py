@@ -5,7 +5,7 @@ from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from sqlalchemy import Engine
 
 
-class StoreContext(abc.ABC):
+class StoreConnector(abc.ABC):
     """VectorStore / DocumentStore / SQLAlchemy Engine を生成するファクトリ抽象クラス."""
 
     @abc.abstractmethod

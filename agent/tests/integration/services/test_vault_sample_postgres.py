@@ -4,12 +4,12 @@ from llama_index.core import Document
 from assistant_agent.entities import postgres
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultSampleRetriever
-from assistant_agent.utils.store_context import PostgresStoreContext
+from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.mark.integration
 def test_search_documents_01(
-    pg_cxt: PostgresStoreContext,
+    pg_conn: PostgresStoreConnector,
     pg_retriever_smpl: VaultSampleRetriever,
     pg_entity_smpl: type[postgres.DocumentFields],
     docs_smpl: list[Document],
@@ -25,7 +25,7 @@ def test_search_documents_01(
     """
     # 試験準備
     raw_entity = pg_entity_smpl
-    VaultUtils.sync(docs_smpl, pg_cxt.get_engine(), raw_entity)
+    VaultUtils.sync(docs_smpl, pg_conn.get_engine(), raw_entity)
     pg_retriever_smpl.sync_chunks()
     doc = docs_smpl[0]
 

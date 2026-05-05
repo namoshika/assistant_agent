@@ -5,12 +5,12 @@ from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter,
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.loaders.obsidian import path_to_document_id
 from assistant_agent.services import VaultObsidianRetriever
-from assistant_agent.utils.store_context import DuckDBStoreContext
+from assistant_agent.store import DuckDBStoreConnector
 
 
 @pytest.mark.integration
 def test_get_documents_by_ids_01(
-    dk_cxt: DuckDBStoreContext,
+    dk_cxt: DuckDBStoreConnector,
     dk_retriever_obs: VaultObsidianRetriever,
     dk_entity_obs: type,
     docs_obs: list[Document],
@@ -40,7 +40,7 @@ def test_get_documents_by_ids_01(
 
 @pytest.mark.integration
 def test_get_backlinks_01(
-    dk_cxt: DuckDBStoreContext,
+    dk_cxt: DuckDBStoreConnector,
     dk_retriever_obs: VaultObsidianRetriever,
     dk_entity_obs: type,
     docs_obs: list[Document],
@@ -80,7 +80,7 @@ def test_get_backlinks_01(
 
 @pytest.mark.integration
 def test_sync_chunks_01(
-    dk_cxt: DuckDBStoreContext,
+    dk_cxt: DuckDBStoreConnector,
     dk_retriever_obs: VaultObsidianRetriever,
     dk_entity_obs: type,
     docs_obs: list[Document],
@@ -141,7 +141,7 @@ def test_sync_chunks_01(
 
 @pytest.mark.integration
 def test_search_documents_01(
-    dk_cxt: DuckDBStoreContext,
+    dk_cxt: DuckDBStoreConnector,
     dk_retriever_obs: VaultObsidianRetriever,
     dk_entity_obs: type,
     docs_obs: list[Document],

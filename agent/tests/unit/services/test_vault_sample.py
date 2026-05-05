@@ -13,7 +13,7 @@ from pytest_mock import MockerFixture
 
 from assistant_agent.entities import postgres
 from assistant_agent.services import VaultSampleRetriever
-from assistant_agent.utils.store_context import DuckDBStoreContext
+from assistant_agent.store import DuckDBStoreConnector
 
 _DOC_ID_A = "doc-id-a"
 _DOC_ID_B = "doc-id-b"
@@ -28,7 +28,7 @@ def retriever() -> VaultSampleRetriever:
     return VaultSampleRetriever(
         docstore_name="test_docstore",
         vectorstore_name="test_vectorstore",
-        store_context=DuckDBStoreContext(),
+        store_conn=DuckDBStoreConnector(),
         transformations=[SentenceSplitter()],
         embed_model=MagicMock(spec=BaseEmbedding),
         embed_dim=128,

@@ -13,10 +13,10 @@ from llama_index.vector_stores.duckdb import DuckDBVectorStore
 from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import text
 
-from assistant_agent.utils.store_context import DuckDBStoreContext, PostgresStoreContext
+from assistant_agent.store import DuckDBStoreConnector, PostgresStoreConnector
 
 
-class TestPostgresStoreContext:
+class TestPostgresStoreConnector:
     @pytest.mark.integration
     def test_get_engine_01(self) -> None:
         """get_engine が Engine を返すこと.
@@ -28,7 +28,7 @@ class TestPostgresStoreContext:
         conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
         if not conn_str:
             pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
-        ctx = PostgresStoreContext(conn_str, schema_name="app")
+        ctx = PostgresStoreConnector(conn_str, schema_name="app")
 
         # 試験実施
         engine = ctx.get_engine()
@@ -55,7 +55,7 @@ class TestPostgresStoreContext:
         if not conn_str:
             pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
         name = f"test_{uuid.uuid4().hex[:8]}_vec"
-        ctx = PostgresStoreContext(conn_str, schema_name="app")
+        ctx = PostgresStoreConnector(conn_str, schema_name="app")
         engine = ctx.get_engine()
 
         # 試験実施
@@ -86,7 +86,7 @@ class TestPostgresStoreContext:
         if not conn_str:
             pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
         name = f"test_{uuid.uuid4().hex[:8]}_doc"
-        ctx = PostgresStoreContext(conn_str, schema_name="app")
+        ctx = PostgresStoreConnector(conn_str, schema_name="app")
         engine = ctx.get_engine()
 
         # 試験実施
@@ -107,24 +107,24 @@ class TestPostgresStoreContext:
         engine.dispose()
 
 
-class TestDuckDBStoreContext:
+class TestDuckDBStoreConnector:
     @pytest.fixture
-    def ctx(self, request, tmp_path: Path) -> Iterator[DuckDBStoreContext]:
-        """DuckDBStoreContext インスタンスを生成するフィクスチャ.
+    def ctx(self, request, tmp_path: Path) -> Iterator[DuckDBStoreConnector]:
+        """DuckDBStoreConnector インスタンスを生成するフィクスチャ.
 
         request.param が ":memory:" の場合はインメモリモード、
         それ以外の場合は tmp_path を persist_dir として使用する。
         """
         if request.param == ":memory:":
-            instance = DuckDBStoreContext(persist_dir=":memory:")
+            instance = DuckDBStoreConnector(persist_dir=":memory:")
         else:
-            instance = DuckDBStoreContext(persist_dir=str(tmp_path))
+            instance = DuckDBStoreConnector(persist_dir=str(tmp_path))
         yield instance
         instance.close()
 
     @pytest.mark.integration
     @pytest.mark.parametrize("ctx", [":memory:", "file"], indirect=True)
-    def test_get_engine_01(self, ctx: DuckDBStoreContext) -> None:
+    def test_get_engine_01(self, ctx: DuckDBStoreConnector) -> None:
         """get_engine が Engine を返すこと.
 
         観点1: Engine インスタンスが返ること
@@ -151,10 +151,10 @@ class TestDuckDBStoreContext:
         観点1: Read Only で Engine が返り SELECT 1 が通ること
         """
         # 試験準備: Read Only で開く前に DB ファイルを作成しておく
-        ctx_w = DuckDBStoreContext(persist_dir=str(tmp_path))
+        ctx_w = DuckDBStoreConnector(persist_dir=str(tmp_path))
         ctx_w.close()
 
-        ctx = DuckDBStoreContext(persist_dir=str(tmp_path), read_only=True)
+        ctx = DuckDBStoreConnector(persist_dir=str(tmp_path), read_only=True)
 
         # 試験実施
         engine = ctx.get_engine()
@@ -169,7 +169,7 @@ class TestDuckDBStoreContext:
 
     @pytest.mark.integration
     @pytest.mark.parametrize("ctx", [":memory:", "file"], indirect=True)
-    def test_get_vector_store_01(self, ctx: DuckDBStoreContext) -> None:
+    def test_get_vector_store_01(self, ctx: DuckDBStoreConnector) -> None:
         """get_vector_store が DuckDBVectorStore を返し、読み書きできること.
 
         観点1: DuckDBVectorStore インスタンスが返ること
@@ -218,7 +218,7 @@ class TestDuckDBStoreContext:
 
     @pytest.mark.integration
     @pytest.mark.parametrize("ctx", [":memory:", "file"], indirect=True)
-    def test_get_docstore_01(self, ctx: DuckDBStoreContext) -> None:
+    def test_get_docstore_01(self, ctx: DuckDBStoreConnector) -> None:
         """get_docstore が DuckDBDocumentStore を返し、読み書きできること.
 
         観点1: DuckDBDocumentStore インスタンスが返ること
@@ -239,7 +239,7 @@ class TestDuckDBStoreContext:
 
     @pytest.mark.integration
     @pytest.mark.parametrize("ctx", [":memory:", "file"], indirect=True)
-    def test_close_01(self, ctx: DuckDBStoreContext) -> None:
+    def test_close_01(self, ctx: DuckDBStoreConnector) -> None:
         """close() が正常終了すること.
 
         観点1: 例外が発生せずに完了すること
