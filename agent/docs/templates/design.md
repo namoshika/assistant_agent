@@ -2,8 +2,6 @@
 
 <!-- 機能名はタスクの内容を端的に表す名詞句で記載する。例: "DuckDB StoreConnector" -->
 
----
-
 ## 概要
 
 ### 実装する機能
@@ -38,8 +36,6 @@
 > | `entities/postgres.py` | PostgreSQL 固有の JSONB 型と `backlink_filter` 実装 |
 > | `utils/store_connector.py` | VectorStore / DocumentStore の生成を DB 種別ごとに隠蔽 |
 
----
-
 ## 変更対象ファイル
 
 <!-- 変更・新規作成・削除するファイルを列挙する。変更種別は「新規作成 / 改修 / 削除」のいずれかを記載する。 -->
@@ -52,8 +48,6 @@
 > | `src/assistant_agent/entities/base.py` | 新規作成（共通基底クラス） |
 > | `src/assistant_agent/store.py` | 改修（DuckDBStoreConnector 追加） |
 > | `tests/integration/test_store_connector.py` | 新規作成（DuckDB テスト追加） |
-
----
 
 ## 1. {変更対象}: `{ファイルパス}`
 
@@ -123,8 +117,6 @@
 > - `test_backlink_filter_02`（DuckDB）
 >   - 観点1: `backlink_filter` が `document_metadata["forward_links"]` に対してフィルタできること
 
----
-
 ## 2. {変更対象}: `{ファイルパス}`
 
 <!-- 上記と同じ構成で繰り返す。変更対象が増えるたびにセクションを追加する。 -->
@@ -145,8 +137,6 @@
 
 <!-- （記載する） -->
 
----
-
 
 ## 使用パッケージ
 
@@ -159,8 +149,6 @@
 > |---|---|
 > | `pyyaml` | フロントマターの YAML パース（`yaml.safe_load`） |
 > | `llama-index-core` | `SimpleDirectoryReader` / `BaseReader` / `Document` |
-
----
 
 ## 設計チェック
 

@@ -20,15 +20,9 @@ class TestDuckDBStoreConnector:
         mock_docstore = MagicMock()
 
         with (
-            patch(
-                "assistant_agent.store.create_engine", return_value=mock_engine
-            ) as mock_ce,
-            patch(
-                "assistant_agent.store.DuckDBVectorStore", return_value=mock_vs
-            ) as mock_dv,
-            patch(
-                "assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore
-            ) as mock_kv,
+            patch("assistant_agent.store.create_engine", return_value=mock_engine) as mock_ce,
+            patch("assistant_agent.store.DuckDBVectorStore", return_value=mock_vs) as mock_dv,
+            patch("assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore) as mock_kv,
             patch(
                 "assistant_agent.store.DuckDBDocumentStore",
                 return_value=mock_docstore,
@@ -71,15 +65,9 @@ class TestDuckDBStoreConnector:
         mock_docstore = MagicMock()
 
         with (
-            patch(
-                "assistant_agent.store.create_engine", return_value=mock_engine
-            ) as mock_ce,
-            patch(
-                "assistant_agent.store.DuckDBVectorStore", return_value=mock_vs
-            ) as mock_dv,
-            patch(
-                "assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore
-            ) as mock_kv,
+            patch("assistant_agent.store.create_engine", return_value=mock_engine) as mock_ce,
+            patch("assistant_agent.store.DuckDBVectorStore", return_value=mock_vs) as mock_dv,
+            patch("assistant_agent.store.DuckDBKVStore", return_value=mock_kvstore) as mock_kv,
             patch(
                 "assistant_agent.store.DuckDBDocumentStore",
                 return_value=mock_docstore,

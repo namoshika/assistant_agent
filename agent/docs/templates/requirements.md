@@ -2,8 +2,6 @@
 
 <!-- 機能名はタスクの内容を端的に表す名詞句で記載する。例: "DuckDB StoreConnector" -->
 
----
-
 ## 目的
 
 <!-- 何を・なぜ実装するか。対象ファイル・クラス名と、実装の動機・背景を2〜4文で記載する。 -->
@@ -12,8 +10,6 @@
 >
 > `src/assistant_agent/store.py` に `DuckDBStoreConnector` を追加する。
 > DuckDB は単一ファイルで動作する組み込み OLAP DB であり、Databricks 上でもローカルでも依存を最小化したい場面に適する。
-
----
 
 ## 事前調査
 
@@ -29,8 +25,6 @@
 > | Phase 1 | DuckDB で CRUD の基本動作を実証（duckdb ネイティブ・SQLAlchemy 経由） |
 > | Phase 2 | `VaultObsidianRetriever` が必要とする処理が DuckDB で動作するか調査 |
 > | Phase n | PostgreSQL / DuckDB 共通化方針を決定 |
-
----
 
 ## 実装要件
 
@@ -59,8 +53,6 @@
 > - `DocumentFields` をインターフェース的な基底クラスとし、`document_metadata` の列定義は具体クラスに持たせる
 > - DB の違いによる実装差異（`backlink_filter` など）はサブクラスのクラスメソッドとして定義する
 > - 列順は現行と同じ `document_id, document_metadata, content, path` を維持する
-
----
 
 ## 使用パッケージ
 

@@ -57,6 +57,7 @@ ignore = ["D100", "D101", "D104", "D203", "D213"]
 [dependency-groups]
 dev = [
     "boto3>=1.42.63",
+    "ipykernel>=7.3.0",
     "pyright>=1.1.408",
     "pytest>=9.0.2",
     "pytest-dotenv>=0.5.2",
