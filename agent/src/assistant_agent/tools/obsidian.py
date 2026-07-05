@@ -2,11 +2,11 @@ import os
 from typing import Sequence, TypedDict
 
 from langchain.tools import ToolRuntime, tool
-from llama_index.core import Document
-from llama_index.core.vector_stores.types import MetadataFilters
+from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 
 from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.services.vault_obsidian import SearchFilters
 from assistant_agent.utils.format import ContentsWithFrontmatter, format_doc_ids, format_doc_list
 
 
@@ -21,19 +21,9 @@ class SearchToolInput(BaseModel):
     search_query: str = Field(
         description="Search word (At least 1 character required).", default=" ", min_length=1
     )
-    filters: MetadataFilters | None = Field(
+    filters: SearchFilters | None = Field(
         default=None,
-        description=(
-            "Metadata filter. Set to null if not needed.\n"
-            "Available metadata fields (specified in the key of each element in filters.filters):\n"
-            "- file_path (str): Vault-relative file path. Example: '02_Daily/2024-01-01.md'.\n"
-            "  Use operator='text_match' for partial matching of folder/file names.\n"
-            "- date (str): Note creation date/time. 'YYYY-MM-DD HH:MM:SS' format.\n"
-            "  Use operator='>=' / '<=' / '>' / '<' for date range filtering.\n"
-            "\n"
-            "Valid values for operator: '==' / '>' / '<' / '!=' / '>=' / '<=' / 'text_match'\n"
-            "If no filter is needed, set filters to null.\n"
-        ),
+        description="Metadata filter. Set to null if not needed.",
     )
     full_fetch: bool = Field(
         default=False,
@@ -50,7 +40,7 @@ class SearchToolInput(BaseModel):
 @tool(args_schema=SearchToolInput, response_format="content_and_artifact")
 def obsidian_vault_search(
     search_query: str,
-    filters: MetadataFilters | None,
+    filters: SearchFilters | None,
     full_fetch: bool,
     runtime: ToolRuntime[ObsidianContext],
 ) -> tuple[str, list[Document]]:
@@ -99,7 +89,7 @@ def obsidian_vault_get(
     contents = [
         ContentsWithFrontmatter(
             title=os.path.basename(doc.metadata["file_path"]),
-            contents=doc.text,
+            contents=doc.page_content,
             frontmatter={
                 k: _format_links(v, retriever) if k == "forward_links" else v
                 for k, v in doc.metadata.items()
@@ -110,8 +100,9 @@ def obsidian_vault_get(
     return format_doc_list(contents), docs
 
 
-def _format_links(document_ids: list[str], retriever: VaultObsidianRetriever):
-    return {
-        doc.id_: os.path.basename(doc.metadata["file_path"])
-        for doc in retriever.get_documents_by_ids(document_ids)
-    }
+def _format_links(document_ids: list[str], retriever: VaultObsidianRetriever) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for doc in retriever.get_documents_by_ids(document_ids):
+        assert doc.id is not None
+        result[doc.id] = os.path.basename(doc.metadata["file_path"])
+    return result

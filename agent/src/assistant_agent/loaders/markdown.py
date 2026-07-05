@@ -2,11 +2,11 @@ import datetime
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterator
 
 import yaml
-from llama_index.core.readers.base import BaseReader
-from llama_index.core.schema import Document
+from langchain_core.document_loaders.base import BaseLoader
+from langchain_core.documents import Document
 
 _FRONT_MATTER_RE = re.compile(r"^---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 
@@ -16,19 +16,30 @@ def path_to_document_id(path: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 
 
-class MarkdownReader(BaseReader):
-    def lazy_load_data(
-        self, file: Path, extra_info: dict | None = None, **kwargs: Any
-    ) -> Iterable[Document]:
+class MarkdownLoader(BaseLoader):
+    """単一の Markdown ファイルをロードする.
+
+    DirectoryLoader の loader_cls 契約 (`loader_cls(str(path), **loader_kwargs)`) に
+    合わせ、ファイルパスを位置引数、追加メタデータを **extra_metadata で受け取る。
+    """
+
+    def __init__(self, file: str | Path, **extra_metadata: Any) -> None:
+        """Construct MarkdownLoader."""
+        self._file = Path(file)
+        self._extra_metadata = extra_metadata
+
+    def lazy_load(self) -> Iterator[Document]:
         """Markdown ファイルを読み込み、フロントマターを metadata に取り込んで返す."""
-        text = file.read_text(encoding="utf-8")
+        text = self._file.read_text(encoding="utf-8")
         m = _FRONT_MATTER_RE.match(text)
-        meta: dict = dict(extra_info or {})
+        meta: dict = dict(self._extra_metadata)
         body = text
         if m:
             fm: dict = yaml.safe_load(m.group(1)) or {}
             for k, v in fm.items():
                 meta[k] = v.isoformat() if isinstance(v, (datetime.date, datetime.datetime)) else v
             body = text[m.end() :]
-        file_path = meta.get("file_path") or str(file.resolve())
-        yield Document(id_=path_to_document_id(file_path), text=body, metadata=meta)
+        resolved = self._file.resolve()
+        meta.setdefault("file_path", str(resolved))
+        meta.setdefault("file_name", resolved.name)
+        yield Document(id=path_to_document_id(str(resolved)), page_content=body, metadata=meta)

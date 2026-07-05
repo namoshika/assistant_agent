@@ -1,12 +1,12 @@
 from unittest.mock import MagicMock
 
 from langchain.agents import create_agent
+from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from llama_index.core import Document
-from llama_index.core.vector_stores.types import FilterOperator, MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
+from assistant_agent.services.vault_obsidian import DateFilter, SearchFilters
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -27,8 +27,8 @@ def test_obsidian_vault_search_01():
     # 試験準備
     docs = [
         Document(
-            id_="doc-id-1",
-            text="ノート本文",
+            id="doc-id-1",
+            page_content="ノート本文",
             metadata={"file_path": "notes/idea.md"},
         )
     ]
@@ -104,15 +104,11 @@ def test_obsidian_vault_search_03():
     観点1: search_documents が filters 付きで呼ばれる
     """
     # 試験準備
-    filters = MetadataFilters(
-        filters=[
-            MetadataFilter(key="date", value="2025-01-01 00:00:00", operator=FilterOperator.GTE)
-        ]
-    )
+    filters = SearchFilters(date=DateFilter(gte="2025-01-01 00:00:00"))  # pyright: ignore[reportCallIssue]
     docs = [
         Document(
-            id_="doc-id-1",
-            text="ノート本文",
+            id="doc-id-1",
+            page_content="ノート本文",
             metadata={"file_path": "notes/idea.md"},
         )
     ]
@@ -126,11 +122,7 @@ def test_obsidian_vault_search_03():
                 "name": "obsidian_vault_search",
                 "args": {
                     "search_query": "アイデア",
-                    "filters": {
-                        "filters": [
-                            {"key": "date", "value": "2025-01-01 00:00:00", "operator": ">="}
-                        ]
-                    },
+                    "filters": {"date": {"$gte": "2025-01-01 00:00:00"}},
                     "full_fetch": False,
                 },
                 "id": "1",
@@ -165,8 +157,8 @@ def test_obsidian_vault_get_01():
     # 試験準備
     docs = [
         Document(
-            id_="doc-id-2",
-            text="取得したノート",
+            id="doc-id-2",
+            page_content="取得したノート",
             metadata={"file_path": "folder/note.md"},
         )
     ]

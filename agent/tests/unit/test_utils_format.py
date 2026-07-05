@@ -1,4 +1,4 @@
-from llama_index.core import Document
+from langchain_core.documents import Document
 
 import assistant_agent.utils.format as fmt
 
@@ -12,13 +12,13 @@ def test_format_doc_ids_01():
     # 試験準備
     docs = [
         Document(
-            id_="doc-id-1",
-            text="ノート本文",
+            page_content="ノート本文",
+            id="doc-id-1",
             metadata={"file_path": "notes/idea.md"},
         ),
         Document(
-            id_="doc-id-2",
-            text="別のノート",
+            page_content="別のノート",
+            id="doc-id-2",
             metadata={"file_path": "folder/meeting.md"},
         ),
     ]

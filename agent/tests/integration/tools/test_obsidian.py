@@ -3,15 +3,15 @@ from unittest.mock import MagicMock
 
 import pytest
 from langchain.agents import create_agent
+from langchain_core.documents import Document
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from llama_index.core import Document
-from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
 import assistant_agent.tools.obsidian as tools
 from assistant_agent import agents
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultObsidianRetriever
+from assistant_agent.services.vault_obsidian import SearchFilters
 from assistant_agent.store import PostgresStoreConnector
 from assistant_agent.utils.context import CommonContext
 
@@ -36,7 +36,7 @@ def test_obsidian_vault_search_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync(docs_obs, pg_conn.get_engine(), raw_entity)
+    VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
 
     ai_msg = AIMessage(
@@ -45,7 +45,7 @@ def test_obsidian_vault_search_01(
             {
                 "name": "obsidian_vault_search",
                 "args": {
-                    "search_query": docs_obs[0].text[:20],
+                    "search_query": docs_obs[0].page_content[:20],
                     "filters": None,
                     "full_fetch": False,
                 },
@@ -69,8 +69,8 @@ def test_obsidian_vault_search_01(
     assert len(tool_msg.artifact) >= 1
     # 観点2
     assert len(tool_msg.content) > 0
-    assert docs_obs[0].id_ is not None
-    assert docs_obs[0].id_ in tool_msg.content
+    assert docs_obs[0].id is not None
+    assert docs_obs[0].id in tool_msg.content
     for doc in tool_msg.artifact:
         assert "file_path" in doc.metadata
 
@@ -83,7 +83,9 @@ def test_obsidian_vault_search_02() -> None:
         search_documents が filters=None で呼ばれる
     """
     # 試験準備
-    docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
+    docs = [
+        Document(id="doc-1", page_content="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})
+    ]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm = agents.get_model()
@@ -111,7 +113,9 @@ def test_obsidian_vault_search_03() -> None:
         search_documents が filters 付きで呼ばれる
     """
     # 試験準備
-    docs = [Document(id_="doc-1", text="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})]
+    docs = [
+        Document(id="doc-1", page_content="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})
+    ]
     m_store = MagicMock()
     m_store.search_documents.return_value = docs
     llm = agents.get_model()
@@ -130,8 +134,8 @@ def test_obsidian_vault_search_03() -> None:
     assert isinstance(tool_msg.artifact, list)
     filters = m_store.search_documents.call_args.kwargs.get("filters")
     assert filters is not None
-    assert isinstance(filters, MetadataFilters)
-    assert any(isinstance(f, MetadataFilter) and f.key == "date" for f in filters.filters)
+    assert isinstance(filters, SearchFilters)
+    assert filters.date is not None
 
 
 @pytest.mark.integration
@@ -149,8 +153,8 @@ def test_obsidian_vault_get_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync([docs_obs[0]], pg_conn.get_engine(), raw_entity)
-    doc_id = docs_obs[0].id_
+    VaultUtils.sync_docs([docs_obs[0]], pg_conn.get_engine(), raw_entity)
+    doc_id = docs_obs[0].id
     ai_msg = AIMessage(
         content="",
         tool_calls=[
@@ -175,7 +179,7 @@ def test_obsidian_vault_get_01(
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert len(tool_msg.artifact) == 1
     # 観点2
-    assert docs_obs[0].text[:10] in tool_msg.content
+    assert docs_obs[0].page_content[:10] in tool_msg.content
     ai_msg2 = AIMessage(
         content="",
         tool_calls=[

@@ -8,18 +8,12 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "duckdb-engine>=0.17.0",
     "fastapi[standard]>=0.135.3",
     "langchain>=1.2.13",
     "langchain-aws>=1.4.1",
+    "langchain-community>=0.4.2",
     "langchain-google-genai>=4.2.1",
     "langchain-postgres>=0.0.17",
-    "llama-index>=0.14.18",
-    "llama-index-embeddings-databricks>=0.5.1",
-    "llama-index-embeddings-google-genai>=0.5.0",
-    "llama-index-llms-google-genai>=0.8.7",
-    "llama-index-storage-docstore-postgres>=0.5.0",
-    "llama-index-vector-stores-postgres>=0.8.1",
     "mlflow>=3.11.1",
     "obsidianmd-parser>=0.4.0",
     "pydantic>=2.13.4",

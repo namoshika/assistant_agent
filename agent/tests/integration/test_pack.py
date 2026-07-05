@@ -3,7 +3,7 @@ import os
 import sys
 
 import pytest
-from llama_index.core import Document
+from langchain_core.documents import Document
 from mlflow.pyfunc.model import ChatAgent
 from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
@@ -31,7 +31,7 @@ def test_agent_01(
 
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync(docs_obs, pg_conn.get_engine(), raw_entity)
+    VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
     pg_retriever_obs.sync_chunks()
     sys.modules.pop("assistant_agent.pack", None)
     mock_set_model = mocker.patch("mlflow.models.set_model")

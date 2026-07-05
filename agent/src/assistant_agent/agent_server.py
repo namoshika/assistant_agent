@@ -15,7 +15,6 @@ else:
 mlflow.bedrock.autolog()  # pyright: ignore[reportPrivateImportUsage]
 mlflow.gemini.autolog()  # pyright: ignore[reportPrivateImportUsage]
 mlflow.langchain.autolog()  # pyright: ignore[reportPrivateImportUsage]
-mlflow.llama_index.autolog()  # pyright: ignore[reportPrivateImportUsage]
 
 # エージェント初期化
 app = FastAPI(title="Agent Assistant")

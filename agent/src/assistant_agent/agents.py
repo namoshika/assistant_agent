@@ -41,7 +41,7 @@ def build_agent() -> ChatAgent:
     # コンテキスト初期化
     pg_connection_string = os.getenv("ENV_PG_CONNECTION_STRING")
     assert pg_connection_string is not None
-    store_conn = store.PostgresStoreConnector(pg_connection_string, schema_name="app")
+    store_conn = store.PostgresStoreConnector(pg_connection_string)
     ctx = context.ContextRegistry.build(store_conn=store_conn)
 
     # エージェント初期化

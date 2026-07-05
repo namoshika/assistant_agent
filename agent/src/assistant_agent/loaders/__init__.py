@@ -1,7 +1,7 @@
-from .markdown import MarkdownReader
-from .obsidian import ObsidianReader
+from .markdown import MarkdownLoader
+from .obsidian import ObsidianLoader
 
 __all__ = [
-    "MarkdownReader",
-    "ObsidianReader",
+    "MarkdownLoader",
+    "ObsidianLoader",
 ]

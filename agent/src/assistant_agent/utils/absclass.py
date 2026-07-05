@@ -4,18 +4,18 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from langchain_core.embeddings import Embeddings
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables.config import RunnableConfig
+from langchain_core.vectorstores import VectorStore
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, GraphOutput
-from llama_index.core.storage.docstore.types import BaseDocumentStore
-from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from sqlalchemy import Engine
 
 
 class StoreConnector(abc.ABC):
-    """VectorStore / DocumentStore / SQLAlchemy Engine を生成するファクトリ抽象クラス."""
+    """VectorStore / SQLAlchemy Engine を生成するファクトリ抽象クラス."""
 
     @abc.abstractmethod
     def get_engine(self) -> Engine:
@@ -23,13 +23,8 @@ class StoreConnector(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_vector_store(self, name: str, embed_dim: int) -> BasePydanticVectorStore:
+    def get_vector_store(self, entity: type, embedding: Embeddings) -> VectorStore:
         """VectorStore を生成する."""
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_docstore(self, name: str) -> BaseDocumentStore:
-        """DocumentStore を生成する."""
         raise NotImplementedError
 
 

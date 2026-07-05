@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from assistant_agent.loaders.obsidian import ObsidianReader, path_to_document_id
+from assistant_agent.loaders.obsidian import ObsidianLoader, path_to_document_id
 
 VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
 
@@ -19,14 +19,14 @@ def test_load_01():
       - tags (null) が None のまま保持される
     """
     # 試験準備 & 試験実施
-    docs = ObsidianReader(VAULT_PATH).load_data()
+    docs = ObsidianLoader(VAULT_PATH).load()
 
     # 結果検証
     for doc in docs:
         # 観点1
         for key in ("file_path", "forward_links"):
             assert key in doc.metadata, f"{key} が存在しない: {doc.metadata.get('path')}"
-        assert doc.id_ is not None
+        assert doc.id is not None
         assert not Path(doc.metadata["file_path"]).is_absolute()
         assert isinstance(doc.metadata["forward_links"], list)
         # 観点5
@@ -35,7 +35,7 @@ def test_load_01():
 
     doc_a = next(d for d in docs if d.metadata.get("file_path") == "note_a.md")
     # 観点2
-    assert doc_a.id_ == path_to_document_id(doc_a.metadata["file_path"])
+    assert doc_a.id == path_to_document_id(doc_a.metadata["file_path"])
     # 観点3
     assert not doc_a.metadata["file_path"].startswith("/")
     # 観点4

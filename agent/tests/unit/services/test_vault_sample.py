@@ -1,74 +1,63 @@
-from unittest.mock import MagicMock
-
 import pytest
-from llama_index.core.embeddings import BaseEmbedding
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import (
-    NodeRelationship,
-    NodeWithScore,
-    RelatedNodeInfo,
-    TextNode,
-)
+from langchain_core.documents import Document
+from langchain_core.embeddings import DeterministicFakeEmbedding
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pytest_mock import MockerFixture
 
 from assistant_agent.entities import postgres
 from assistant_agent.services import VaultSampleRetriever
-from assistant_agent.store import DuckDBStoreConnector
-
-_DOC_ID_A = "doc-id-a"
-_DOC_ID_B = "doc-id-b"
 
 
 @pytest.fixture
 def retriever() -> VaultSampleRetriever:
     """VaultSampleRetriever のテスト用インスタンス.
 
-    SA エンジンをモック化し、外部依存なしで動作させる。
+    store_conn は None を仮置きし、各テストで mocker.patch.object により差し込む。
     """
     return VaultSampleRetriever(
-        docstore_name="test_docstore",
-        vectorstore_name="test_vectorstore",
-        store_conn=DuckDBStoreConnector(),
-        transformations=[SentenceSplitter()],
-        embed_model=MagicMock(spec=BaseEmbedding),
-        embed_dim=128,
+        chunk_entity=postgres.SampleChunkEntity,
+        store_conn=None,  # pyright: ignore[reportArgumentType]
+        splitter=RecursiveCharacterTextSplitter(),
+        embed_model=DeterministicFakeEmbedding(size=128),
         vault_entity=postgres.SampleEntity,
     )
 
 
-def test_search_documents_01(retriever: VaultSampleRetriever, mocker: MockerFixture):
-    """クエリで Chunk 検索し、類似する Document を取得できるか確認  (filter 省略).
+def test_initialize_01(retriever: VaultSampleRetriever, mocker: MockerFixture):
+    """initialize() の遅延初期化動作を確認.
 
-    観点1: as_retriever が引数 similarity_top_k 付きで呼ばれていること
-
-    TODO: 階層型レトリーバー導入の段階で試験内容を見直す
+    観点1: initialize() を複数回呼んでもストア生成メソッドが1回しか呼ばれないこと
     """
     # 試験準備
-    node_a1 = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)}),
-        score=0.9,
-    )
-    node_b = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_B)}),
-        score=0.8,
-    )
-    node_a2 = NodeWithScore(
-        node=TextNode(relationships={NodeRelationship.SOURCE: RelatedNodeInfo(node_id=_DOC_ID_A)}),
-        score=0.7,
-    )
-
-    m_llama_retriever = MagicMock()
-    m_llama_retriever.retrieve.return_value = [node_a1, node_b, node_a2]
-    m_index = MagicMock()
-    m_index.as_retriever.return_value = m_llama_retriever
-    mocker.patch(
-        "assistant_agent.services.vault_sample.VectorStoreIndex.from_vector_store",
-        return_value=m_index,
-    )
+    m_store_conn = mocker.patch.object(retriever, "_store_conn")
 
     # 試験実施
-    retriever.search_documents("テスト", top_k=5)
+    retriever.initialize()
+    retriever.initialize()
 
     # 結果検証
     # 観点1
-    m_index.as_retriever.assert_called_once_with(similarity_top_k=5)
+    m_store_conn.get_engine.assert_called_once()
+    m_store_conn.get_vector_store.assert_called_once()
+
+
+def test_search_documents_01(retriever: VaultSampleRetriever, mocker: MockerFixture):
+    """クエリで Chunk 検索し、類似する Document を取得できるか確認.
+
+    観点1: vector_store.similarity_search が引数 k 付きで呼ばれていること
+    観点2: similarity_search の戻り値がそのまま返ること
+    """
+    # 試験準備
+    docs = [Document(page_content="本文A"), Document(page_content="本文B")]
+    m_store_conn = mocker.patch.object(retriever, "_store_conn")
+    m_vector_store = m_store_conn.get_vector_store.return_value
+    m_vector_store.similarity_search.return_value = docs
+
+    # 試験実施
+    result = retriever.search_documents("テスト", top_k=5)
+
+    # 結果検証
+    # 観点1
+    m_vector_store.similarity_search.assert_called_once_with("テスト", k=5)
+    # 観点2
+    assert result == docs

@@ -1,18 +1,30 @@
+import hashlib
 from abc import abstractmethod
+from collections.abc import Sequence
 
-from llama_index.core import Document
-from sqlalchemy import Engine, String, delete, insert
+from langchain_core.documents import Document
+from sqlalchemy import Engine, Row, String, delete, insert, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
 
 
 class DocumentFields:
-    """全エンティティ共通の基底クラス. backlink_filter を抽象メソッドとして定義."""
+    """ドキュメントテーブルの共通カラム."""
 
     document_id: Mapped[str] = mapped_column(String, primary_key=True, sort_order=0)
     document_metadata: Mapped[dict]  # mapped_column なし。sort_order=1 は具体クラスで指定
-    content: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
-    file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True, sort_order=3)
+    document_content_hash: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
+    content: Mapped[str] = mapped_column(String, nullable=False, sort_order=3)
+    file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True, sort_order=4)
+
+
+class ChunkFields:
+    """チャンクテーブルの共通カラム（postgres 固有型は派生クラスでオーバーライドする）."""
+
+    langchain_id: Mapped[str] = mapped_column(String, primary_key=True, sort_order=0)
+    content: Mapped[str] = mapped_column(String, nullable=False, sort_order=1)
+    document_id: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
+    document_content_hash: Mapped[str] = mapped_column(String, nullable=False, sort_order=3)
 
 
 class ObsidianFields(DocumentFields):
@@ -27,7 +39,7 @@ class VaultUtils:
     """ドキュメントを DB に同期するクラス."""
 
     @staticmethod
-    def sync(
+    def sync_docs(
         documents: list[Document],
         sa_engine: Engine,
         raw_entity: type[DocumentFields],
@@ -35,9 +47,10 @@ class VaultUtils:
         """テーブルを引数 documents の内容で洗い替えする."""
         rows = [
             {
-                "document_id": doc.id_,
+                "document_id": doc.id,
                 "document_metadata": doc.metadata,
-                "content": doc.text,
+                "document_content_hash": hashlib.sha256(doc.page_content.encode()).hexdigest(),
+                "content": doc.page_content,
                 "file_path": doc.metadata["file_path"],
             }
             for doc in documents
@@ -47,3 +60,37 @@ class VaultUtils:
             session.execute(delete(raw_entity))
             session.execute(insert(raw_entity), rows)
             session.commit()
+
+    @staticmethod
+    def sync_chunks(
+        doc_entity: type[DocumentFields], chk_entity: type, sa_engine: Engine
+    ) -> Sequence[Row]:
+        """doc_entity と chunk_entity を document_id で比較し、chunk 側を差分同期する.
+
+        削除対象（hash 変更 / doc から消えた doc_id）のチャンクは実行済み。
+        戻り値は再埋め込みが必要な doc_entity の行（新規・変更分）。
+        """
+        # doc 側: 同じ (document_id, hash) の chunk 行が無い = 新規または変更された doc 行
+        matching_chunk = (
+            select(chk_entity.document_id)
+            .where(chk_entity.document_id == doc_entity.document_id)
+            .where(chk_entity.document_content_hash == doc_entity.document_content_hash)
+            .correlate(doc_entity)
+        )
+        diff_stmt = select(doc_entity).where(~matching_chunk.exists())
+
+        # chunk 側: 同じ (document_id, hash) の doc 行が無い = 削除すべき旧チャンク
+        matching_doc = (
+            select(doc_entity.document_id)
+            .where(doc_entity.document_id == chk_entity.document_id)
+            .where(doc_entity.document_content_hash == chk_entity.document_content_hash)
+            .correlate(chk_entity)
+        )
+        delete_stmt = delete(chk_entity).where(~matching_doc.exists())
+
+        with sa_engine.connect() as conn:
+            diff_rows = list(conn.execute(diff_stmt))
+            conn.execute(delete_stmt)
+            conn.commit()
+
+        return diff_rows

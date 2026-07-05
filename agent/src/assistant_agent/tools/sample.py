@@ -2,7 +2,7 @@ import os
 from typing import Sequence, TypedDict
 
 from langchain.tools import ToolRuntime, tool
-from llama_index.core.schema import NodeWithScore
+from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 
 import assistant_agent.utils.format as fmt
@@ -35,7 +35,7 @@ class SampleSearchInput(BaseModel):
 def sample_search(
     search_query: str,
     runtime: ToolRuntime[SampleContext],
-) -> tuple[str, Sequence[NodeWithScore]]:
+) -> tuple[str, Sequence[Document]]:
     """Perform vector search on web pages saved in Local DB."""
     retriever = runtime.context["sample_retriever"]
     results = retriever.search_documents(search_query, top_k=10)
@@ -43,7 +43,7 @@ def sample_search(
         [
             fmt.ContentsWithFrontmatter(
                 title=os.path.basename(item.metadata["file_path"]),
-                contents=item.text,
+                contents=item.page_content,
                 frontmatter=None,
             )
             for item in results

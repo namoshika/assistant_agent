@@ -7,7 +7,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
 from assistant_agent.entities import postgres
-from assistant_agent.loaders import ObsidianReader
+from assistant_agent.loaders import ObsidianLoader
 from assistant_agent.store import PostgresStoreConnector
 
 
@@ -45,7 +45,7 @@ def test_load_01():
         pytest.fail("Vault が存在しないため失敗")
 
     # 試験実施
-    docs = ObsidianReader(vault_path).load_data()
+    docs = ObsidianLoader(vault_path).load()
 
     # 結果検証
     # 観点1
@@ -62,7 +62,7 @@ def test_load_01():
         assert "forward_links" in doc.metadata, f"forward_links なし: {doc.metadata.get('path')}"
         assert isinstance(doc.metadata["forward_links"], list)
         # 観点6
-        assert doc.id_ is not None
+        assert doc.id is not None
     # 観点5
     has_links = any(len(doc.metadata["forward_links"]) > 0 for doc in docs)
     assert has_links, "forward_links が空でない doc が 1 件もない"

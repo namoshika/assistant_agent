@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import Sequence, TypeAlias
+from typing import Any, Sequence, TypeAlias
 
 import yaml
+from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
-from llama_index.core import Document
 
 # --------------------------------
 # Utils: format_doc_ids
@@ -11,7 +11,7 @@ from llama_index.core import Document
 _DOCUMENT_IDS_TMPL_STR = """\
 Search results ({{ documents | length }} documents found):
 {% for doc in documents -%}
-- { document_id: "{{ doc.id_ }}", file_path: "{{ doc.metadata['file_path'] }}" }
+- { document_id: "{{ doc.id }}", file_path: "{{ doc.metadata['file_path'] }}" }
 {% endfor %}
 Use obsidian_vault_get with document_ids to retrieve full content.
 """
@@ -57,9 +57,7 @@ TPayload: TypeAlias = str | int | float
 class ContentsWithFrontmatter:
     title: str
     contents: str
-    frontmatter: (
-        dict[str, TPayload | list[TPayload | dict[str, TPayload]] | dict[str, TPayload]] | None
-    )
+    frontmatter: dict[str, Any] | None
 
 
 def format_doc_list(documents: Sequence[ContentsWithFrontmatter]) -> str:
