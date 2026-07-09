@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,9 @@ from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.fixture()
-def pg_vault_tables(pg_conn: PostgresStoreConnector) -> Iterator[type[postgres.DocumentFields]]:
+async def pg_vault_tables(
+    pg_conn: PostgresStoreConnector,
+) -> AsyncIterator[type[postgres.DocumentFields]]:
     """テスト専用の raw テーブルを作成し、テスト後に DROP する."""
     engine = pg_conn.get_engine()
     vault_name = f"test_{uuid.uuid4().hex[:8]}"
@@ -23,9 +25,11 @@ def pg_vault_tables(pg_conn: PostgresStoreConnector) -> Iterator[type[postgres.D
     class _TestRawEntity(_TestBase, postgres.DocumentFields):
         __tablename__ = f"{vault_name}_raw"
 
-    _TestBase.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.create_all)
     yield _TestRawEntity
-    _TestBase.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.drop_all)
 
 
 @pytest.mark.integration

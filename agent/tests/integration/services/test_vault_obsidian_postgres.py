@@ -10,7 +10,7 @@ from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.mark.integration
-def test_search_documents_01(
+async def test_search_documents_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type[postgres.ObsidianFields],
@@ -28,13 +28,13 @@ def test_search_documents_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
-    pg_retriever_obs.sync_chunks()
+    await VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
+    await pg_retriever_obs.sync_chunks()
     doc = docs_obs[0]
 
     # 試験実施・結果検証
     # 観点1
-    results = pg_retriever_obs.search_documents(doc.page_content[:30], top_k=10)
+    results = await pg_retriever_obs.search_documents(doc.page_content[:30], top_k=10)
     assert len(results) >= 1
     matched = next((r for r in results if r.id == doc.id), None)
     assert matched is not None
@@ -42,20 +42,20 @@ def test_search_documents_01(
 
     # 観点2 ケース1: date フィルタ
     date_filter = SearchFilters(date=DateFilter(gte="2026-01-01 00:00:00"))  # pyright: ignore[reportCallIssue]
-    results_date = pg_retriever_obs.search_documents(
+    results_date = await pg_retriever_obs.search_documents(
         doc.page_content[:30], top_k=10, filters=date_filter
     )
     assert all(d.metadata["date"] >= "2026-01-01 00:00:00" for d in results_date)
 
     # 観点2 ケース2: path フィルタ
     path_filter = SearchFilters(file_path=FileFilter(like="%01_Inbox%"))  # pyright: ignore[reportCallIssue]
-    results_path = pg_retriever_obs.search_documents("project", top_k=10, filters=path_filter)
+    results_path = await pg_retriever_obs.search_documents("project", top_k=10, filters=path_filter)
     assert len(results_path) >= 1
     assert all("01_Inbox" in d.metadata["file_path"] for d in results_path)
 
 
 @pytest.mark.integration
-def test_get_documents_by_ids_01(
+async def test_get_documents_by_ids_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
@@ -69,11 +69,11 @@ def test_get_documents_by_ids_01(
     # 試験準備
     raw_entity = pg_entity_obs
     doc = docs_obs[0]
-    VaultUtils.sync_docs([doc], pg_conn.get_engine(), raw_entity)
+    await VaultUtils.sync_docs([doc], pg_conn.get_engine(), raw_entity)
 
     # 試験実施
     assert doc.id is not None
-    results = pg_retriever_obs.get_documents_by_ids([doc.id])
+    results = await pg_retriever_obs.get_documents_by_ids([doc.id])
 
     # 結果検証
     # 観点1
@@ -82,11 +82,11 @@ def test_get_documents_by_ids_01(
     assert results[0].page_content == doc.page_content
     assert results[0].metadata == doc.metadata
     # 観点2
-    assert pg_retriever_obs.get_documents_by_ids(["nonexistent-uuid"]) == []
+    assert await pg_retriever_obs.get_documents_by_ids(["nonexistent-uuid"]) == []
 
 
 @pytest.mark.integration
-def test_get_backlinks_01(
+async def test_get_backlinks_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
@@ -110,10 +110,10 @@ def test_get_backlinks_01(
     doc_b = next((d for d in docs_obs if d.id == link_tgt_id), None)
     if doc_b is None:
         pytest.skip("forward_links のリンク先が vault_docs にない")
-    VaultUtils.sync_docs([doc_a, doc_b], pg_conn.get_engine(), raw_entity)
+    await VaultUtils.sync_docs([doc_a, doc_b], pg_conn.get_engine(), raw_entity)
 
     # 試験実施
-    results = pg_retriever_obs.get_backlinks(link_tgt_id)
+    results = await pg_retriever_obs.get_backlinks(link_tgt_id)
 
     # 結果検証
     # 観点1
@@ -123,11 +123,11 @@ def test_get_backlinks_01(
     assert results[0].page_content == doc_a.page_content
     assert results[0].metadata == doc_a.metadata
     # 観点3
-    assert pg_retriever_obs.get_backlinks(path_to_document_id("nonexistent_target.md")) == []
+    assert await pg_retriever_obs.get_backlinks(path_to_document_id("nonexistent_target.md")) == []
 
 
 @pytest.mark.integration
-def test_sync_chunks_01(
+async def test_sync_chunks_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
@@ -150,11 +150,11 @@ def test_sync_chunks_01(
     assert target_doc.id is not None
 
     # --- ステップ1: 追加 ---
-    VaultUtils.sync_docs([noise_doc, target_doc], pg_conn.get_engine(), raw_entity)
-    pg_retriever_obs.sync_chunks()
+    await VaultUtils.sync_docs([noise_doc, target_doc], pg_conn.get_engine(), raw_entity)
+    await pg_retriever_obs.sync_chunks()
 
     # 観点1
-    results = pg_retriever_obs.get_documents_by_ids([noise_doc.id, target_doc.id])
+    results = await pg_retriever_obs.get_documents_by_ids([noise_doc.id, target_doc.id])
     noise_result = next(r for r in results if r.id == noise_doc.id)
     target_result = next(r for r in results if r.id == target_doc.id)
     assert noise_result.page_content == noise_doc.page_content
@@ -169,23 +169,23 @@ def test_sync_chunks_01(
         page_content=new_content,
         metadata=target_doc.metadata,
     )
-    VaultUtils.sync_docs([noise_doc, updated_target], pg_conn.get_engine(), raw_entity)
-    pg_retriever_obs.sync_chunks()
+    await VaultUtils.sync_docs([noise_doc, updated_target], pg_conn.get_engine(), raw_entity)
+    await pg_retriever_obs.sync_chunks()
 
     # 観点2
-    target_result = pg_retriever_obs.get_documents_by_ids([target_doc.id])[0]
+    target_result = (await pg_retriever_obs.get_documents_by_ids([target_doc.id]))[0]
     assert target_result.page_content == updated_target.page_content
     assert target_result.metadata == updated_target.metadata
-    noise_result = pg_retriever_obs.get_documents_by_ids([noise_doc.id])[0]
+    noise_result = (await pg_retriever_obs.get_documents_by_ids([noise_doc.id]))[0]
     assert noise_result.page_content == noise_doc.page_content
     assert noise_result.metadata == noise_doc.metadata
 
     # --- ステップ3: 削除 ---
-    VaultUtils.sync_docs([noise_doc], pg_conn.get_engine(), raw_entity)
-    pg_retriever_obs.sync_chunks()
+    await VaultUtils.sync_docs([noise_doc], pg_conn.get_engine(), raw_entity)
+    await pg_retriever_obs.sync_chunks()
 
     # 観点3
-    assert pg_retriever_obs.get_documents_by_ids([target_doc.id]) == []
-    noise_result = pg_retriever_obs.get_documents_by_ids([noise_doc.id])[0]
+    assert await pg_retriever_obs.get_documents_by_ids([target_doc.id]) == []
+    noise_result = (await pg_retriever_obs.get_documents_by_ids([noise_doc.id]))[0]
     assert noise_result.page_content == noise_doc.page_content
     assert noise_result.metadata == noise_doc.metadata

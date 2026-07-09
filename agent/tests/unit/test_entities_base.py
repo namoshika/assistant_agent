@@ -1,4 +1,5 @@
-from sqlalchemy import JSON, MetaData, create_engine, insert
+from sqlalchemy import JSON, MetaData, insert
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from assistant_agent.entities.base import ChunkFields, DocumentFields, VaultUtils
@@ -18,7 +19,7 @@ class _DummyChunkEntity(_Base, ChunkFields):
     __tablename__ = "doc_chunks"
 
 
-def test_sync_chunks_01() -> None:
+async def test_sync_chunks_01() -> None:
     """Raw と chunk を hash-diff で比較し、差分行の取得と旧チャンクの削除ができること.
 
     観点1: 変更ドキュメント (doc-changed) が戻り値に含まれ、旧チャンクが削除される
@@ -27,10 +28,10 @@ def test_sync_chunks_01() -> None:
     観点4: 変更なしドキュメント (doc-same) は戻り値に含まれず、チャンクも削除されない
     """
     # 試験準備
-    raw_engine = create_engine("sqlite:///:memory:")
-    _Base.metadata.create_all(raw_engine)
-    with raw_engine.connect() as conn:
-        conn.execute(
+    raw_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with raw_engine.begin() as conn:
+        await conn.run_sync(_Base.metadata.create_all)
+        await conn.execute(
             insert(_DummyDocEntity),
             [
                 {
@@ -56,7 +57,7 @@ def test_sync_chunks_01() -> None:
                 },
             ],
         )
-        conn.execute(
+        await conn.execute(
             insert(_DummyChunkEntity),
             [
                 {
@@ -79,10 +80,9 @@ def test_sync_chunks_01() -> None:
                 },
             ],
         )
-        conn.commit()
 
     # 試験実施
-    diff_rows = VaultUtils.sync_chunks(_DummyDocEntity, _DummyChunkEntity, raw_engine)
+    diff_rows = await VaultUtils.sync_chunks(_DummyDocEntity, _DummyChunkEntity, raw_engine)
 
     # 結果検証
     diff_doc_ids = {row.document_id for row in diff_rows}
@@ -93,8 +93,9 @@ def test_sync_chunks_01() -> None:
     # 観点4
     assert "doc-same" not in diff_doc_ids
 
-    with raw_engine.connect() as conn:
-        remaining_chunk_ids = {row[0] for row in conn.execute(_DummyChunkEntity.__table__.select())}
+    async with raw_engine.connect() as conn:
+        result = await conn.execute(_DummyChunkEntity.__table__.select())
+        remaining_chunk_ids = {row[0] for row in result}
     # 観点1
     assert "chunk-changed-old" not in remaining_chunk_ids
     # 観点3

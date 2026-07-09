@@ -3,8 +3,9 @@ from abc import abstractmethod
 from collections.abc import Sequence
 
 from langchain_core.documents import Document
-from sqlalchemy import Engine, Row, String, delete, insert, select
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy import Row, String, delete, insert, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
 
 
@@ -39,9 +40,9 @@ class VaultUtils:
     """ドキュメントを DB に同期するクラス."""
 
     @staticmethod
-    def sync_docs(
+    async def sync_docs(
         documents: list[Document],
-        sa_engine: Engine,
+        sa_engine: AsyncEngine,
         raw_entity: type[DocumentFields],
     ) -> None:
         """テーブルを引数 documents の内容で洗い替えする."""
@@ -56,14 +57,14 @@ class VaultUtils:
             for doc in documents
         ]
         assert rows is not None
-        with Session(sa_engine) as session:
-            session.execute(delete(raw_entity))
-            session.execute(insert(raw_entity), rows)
-            session.commit()
+        async with AsyncSession(sa_engine) as session:
+            await session.execute(delete(raw_entity))
+            await session.execute(insert(raw_entity), rows)
+            await session.commit()
 
     @staticmethod
-    def sync_chunks(
-        doc_entity: type[DocumentFields], chk_entity: type, sa_engine: Engine
+    async def sync_chunks(
+        doc_entity: type[DocumentFields], chk_entity: type, sa_engine: AsyncEngine
     ) -> Sequence[Row]:
         """doc_entity と chunk_entity を document_id で比較し、chunk 側を差分同期する.
 
@@ -88,9 +89,9 @@ class VaultUtils:
         )
         delete_stmt = delete(chk_entity).where(~matching_doc.exists())
 
-        with sa_engine.connect() as conn:
-            diff_rows = list(conn.execute(diff_stmt))
-            conn.execute(delete_stmt)
-            conn.commit()
+        async with sa_engine.connect() as conn:
+            diff_rows = (await conn.execute(diff_stmt)).all()
+            await conn.execute(delete_stmt)
+            await conn.commit()
 
         return diff_rows

@@ -5,10 +5,11 @@ import mlflow
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_postgres import PGEngine, PGVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import Engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from assistant_agent.entities import base
 from assistant_agent.entities import postgres as entities
@@ -78,9 +79,9 @@ class VaultObsidianRetriever:
         self._splitter = splitter
         self._initialized: bool = False
 
-    _sa_engine: Engine
+    _sa_engine: AsyncEngine
 
-    def initialize(self) -> None:
+    async def initialize(self) -> None:
         """ストアを遅延初期化する。2回目以降の呼び出しはスキップ.
 
         派生クラスでオーバーライドする場合は super().initialize() を呼び出すこと。
@@ -88,24 +89,30 @@ class VaultObsidianRetriever:
         if self._initialized:
             return
         self._sa_engine = self._store_conn.get_engine()
-        self._vector_store = self._store_conn.get_vector_store(
-            self._chunk_entity, self._embed_model
+        self._vector_store = await PGVectorStore.create(
+            engine=PGEngine.from_engine(self._sa_engine),
+            embedding_service=self._embed_model,
+            table_name=self._chunk_entity.__tablename__,
+            schema_name=self._chunk_entity.metadata.schema,
+            # 空リストは falsy 判定されるため、metadata_columns 自動認識を確実に発動させる目的で
+            # metadata_json_column（JSON 列としての扱いは変わらない）を明示的に指定する
+            ignore_metadata_columns=["langchain_metadata"],
         )
         self._initialized = True
 
     @mlflow.trace(span_type="RETRIEVER")
-    def search_documents(self, query: str, top_k: int, **kwargs: Any) -> Sequence[Document]:
+    async def search_documents(self, query: str, top_k: int, **kwargs: Any) -> Sequence[Document]:
         """チャンク類似検索 → document_id 重複除去して返す.
 
         返却する Document は id と metadata のみを保持し、page_content は空文字列である。
         全文が必要な場合は get_documents_by_ids を使用すること。
         """
-        self.initialize()
+        await self.initialize()
         filters = kwargs.get("filters")
         if isinstance(filters, SearchFilters):
             filters = filters.model_dump(by_alias=True, exclude_none=True) or None
 
-        chunks = self._vector_store.similarity_search(query, k=top_k, filter=filters)
+        chunks = await self._vector_store.asimilarity_search(query, k=top_k, filter=filters)
 
         # document_id 重複除去しつつ Document (id + metadata のみ) を構築
         seen: dict[str, Document] = {}
@@ -116,12 +123,16 @@ class VaultObsidianRetriever:
         return list(seen.values())
 
     @mlflow.trace(span_type="RETRIEVER")
-    def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
+    async def get_documents_by_ids(self, document_ids: Sequence[str]) -> Sequence[Document]:
         """document_id の完全一致する Document を取得する."""
-        self.initialize()
-        with Session(self._sa_engine) as session:
-            rows = session.scalars(
-                select(self._vault_entity).where(self._vault_entity.document_id.in_(document_ids))
+        await self.initialize()
+        async with AsyncSession(self._sa_engine) as session:
+            rows = (
+                await session.scalars(
+                    select(self._vault_entity).where(
+                        self._vault_entity.document_id.in_(document_ids)
+                    )
+                )
             ).all()
 
         # raw から全文取得
@@ -135,18 +146,22 @@ class VaultObsidianRetriever:
         }
         return [id_to_doc[doc_id] for doc_id in document_ids if doc_id in id_to_doc]
 
-    def get_backlinks(self, document_id: str) -> Sequence[Document]:
+    async def get_backlinks(self, document_id: str) -> Sequence[Document]:
         """document_id のノートにリンクしているノートを返す（バックリンク）.
 
         doc_metadata["forward_links"] は document_id のリストを格納している前提。
         document_id が空文字列の場合は ValueError を raise する。
         """
-        self.initialize()
+        await self.initialize()
         if not document_id:
             raise ValueError("document_id must not be empty")
-        with Session(self._sa_engine) as session:
-            rows = session.scalars(
-                select(self._vault_entity).where(self._vault_entity.backlink_filter(document_id))
+        async with AsyncSession(self._sa_engine) as session:
+            rows = (
+                await session.scalars(
+                    select(self._vault_entity).where(
+                        self._vault_entity.backlink_filter(document_id)
+                    )
+                )
             ).all()
         return [
             Document(
@@ -157,10 +172,10 @@ class VaultObsidianRetriever:
             for row in rows
         ]
 
-    def sync_chunks(self) -> None:
+    async def sync_chunks(self) -> None:
         """Vault テーブルと Chunk テーブルの差分のみを分割し、Chunk 層を更新."""
-        self.initialize()
-        diff_rows = base.VaultUtils.sync_chunks(
+        await self.initialize()
+        diff_rows = await base.VaultUtils.sync_chunks(
             self._vault_entity, self._chunk_entity, self._sa_engine
         )
 
@@ -178,7 +193,7 @@ class VaultObsidianRetriever:
         ]
 
         chunks = self._splitter.split_documents(docs)
-        self._vector_store.add_documents(chunks)
+        await self._vector_store.aadd_documents(chunks)
 
 
 @ContextRegistry.register("obsidian_retriever")

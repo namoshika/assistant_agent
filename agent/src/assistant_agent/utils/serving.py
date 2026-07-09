@@ -1,8 +1,8 @@
 import json
 import time
 import uuid
-from collections.abc import Iterator
-from typing import Callable, Literal, Optional, Union
+from collections.abc import AsyncIterator
+from typing import Awaitable, Callable, Literal, Optional, Union
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -135,13 +135,19 @@ class ChatCompletion:
 
     def __init__(self) -> None:
         """Construct ChatCompletion."""
-        self._registered_funcs: dict[str, Callable[[ChatAgentRequest], ChatAgentResponse]] = {}
-        self._stream_funcs: dict[str, Callable[[ChatAgentRequest], Iterator[ChatAgentChunk]]] = {}
+        self._registered_funcs: dict[
+            str, Callable[[ChatAgentRequest], Awaitable[ChatAgentResponse]]
+        ] = {}
+        self._stream_funcs: dict[
+            str, Callable[[ChatAgentRequest], AsyncIterator[ChatAgentChunk]]
+        ] = {}
 
     def regist(self, model_id: str) -> Callable:
         """メソッドを Chat Completion API 呼び出し対象へ登録."""
 
-        def _decorator(func: Callable[[ChatAgentRequest], ChatAgentResponse]) -> Callable:
+        def _decorator(
+            func: Callable[[ChatAgentRequest], Awaitable[ChatAgentResponse]],
+        ) -> Callable:
             self._registered_funcs[model_id] = func
             return func
 
@@ -151,14 +157,14 @@ class ChatCompletion:
         """メソッドをストリーミング Chat Completion API 呼び出し対象へ登録."""
 
         def _decorator(
-            func: Callable[[ChatAgentRequest], Iterator[ChatAgentChunk]],
+            func: Callable[[ChatAgentRequest], AsyncIterator[ChatAgentChunk]],
         ) -> Callable:
             self._stream_funcs[model_id] = func
             return func
 
         return _decorator
 
-    def _invoke_handler(
+    async def _invoke_handler(
         self, request: ChatCompletionRequest
     ) -> Union[ChatCompletionResponse, StreamingResponse]:
         messages = to_chat_agent_messages(request.messages)
@@ -170,14 +176,14 @@ class ChatCompletion:
             if stream_handler is None:
                 # ストリームハンドラ未登録時は同期フォールバック
                 return from_chat_agent_response(
-                    self._registered_funcs[request.model](agent_request), request.model
+                    await self._registered_funcs[request.model](agent_request), request.model
                 )
 
             chunk_id = f"chatcmpl-{uuid.uuid4().hex}"
             model_id = request.model
 
-            def generate() -> Iterator[str]:
-                for chunk in stream_handler(agent_request):
+            async def generate() -> AsyncIterator[str]:
+                async for chunk in stream_handler(agent_request):
                     yield from_chat_agent_chunk(chunk_id, chunk, model_id)
                 yield "data: [DONE]\n\n"
 
@@ -187,7 +193,7 @@ class ChatCompletion:
         if request.model not in self._registered_funcs:
             raise HTTPException(status_code=503, detail=f"model not registered: {request.model}")
         return from_chat_agent_response(
-            self._registered_funcs[request.model](agent_request), request.model
+            await self._registered_funcs[request.model](agent_request), request.model
         )
 
     def _list_models(self) -> ModelList:

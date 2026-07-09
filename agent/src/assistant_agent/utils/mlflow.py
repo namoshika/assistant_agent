@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -147,9 +147,19 @@ class LangGraphChatAgent(ChatAgent):
         context: Optional[ChatContext] = None,
         custom_inputs: Optional[dict[str, Any]] = None,
     ) -> ChatAgentResponse:
+        """空実装."""
+        raise NotImplementedError()
+
+    @mlflow.trace(span_type=SpanType.AGENT)
+    async def predict_async(
+        self,
+        messages: list[ChatAgentMessage],
+        context: Optional[ChatContext] = None,
+        custom_inputs: Optional[dict[str, Any]] = None,
+    ) -> ChatAgentResponse:
         """エージェントの推論結果を返す."""
         req = {"messages": self._convert_messages_to_dict(messages)}
-        res = self.agent.invoke(req, {"recursion_limit": 100}, context=self.context)
+        res = await self.agent.ainvoke(req, {"recursion_limit": 100}, context=self.context)
         assistant_msgs = []
         for item in res["messages"]:
             if isinstance(item, AIMessage):
@@ -166,16 +176,26 @@ class LangGraphChatAgent(ChatAgent):
                 assistant_msgs.append(ChatAgentMessage(id=item.id, **msg_dict))
         return ChatAgentResponse(messages=assistant_msgs[-1:])
 
-    @mlflow.trace(span_type=SpanType.AGENT, output_reducer=_output_reducer)
+    @mlflow.trace(span_type=SpanType.AGENT)
     def predict_stream(
         self,
         messages: list[ChatAgentMessage],
         context: Optional[ChatContext] = None,
         custom_inputs: Optional[dict[str, Any]] = None,
     ) -> Iterator[ChatAgentChunk]:
+        """空実装."""
+        raise NotImplementedError()
+
+    @mlflow.trace(span_type=SpanType.AGENT, output_reducer=_output_reducer)
+    async def predict_stream_async(
+        self,
+        messages: list[ChatAgentMessage],
+        context: Optional[ChatContext] = None,
+        custom_inputs: Optional[dict[str, Any]] = None,
+    ) -> AsyncIterator[ChatAgentChunk]:
         """エージェントの推論結果 (Streaming) を返す."""
         request = {"messages": self._convert_messages_to_dict(messages)}
-        for mode, chunk in self.agent.stream(
+        responses = self.agent.astream(
             request,
             {"recursion_limit": 100},
             # 暫定対処 (ADR-009):
@@ -185,7 +205,8 @@ class LangGraphChatAgent(ChatAgent):
             # stream_mode=["updates", "messages"],
             stream_mode=["messages"],
             context=self.context,
-        ):
+        )
+        async for mode, chunk in responses:
             if mode == "updates":
                 for node_data in chunk.values():  # pyright: ignore[reportAttributeAccessIssue]
                     if "messages" not in node_data:

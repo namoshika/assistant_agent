@@ -4,27 +4,20 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from langchain_core.embeddings import Embeddings
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables.config import RunnableConfig
-from langchain_core.vectorstores import VectorStore
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, GraphOutput
-from sqlalchemy import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 class StoreConnector(abc.ABC):
-    """VectorStore / SQLAlchemy Engine を生成するファクトリ抽象クラス."""
+    """SQLAlchemy AsyncEngine を生成するファクトリ抽象クラス."""
 
     @abc.abstractmethod
-    def get_engine(self) -> Engine:
-        """SQLAlchemy Engine を生成する."""
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_vector_store(self, entity: type, embedding: Embeddings) -> VectorStore:
-        """VectorStore を生成する."""
+    def get_engine(self) -> AsyncEngine:
+        """SQLAlchemy AsyncEngine を生成する."""
         raise NotImplementedError
 
 

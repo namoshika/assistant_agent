@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from mlflow.types.agent import ChatAgentChunk, ChatAgentMessage
@@ -101,21 +101,23 @@ class TestLangGraphChatAgent:
     def test_predict_01(self):
         """推論 (同期) を正しく呼び出せるか確認.
 
-        観点1: invoke が正しい引数で呼び出される
+        観点1: ainvoke が正しい引数で呼び出される
         観点2: 最後の assistant メッセージのみが返ること
         """
         # 試験準備
         m_agent = MagicMock()
-        m_agent.invoke.return_value = {
-            "messages": [
-                HumanMessage(content="hello", id="h-1"),
-                AIMessage(content="first response", id="a-1"),
-                ToolMessage(
-                    content="tool result", tool_call_id="call-1", name="get_weather", id="t-1"
-                ),
-                AIMessage(content="final response", id="a-2"),
-            ]
-        }
+        m_agent.ainvoke = AsyncMock(
+            return_value={
+                "messages": [
+                    HumanMessage(content="hello", id="h-1"),
+                    AIMessage(content="first response", id="a-1"),
+                    ToolMessage(
+                        content="tool result", tool_call_id="call-1", name="get_weather", id="t-1"
+                    ),
+                    AIMessage(content="final response", id="a-2"),
+                ]
+            }
+        )
         messages = [ChatAgentMessage(role="user", content="hello")]
 
         # 試験実施
@@ -124,7 +126,7 @@ class TestLangGraphChatAgent:
         result = wrapper.predict(messages)
 
         # 観点1
-        m_agent.invoke.assert_called_once_with(
+        m_agent.ainvoke.assert_called_once_with(
             {"messages": [{"role": "user", "content": "hello"}]},
             {"recursion_limit": 100},
             context=m_context,

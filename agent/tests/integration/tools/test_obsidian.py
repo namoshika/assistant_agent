@@ -1,5 +1,5 @@
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain.agents import create_agent
@@ -22,7 +22,7 @@ class _FakeChatModel(GenericFakeChatModel):
 
 
 @pytest.mark.integration
-def test_obsidian_vault_search_01(
+async def test_obsidian_vault_search_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
@@ -36,8 +36,8 @@ def test_obsidian_vault_search_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
-    pg_retriever_obs.sync_chunks()
+    await VaultUtils.sync_docs(docs_obs, pg_conn.get_engine(), raw_entity)
+    await pg_retriever_obs.sync_chunks()
 
     ai_msg = AIMessage(
         content="",
@@ -57,7 +57,7 @@ def test_obsidian_vault_search_01(
     agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="ノートを検索して")]},
         context={"obsidian_retriever": pg_retriever_obs},
     )
@@ -76,7 +76,7 @@ def test_obsidian_vault_search_01(
 
 
 @pytest.mark.integration
-def test_obsidian_vault_search_02() -> None:
+async def test_obsidian_vault_search_02() -> None:
     """実際の LLM から obsidian_vault_search をフィルタなしで呼び出せるか確認.
 
     観点1: LLM が search_query のみで tool call を生成し
@@ -87,14 +87,14 @@ def test_obsidian_vault_search_02() -> None:
         Document(id="doc-1", page_content="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})
     ]
     m_store = MagicMock()
-    m_store.search_documents.return_value = docs
+    m_store.search_documents = AsyncMock(return_value=docs)
     llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="エージェントのノートを1回検索し document_id を出す")]},
         context=cast(CommonContext, {"obsidian_retriever": m_store}),
     )
@@ -106,7 +106,7 @@ def test_obsidian_vault_search_02() -> None:
 
 
 @pytest.mark.integration
-def test_obsidian_vault_search_03() -> None:
+async def test_obsidian_vault_search_03() -> None:
     """実際の LLM から obsidian_vault_search をフィルタありで呼び出せるか確認.
 
     観点1: LLM が MetadataFilters を含む tool call を生成し
@@ -117,14 +117,14 @@ def test_obsidian_vault_search_03() -> None:
         Document(id="doc-1", page_content="本文", metadata={"file_path": "02_Daily/2026-01-01.md"})
     ]
     m_store = MagicMock()
-    m_store.search_documents.return_value = docs
+    m_store.search_documents = AsyncMock(return_value=docs)
     llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="2026/01 以降のノートを検索し、 document_id を出して")]},
         context=cast(CommonContext, {"obsidian_retriever": m_store}),
     )
@@ -139,7 +139,7 @@ def test_obsidian_vault_search_03() -> None:
 
 
 @pytest.mark.integration
-def test_obsidian_vault_get_01(
+async def test_obsidian_vault_get_01(
     pg_conn: PostgresStoreConnector,
     pg_retriever_obs: VaultObsidianRetriever,
     pg_entity_obs: type,
@@ -153,7 +153,7 @@ def test_obsidian_vault_get_01(
     """
     # 試験準備
     raw_entity = pg_entity_obs
-    VaultUtils.sync_docs([docs_obs[0]], pg_conn.get_engine(), raw_entity)
+    await VaultUtils.sync_docs([docs_obs[0]], pg_conn.get_engine(), raw_entity)
     doc_id = docs_obs[0].id
     ai_msg = AIMessage(
         content="",
@@ -169,7 +169,7 @@ def test_obsidian_vault_get_01(
     agent = _make_agent(ai_msg, tools.obsidian_vault_get)
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="ノートを取得して")]},
         context=cast(CommonContext, {"obsidian_retriever": pg_retriever_obs}),
     )
@@ -192,7 +192,7 @@ def test_obsidian_vault_get_01(
         ],
     )
     agent = _make_agent(ai_msg2, tools.obsidian_vault_get)
-    result2 = agent.invoke(
+    result2 = await agent.ainvoke(
         {"messages": [HumanMessage(content="nonexistent.md を取得して")]},
         context=cast(CommonContext, {"obsidian_retriever": pg_retriever_obs}),
     )

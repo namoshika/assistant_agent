@@ -1,6 +1,6 @@
 import os
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -18,15 +18,20 @@ from assistant_agent.services import VaultObsidianRetriever, VaultSampleRetrieve
 from assistant_agent.store import PostgresStoreConnector
 
 
-@pytest.fixture(scope="session")
-def pg_conn() -> Iterator[PostgresStoreConnector]:
-    """PostgresStoreConnector (セッション全体で共有)."""
+@pytest.fixture()
+async def pg_conn() -> AsyncIterator[PostgresStoreConnector]:
+    """PostgresStoreConnector (テストごとに生成).
+
+    AsyncEngine は asyncpg 接続がテスト単位のイベントループに紐づくため、
+    session scope で使い回すとテストをまたいだ際に
+    InterfaceError（イベントループ不整合）が発生する。そのため function scope とする。
+    """
     conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
     if not conn_str:
         pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
     f = PostgresStoreConnector(conn_str)
     yield f
-    f.get_engine().dispose()
+    await f.get_engine().dispose()
 
 
 @pytest.fixture()
@@ -36,7 +41,7 @@ def vault_name() -> str:
 
 
 @pytest.fixture()
-def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator[type]:
+async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
     """一意なテーブル名を持つチャンク Entity を生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -49,12 +54,14 @@ def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator[
         __tablename__ = f"{vault_name}_vectors"
 
     engine = pg_conn.get_engine()
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-    _TestChunkBase.metadata.create_all(engine)
+    async with engine.connect() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.commit()
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestChunkBase.metadata.create_all)
     yield _TestChunkEntity
-    _TestChunkBase.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestChunkBase.metadata.drop_all)
 
 
 @pytest.fixture()
@@ -64,7 +71,7 @@ def docs_obs() -> list[Document]:
 
 
 @pytest.fixture()
-def pg_entity_obs(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator[type]:
+async def pg_entity_obs(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
     """Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -77,9 +84,11 @@ def pg_entity_obs(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator[
     class _TestVaultRawEntity(_TestBase, postgres.ObsidianFields):
         __tablename__ = f"{vault_name}_raw"
 
-    _TestBase.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.create_all)
     yield _TestVaultRawEntity
-    _TestBase.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.drop_all)
 
 
 @pytest.fixture()
@@ -120,7 +129,7 @@ def docs_smpl() -> list[Document]:
 
 
 @pytest.fixture()
-def pg_entity_smpl(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator[type]:
+async def pg_entity_smpl(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
     """サンプル用 Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -133,9 +142,11 @@ def pg_entity_smpl(pg_conn: PostgresStoreConnector, vault_name: str) -> Iterator
     class _TestSampleEntity(_TestBase, postgres.DocumentFields):
         __tablename__ = f"{vault_name}_raw"
 
-    _TestBase.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.create_all)
     yield _TestSampleEntity
-    _TestBase.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.drop_all)
 
 
 @pytest.fixture()

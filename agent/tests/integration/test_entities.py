@@ -3,8 +3,10 @@ import hashlib
 import pytest
 from langchain_core.documents import Document
 from langchain_core.embeddings import DeterministicFakeEmbedding
-from sqlalchemy import Engine, MetaData, insert, select
-from sqlalchemy.orm import DeclarativeBase, Session
+from langchain_postgres import PGEngine, PGVectorStore
+from sqlalchemy import MetaData, insert, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm import DeclarativeBase
 
 from assistant_agent.entities import postgres
 from assistant_agent.entities.base import VaultUtils
@@ -12,7 +14,7 @@ from assistant_agent.store import PostgresStoreConnector
 
 
 @pytest.fixture()
-def pg_backlink_entity(pg_conn: PostgresStoreConnector):
+async def pg_backlink_entity(pg_conn: PostgresStoreConnector):
     """PostgreSQL 用バックリンクフィルタ検証テーブル."""
     engine = pg_conn.get_engine()
 
@@ -22,15 +24,17 @@ def pg_backlink_entity(pg_conn: PostgresStoreConnector):
     class _TestEntity(_TestBase, postgres.ObsidianFields):
         __tablename__ = "test_backlink_filter_pg"
 
-    _TestBase.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.create_all)
     yield _TestEntity, engine
-    _TestBase.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestBase.metadata.drop_all)
 
 
 class TestObsidianFields:
     @pytest.mark.integration
-    def test_backlink_filter_01(
-        self, pg_backlink_entity: tuple[type[postgres.ObsidianFields], Engine]
+    async def test_backlink_filter_01(
+        self, pg_backlink_entity: tuple[type[postgres.ObsidianFields], AsyncEngine]
     ):
         """postgres.DocumentFields.backlink_filter が forward_links でフィルタできること.
 
@@ -39,8 +43,8 @@ class TestObsidianFields:
         entity_cls, engine = pg_backlink_entity
 
         # 試験準備
-        with Session(engine) as session:
-            session.execute(
+        async with AsyncSession(engine) as session:
+            await session.execute(
                 insert(entity_cls),
                 [
                     {
@@ -59,12 +63,12 @@ class TestObsidianFields:
                     },
                 ],
             )
-            session.commit()
+            await session.commit()
 
         # 試験実施
-        with Session(engine) as session:
-            rows = session.scalars(
-                select(entity_cls).where(entity_cls.backlink_filter("id-B"))
+        async with AsyncSession(engine) as session:
+            rows = (
+                await session.scalars(select(entity_cls).where(entity_cls.backlink_filter("id-B")))
             ).all()
 
         # 結果検証
@@ -75,7 +79,7 @@ class TestObsidianFields:
 
 class TestVaultUtils:
     @pytest.mark.integration
-    def test_sync_01(
+    async def test_sync_docs_01(
         self,
         pg_conn: PostgresStoreConnector,
         pg_entity_obs: type[postgres.DocumentFields],
@@ -97,12 +101,14 @@ class TestVaultUtils:
         )
 
         # 試験実施（1回目）
-        VaultUtils.sync_docs([note_a, note_b, note_c], sa_engine, raw_entity)
+        await VaultUtils.sync_docs([note_a, note_b, note_c], sa_engine, raw_entity)
 
         # 結果検証
         # 観点1
-        with Session(sa_engine) as session:
-            raw_rows = {row.document_id: row for row in session.scalars(select(raw_entity)).all()}
+        async with AsyncSession(sa_engine) as session:
+            raw_rows = {
+                row.document_id: row for row in (await session.scalars(select(raw_entity))).all()
+            }
         assert len(raw_rows) == 3
         for note in (note_a, note_b, note_c):
             assert note.id is not None
@@ -113,12 +119,14 @@ class TestVaultUtils:
             assert row.document_content_hash == expected_hash
 
         # 試験実施（2回目: C を削除、A を変更、B はそのまま）
-        VaultUtils.sync_docs([doc_a_modified, note_b], sa_engine, raw_entity)
+        await VaultUtils.sync_docs([doc_a_modified, note_b], sa_engine, raw_entity)
 
         # 結果検証
         # 観点2
-        with Session(sa_engine) as session:
-            raw_rows = {row.document_id: row for row in session.scalars(select(raw_entity)).all()}
+        async with AsyncSession(sa_engine) as session:
+            raw_rows = {
+                row.document_id: row for row in (await session.scalars(select(raw_entity))).all()
+            }
         assert note_a.id is not None
         assert raw_rows[note_a.id].content == "changed content"
         assert note_c.id not in raw_rows
@@ -126,7 +134,7 @@ class TestVaultUtils:
         assert raw_rows[note_a.id].document_content_hash == expected_hash
 
     @pytest.mark.integration
-    def test_sync_chunks_01(
+    async def test_sync_chunks_01(
         self,
         pg_conn: PostgresStoreConnector,
         pg_entity_obs: type[postgres.DocumentFields],
@@ -147,19 +155,25 @@ class TestVaultUtils:
         sa_engine = pg_conn.get_engine()
         embed_dim = chk_entity.__table__.c.embedding.type.dim
         emb = DeterministicFakeEmbedding(size=embed_dim)
-        store = pg_conn.get_vector_store(chk_entity, emb)
+        store = await PGVectorStore.create(
+            engine=PGEngine.from_engine(sa_engine),
+            embedding_service=emb,
+            table_name=chk_entity.__tablename__,
+            schema_name=chk_entity.metadata.schema,
+            ignore_metadata_columns=["langchain_metadata"],
+        )
 
         doc_a = Document(id="docA", page_content="A content v1", metadata={"file_path": "a.md"})
         doc_b = Document(id="docB", page_content="B content v1", metadata={"file_path": "b.md"})
 
         # 試験実施（1回目: 新規2件）
-        VaultUtils.sync_docs([doc_a, doc_b], sa_engine, obs_entity)
-        diff_rows = VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
+        await VaultUtils.sync_docs([doc_a, doc_b], sa_engine, obs_entity)
+        diff_rows = await VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
 
         # 結果検証
         # 観点1
         assert {row.document_id for row in diff_rows} == {"docA", "docB"}
-        store.add_documents(
+        await store.aadd_documents(
             [
                 Document(
                     page_content=row.content,
@@ -171,7 +185,7 @@ class TestVaultUtils:
                 for row in diff_rows
             ]
         )
-        results = store.similarity_search("content", k=10)
+        results = await store.asimilarity_search("content", k=10)
         assert {d.metadata["document_id"] for d in results} == {"docA", "docB"}
 
         # 試験実施（2回目: docA 変更、docB 不変、docC 新規）
@@ -179,12 +193,12 @@ class TestVaultUtils:
             id="docA", page_content="A content v2 CHANGED", metadata={"file_path": "a.md"}
         )
         doc_c = Document(id="docC", page_content="C content v1", metadata={"file_path": "c.md"})
-        VaultUtils.sync_docs([doc_a_changed, doc_b, doc_c], sa_engine, obs_entity)
-        diff_rows = VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
+        await VaultUtils.sync_docs([doc_a_changed, doc_b, doc_c], sa_engine, obs_entity)
+        diff_rows = await VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
 
         # 観点2
         assert {row.document_id for row in diff_rows} == {"docA", "docC"}
-        store.add_documents(
+        await store.aadd_documents(
             [
                 Document(
                     page_content=row.content,
@@ -196,7 +210,7 @@ class TestVaultUtils:
                 for row in diff_rows
             ]
         )
-        results = store.similarity_search("content", k=10)
+        results = await store.asimilarity_search("content", k=10)
         by_doc = {d.metadata["document_id"]: d.page_content for d in results}
         assert by_doc == {
             "docA": "A content v2 CHANGED",
@@ -205,10 +219,10 @@ class TestVaultUtils:
         }
 
         # 試験実施（3回目: docB を渡さない = vault から削除）
-        VaultUtils.sync_docs([doc_a_changed, doc_c], sa_engine, obs_entity)
-        diff_rows = VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
+        await VaultUtils.sync_docs([doc_a_changed, doc_c], sa_engine, obs_entity)
+        diff_rows = await VaultUtils.sync_chunks(obs_entity, chk_entity, sa_engine)
 
         # 観点3
         assert diff_rows == []
-        results = store.similarity_search("content", k=10)
+        results = await store.asimilarity_search("content", k=10)
         assert {d.metadata["document_id"] for d in results} == {"docA", "docC"}

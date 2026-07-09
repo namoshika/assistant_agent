@@ -32,13 +32,13 @@ class SampleSearchInput(BaseModel):
 
 
 @tool(args_schema=SampleSearchInput, response_format="content_and_artifact")
-def sample_search(
+async def sample_search(
     search_query: str,
     runtime: ToolRuntime[SampleContext],
 ) -> tuple[str, Sequence[Document]]:
     """Perform vector search on web pages saved in Local DB."""
     retriever = runtime.context["sample_retriever"]
-    results = retriever.search_documents(search_query, top_k=10)
+    results = await retriever.search_documents(search_query, top_k=10)
     return fmt.format_doc_list(
         [
             fmt.ContentsWithFrontmatter(

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain.agents import create_agent
 from langchain_core.documents import Document
@@ -16,7 +16,7 @@ class _FakeChatModel(GenericFakeChatModel):
         return self
 
 
-def test_obsidian_vault_search_01():
+async def test_obsidian_vault_search_01():
     """Obsidian vault をベクトル検索し、ToolMessage として結果を返せるか確認.
 
     観点1: full_fetch=False のとき search_documents() が top_k=10 で呼ばれる
@@ -33,7 +33,7 @@ def test_obsidian_vault_search_01():
         )
     ]
     m_store = MagicMock()
-    m_store.search_documents.return_value = docs
+    m_store.search_documents = AsyncMock(return_value=docs)
 
     ai_msg = AIMessage(
         content="",
@@ -49,7 +49,7 @@ def test_obsidian_vault_search_01():
     agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
         context={"obsidian_retriever": m_store},
     )
@@ -65,14 +65,14 @@ def test_obsidian_vault_search_01():
     assert tool_msg.artifact is docs
 
 
-def test_obsidian_vault_search_02():
+async def test_obsidian_vault_search_02():
     """Obsidian vault をベクトル検索し、ToolMessage として結果を返せるか確認 (full_fetch=True).
 
     観点1: full_fetch=True のとき search_documents() が top_k=9999 で呼ばれる
     """
     # 試験準備
     m_store = MagicMock()
-    m_store.search_documents.return_value = []
+    m_store.search_documents = AsyncMock(return_value=[])
 
     ai_msg = AIMessage(
         content="",
@@ -88,7 +88,7 @@ def test_obsidian_vault_search_02():
     agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
-    agent.invoke(
+    await agent.ainvoke(
         {"messages": [HumanMessage(content="全件取得して")]},
         context={"obsidian_retriever": m_store},
     )
@@ -98,7 +98,7 @@ def test_obsidian_vault_search_02():
     m_store.search_documents.assert_called_once_with("アイデア", top_k=9999, filters=None)
 
 
-def test_obsidian_vault_search_03():
+async def test_obsidian_vault_search_03():
     """Obsidian vault をベクトル検索し、ToolMessage として結果を返せるか確認 (filters 有り).
 
     観点1: search_documents が filters 付きで呼ばれる
@@ -113,7 +113,7 @@ def test_obsidian_vault_search_03():
         )
     ]
     m_store = MagicMock()
-    m_store.search_documents.return_value = docs
+    m_store.search_documents = AsyncMock(return_value=docs)
 
     ai_msg = AIMessage(
         content="",
@@ -133,7 +133,7 @@ def test_obsidian_vault_search_03():
     agent = _make_agent(ai_msg, tools.obsidian_vault_search)
 
     # 試験実施
-    agent.invoke(
+    await agent.ainvoke(
         {"messages": [HumanMessage(content="アイデアを検索して")]},
         context={"obsidian_retriever": m_store},
     )
@@ -146,7 +146,7 @@ def test_obsidian_vault_search_03():
     assert call_kwargs.kwargs["filters"] == filters
 
 
-def test_obsidian_vault_get_01():
+async def test_obsidian_vault_get_01():
     """Obsidian vault からノートを document_id で取得し、ToolMessage として結果を返せるか確認.
 
     観点1: get_documents_by_ids() に ids リストが渡される
@@ -163,7 +163,7 @@ def test_obsidian_vault_get_01():
         )
     ]
     m_store = MagicMock()
-    m_store.get_documents_by_ids.return_value = docs
+    m_store.get_documents_by_ids = AsyncMock(return_value=docs)
 
     ai_msg = AIMessage(
         content="",
@@ -179,7 +179,7 @@ def test_obsidian_vault_get_01():
     agent = _make_agent(ai_msg, tools.obsidian_vault_get)
 
     # 試験実施
-    result = agent.invoke(
+    result = await agent.ainvoke(
         {"messages": [HumanMessage(content="note.md を取得して")]},
         context={"obsidian_retriever": m_store},
     )

@@ -38,7 +38,7 @@ class SearchToolInput(BaseModel):
 
 
 @tool(args_schema=SearchToolInput, response_format="content_and_artifact")
-def obsidian_vault_search(
+async def obsidian_vault_search(
     search_query: str,
     filters: SearchFilters | None,
     full_fetch: bool,
@@ -47,7 +47,7 @@ def obsidian_vault_search(
     """Perform vector search on Obsidian vault with metadata filters."""
     retriever = runtime.context["obsidian_retriever"]
     top_k = 9999 if full_fetch else 10
-    results = retriever.search_documents(search_query, top_k=top_k, filters=filters)
+    results = await retriever.search_documents(search_query, top_k=top_k, filters=filters)
     return format_doc_ids(results), results  # pyright: ignore[reportReturnType]
 
 
@@ -61,7 +61,7 @@ class GetToolInput(BaseModel):
 
 
 @tool(args_schema=GetToolInput, response_format="content_and_artifact")
-def obsidian_vault_get(
+async def obsidian_vault_get(
     document_ids: Sequence[str], runtime: ToolRuntime[ObsidianContext]
 ) -> tuple[str, Sequence[Document]]:
     """Return the text of Obsidian notes specified by document_id.
@@ -84,14 +84,14 @@ def obsidian_vault_get(
     The document_id can be got by matching the wikilink with forward_link in the frontmatter.
     """
     retriever = runtime.context["obsidian_retriever"]
-    docs = retriever.get_documents_by_ids(document_ids)
+    docs = await retriever.get_documents_by_ids(document_ids)
 
     contents = [
         ContentsWithFrontmatter(
             title=os.path.basename(doc.metadata["file_path"]),
             contents=doc.page_content,
             frontmatter={
-                k: _format_links(v, retriever) if k == "forward_links" else v
+                k: await _format_links(v, retriever) if k == "forward_links" else v
                 for k, v in doc.metadata.items()
             },
         )
@@ -100,9 +100,11 @@ def obsidian_vault_get(
     return format_doc_list(contents), docs
 
 
-def _format_links(document_ids: list[str], retriever: VaultObsidianRetriever) -> dict[str, str]:
+async def _format_links(
+    document_ids: list[str], retriever: VaultObsidianRetriever
+) -> dict[str, str]:
     result: dict[str, str] = {}
-    for doc in retriever.get_documents_by_ids(document_ids):
+    for doc in await retriever.get_documents_by_ids(document_ids):
         assert doc.id is not None
         result[doc.id] = os.path.basename(doc.metadata["file_path"])
     return result
