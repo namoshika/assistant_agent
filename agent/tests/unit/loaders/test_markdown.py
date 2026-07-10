@@ -6,7 +6,7 @@ from langchain_community.document_loaders import DirectoryLoader
 
 from assistant_agent.loaders.markdown import MarkdownLoader
 
-VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
+VAULT_PATH = Path(__file__).parent.parent.parent / "data" / "vault"
 
 
 def test_load_data_01():

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from assistant_agent.loaders.obsidian import ObsidianLoader, path_to_document_id
 
-VAULT_PATH = Path(__file__).parent.parent / "data" / "vault"
+VAULT_PATH = Path(__file__).parent.parent.parent / "data" / "vault"
 
 
 def test_load_01():
