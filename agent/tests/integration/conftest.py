@@ -47,10 +47,10 @@ async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Asy
     テスト終了後に作成したテーブルを DROP する。
     """
 
-    class _TestChunkBase(DeclarativeBase):
+    class _TestAppBase(DeclarativeBase):
         metadata = MetaData("app")
 
-    class _TestChunkEntity(_TestChunkBase, ChunkFields):
+    class _TestChunkEntity(_TestAppBase, ChunkFields):
         __tablename__ = f"{vault_name}_vectors"
 
     engine = pg_conn.get_engine()
@@ -58,10 +58,10 @@ async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Asy
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.commit()
     async with engine.begin() as conn:
-        await conn.run_sync(_TestChunkBase.metadata.create_all)
+        await conn.run_sync(_TestAppBase.metadata.create_all)
     yield _TestChunkEntity
     async with engine.begin() as conn:
-        await conn.run_sync(_TestChunkBase.metadata.drop_all)
+        await conn.run_sync(_TestAppBase.metadata.drop_all)
 
 
 @pytest.fixture()

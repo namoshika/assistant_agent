@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import re
 import uuid
 from pathlib import Path
@@ -36,15 +37,17 @@ class ObsidianLoader(BaseLoader):
             raw_text = note.path.read_text(encoding="UTF-8")
             # datetime.date / datetime.datetime はメタデータフィルターや
             # DB (DuckDB / PostgreSQL JSONB) への格納時に型エラーが発生するため ISO 文字列に変換する
+            page_content = _FRONT_MATTER_REGEX.sub("", raw_text)
             metadata = {
                 k: v.isoformat() if isinstance(v, (datetime.date, datetime.datetime)) else v
                 for k, v in note.frontmatter.items()
             }
             metadata["file_path"] = rel_path
+            metadata["document_content_hash"] = hashlib.sha256(page_content.encode()).hexdigest()
             metadata["forward_links"] = self._extract_forward_links(rel_path, vault)
             yield Document(
                 id=path_to_document_id(rel_path),
-                page_content=_FRONT_MATTER_REGEX.sub("", raw_text),
+                page_content=page_content,
                 metadata=metadata,
             )
 

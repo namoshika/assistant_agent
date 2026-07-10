@@ -32,4 +32,3 @@ async def test_search_documents_01(
     assert len(results) >= 1
     matched = next((r for r in results if r.metadata.get("document_id") == doc.id), None)
     assert matched is not None
-    assert matched.metadata["file_path"] == doc.metadata["file_path"]

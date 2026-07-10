@@ -7,7 +7,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_postgres import PGEngine, PGVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -32,7 +32,7 @@ class FileFilter(BaseModel):
 
 
 class DateFilter(BaseModel):
-    """date フィールドに対する範囲フィルタ条件."""
+    """date フィールドに対する範囲フィルタ条件. gte, lte のどちらか一方のみ指定可能."""
 
     model_config = ConfigDict(validate_by_name=True)
     gte: str | None = Field(
@@ -41,6 +41,14 @@ class DateFilter(BaseModel):
     lte: str | None = Field(
         None, alias="$lte", description="Upper bound (inclusive), 'YYYY-MM-DD HH:MM:SS' format."
     )
+
+    @model_validator(mode="after")
+    def _check_single_bound(self) -> "DateFilter":
+        if self.gte is not None and self.lte is not None:
+            raise ValueError(
+                "gte と lte は同時に指定できません。どちらか一方のみ指定してください。"
+            )
+        return self
 
 
 class SearchFilters(BaseModel):
@@ -140,7 +148,11 @@ class VaultObsidianRetriever:
             row.document_id: Document(
                 id=row.document_id,
                 page_content=row.content,
-                metadata=row.document_metadata,
+                metadata={
+                    "document_content_hash": row.document_content_hash,
+                    "file_path": row.file_path,
+                    **(row.document_metadata or {}),
+                },
             )
             for row in rows
         }
@@ -167,7 +179,11 @@ class VaultObsidianRetriever:
             Document(
                 id=row.document_id,
                 page_content=row.content,
-                metadata=row.document_metadata,
+                metadata={
+                    "document_content_hash": row.document_content_hash,
+                    "file_path": row.file_path,
+                    **(row.document_metadata or {}),
+                },
             )
             for row in rows
         ]
@@ -186,7 +202,12 @@ class VaultObsidianRetriever:
                 metadata={
                     "document_id": row.document_id,
                     "document_content_hash": row.document_content_hash,
-                    **{k: v for k, v in row.document_metadata.items() if k != "forward_links"},
+                    "file_path": row.file_path,
+                    **{
+                        k: v
+                        for k, v in (row.document_metadata or {}).items()
+                        if k != "forward_links"
+                    },
                 },
             )
             for row in diff_rows

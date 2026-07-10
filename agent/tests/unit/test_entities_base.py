@@ -1,6 +1,6 @@
-from sqlalchemy import JSON, MetaData, insert
+from sqlalchemy import MetaData, insert
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase
 
 from assistant_agent.entities.base import ChunkFields, DocumentFields, VaultUtils
 
@@ -11,8 +11,6 @@ class _Base(DeclarativeBase):
 
 class _DummyDocEntity(_Base, DocumentFields):
     __tablename__ = "doc_raws"
-
-    document_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, sort_order=1)
 
 
 class _DummyChunkEntity(_Base, ChunkFields):
@@ -62,21 +60,27 @@ async def test_sync_chunks_01() -> None:
             [
                 {
                     "langchain_id": "chunk-changed-old",
+                    "langchain_metadata": {},
                     "content": "old changed content",
                     "document_id": "doc-changed",
                     "document_content_hash": "old-hash",
+                    "embedding": "aaa",
                 },
                 {
                     "langchain_id": "chunk-deleted",
+                    "langchain_metadata": {},
                     "content": "deleted content",
                     "document_id": "doc-deleted",
                     "document_content_hash": "hash-deleted",
+                    "embedding": "bbb",
                 },
                 {
                     "langchain_id": "chunk-same",
+                    "langchain_metadata": {},
                     "content": "same content chunk",
                     "document_id": "doc-same",
                     "document_content_hash": "hash-same",
+                    "embedding": "ccc",
                 },
             ],
         )

@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 from langchain_core.documents import Document
 
@@ -163,12 +165,14 @@ async def test_sync_chunks_01(
     assert target_result.metadata == target_doc.metadata
 
     # --- ステップ2: 更新 ---
-    new_content = target_doc.page_content + " 更新版"
     updated_target = Document(
         id=target_doc.id,
-        page_content=new_content,
+        page_content=target_doc.page_content + " 更新版",
         metadata=target_doc.metadata,
     )
+    updated_target.metadata["document_content_hash"] = hashlib.sha256(
+        updated_target.page_content.encode()
+    ).hexdigest()
     await VaultUtils.sync_docs([noise_doc, updated_target], pg_conn.get_engine(), raw_entity)
     await pg_retriever_obs.sync_chunks()
 

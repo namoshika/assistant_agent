@@ -4,6 +4,7 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.embeddings import DeterministicFakeEmbedding
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from assistant_agent.entities import postgres
@@ -123,6 +124,23 @@ async def test_search_documents_02(retriever: VaultObsidianRetriever, mocker: Mo
     m_vector_store.asimilarity_search.assert_called_once_with(
         "テスト", k=5, filter={"date": {"$gte": "2025-01-01 00:00:00"}}
     )
+
+
+def test_date_filter_01():
+    """DateFilter の gte, lte 排他制約を確認.
+
+    観点1: gte のみ指定した場合は生成できること
+    観点2: lte のみ指定した場合は生成できること
+    観点3: gte と lte を同時に指定した場合は ValidationError となること
+    """
+    # 試験実施 & 結果検証
+    # 観点1
+    DateFilter(gte="2025-01-01 00:00:00")  # pyright: ignore[reportCallIssue]
+    # 観点2
+    DateFilter(lte="2025-01-01 00:00:00")  # pyright: ignore[reportCallIssue]
+    # 観点3
+    with pytest.raises(ValidationError):
+        DateFilter(gte="2025-01-01 00:00:00", lte="2025-12-31 00:00:00")  # pyright: ignore[reportCallIssue]
 
 
 async def test_search_documents_03(retriever: VaultObsidianRetriever, mocker: MockerFixture):

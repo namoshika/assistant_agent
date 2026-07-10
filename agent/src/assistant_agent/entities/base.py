@@ -3,7 +3,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 
 from langchain_core.documents import Document
-from sqlalchemy import Row, String, delete, insert, select
+from sqlalchemy import JSON, Row, String, delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
@@ -13,7 +13,7 @@ class DocumentFields:
     """ドキュメントテーブルの共通カラム."""
 
     document_id: Mapped[str] = mapped_column(String, primary_key=True, sort_order=0)
-    document_metadata: Mapped[dict]  # mapped_column なし。sort_order=1 は具体クラスで指定
+    document_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=False, sort_order=1)
     document_content_hash: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
     content: Mapped[str] = mapped_column(String, nullable=False, sort_order=3)
     file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True, sort_order=4)
@@ -23,9 +23,11 @@ class ChunkFields:
     """チャンクテーブルの共通カラム（postgres 固有型は派生クラスでオーバーライドする）."""
 
     langchain_id: Mapped[str] = mapped_column(String, primary_key=True, sort_order=0)
-    content: Mapped[str] = mapped_column(String, nullable=False, sort_order=1)
+    langchain_metadata: Mapped[dict | None] = mapped_column(JSON, sort_order=1)
     document_id: Mapped[str] = mapped_column(String, nullable=False, sort_order=2)
     document_content_hash: Mapped[str] = mapped_column(String, nullable=False, sort_order=3)
+    content: Mapped[str] = mapped_column(String, nullable=False, sort_order=4)
+    embedding: Mapped[list[float]] = mapped_column(String, nullable=False, sort_order=5)
 
 
 class ObsidianFields(DocumentFields):
@@ -49,7 +51,11 @@ class VaultUtils:
         rows = [
             {
                 "document_id": doc.id,
-                "document_metadata": doc.metadata,
+                "document_metadata": {
+                    key: doc.metadata[key]
+                    for key in doc.metadata
+                    if key not in ("file_path", "document_content_hash")
+                },
                 "document_content_hash": hashlib.sha256(doc.page_content.encode()).hexdigest(),
                 "content": doc.page_content,
                 "file_path": doc.metadata["file_path"],
