@@ -4,7 +4,9 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
+from langchain_aws import ChatBedrockConverse
 from langchain_core.documents import Document
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import SecretStr
@@ -68,6 +70,28 @@ async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Asy
 def docs_obs() -> list[Document]:
     """ObsidianReader で docs/dataset_obsidian/ から先頭 10 件を取得するフィクスチャ."""
     return ObsidianLoader(Path("docs/dataset_obsidian/")).load()[:10]
+
+
+@pytest.fixture()
+def llm() -> BaseChatModel:
+    """実際の Bedrock LLM に接続した ChatModel.
+
+    AWS_ACCESS_KEY_ID・AWS_SECRET_ACCESS_KEY 環境変数が必要。
+    """
+    aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    aws_default_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    if not aws_access_key_id:
+        pytest.fail("AWS_ACCESS_KEY_ID が未設定のため失敗")
+    if not aws_secret_access_key:
+        pytest.fail("AWS_SECRET_ACCESS_KEY が未設定のため失敗")
+
+    return ChatBedrockConverse(
+        model="qwen.qwen3-235b-a22b-2507-v1:0",
+        aws_access_key_id=SecretStr(aws_access_key_id),
+        aws_secret_access_key=SecretStr(aws_secret_access_key),
+        region_name=aws_default_region,
+    )
 
 
 @pytest.fixture()

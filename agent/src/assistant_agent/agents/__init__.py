@@ -1,18 +1,24 @@
 import os
+from typing import Any
+
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.state import CompiledStateGraph
 
 import assistant_agent.services  # noqa: F401  登録発火
 from assistant_agent import store
-from assistant_agent.utils import context, mlflow
+from assistant_agent.utils import context
+from assistant_agent.utils.context import CommonContext
 
-from .base import BaseAgent
-from .sample import SampleAgent
+from . import sample
 
 
-def build_agent() -> mlflow.LangGraphChatAgent:
+def build_agent(
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> tuple[CompiledStateGraph[Any, CommonContext, Any, Any], CommonContext]:
     """エージェントがセッション開始した際の初期化を行う.
 
     Returns:
-        初期化済みの ChatAgent インスタンス。
+        lc_agent と context のペア。呼び出し元がラップ方法を選ぶ。
 
     """
     # コンテキスト初期化
@@ -22,13 +28,6 @@ def build_agent() -> mlflow.LangGraphChatAgent:
     ctx = context.ContextRegistry.build(store_conn=store_conn)
 
     # エージェント初期化
-    agent = SampleAgent(None)
-    agent_wrapped = mlflow.LangGraphChatAgent(agent.lc_agent, ctx)
+    lc_agent = sample.build_lc_agent(checkpointer)
 
-    return agent_wrapped
-
-
-__all__ = [
-    "BaseAgent",
-    "SampleAgent",
-]
+    return lc_agent, ctx

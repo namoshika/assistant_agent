@@ -1,5 +1,6 @@
 import os
-from typing import Sequence, TypedDict
+from collections.abc import Sequence
+from typing import TypedDict
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document

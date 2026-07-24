@@ -1,5 +1,6 @@
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import mlflow
 from langchain_core.documents import Document
@@ -43,7 +44,7 @@ class DateFilter(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _check_single_bound(self) -> "DateFilter":
+    def _check_single_bound(self) -> DateFilter:
         if self.gte is not None and self.lte is not None:
             raise ValueError(
                 "gte と lte は同時に指定できません。どちらか一方のみ指定してください。"

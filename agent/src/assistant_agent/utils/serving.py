@@ -1,8 +1,8 @@
 import json
 import time
 import uuid
-from collections.abc import AsyncIterator
-from typing import Awaitable, Callable, Literal, Optional, Union
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -19,9 +19,9 @@ class ChatCompletionRequest(BaseModel):
 
     model: str
     messages: list[ChatMessage]
-    stream: Optional[bool] = False
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
+    stream: bool | None = False
+    temperature: float | None = None
+    max_tokens: int | None = None
 
 
 class ChatCompletionChoice(BaseModel):
@@ -65,7 +65,7 @@ class ChatCompletionChunkChoice(BaseModel):
 
     index: int
     delta: ChatAgentMessage
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
 
 
 class ChatCompletionChunk(BaseModel):
@@ -166,7 +166,7 @@ class ChatCompletion:
 
     async def _invoke_handler(
         self, request: ChatCompletionRequest
-    ) -> Union[ChatCompletionResponse, StreamingResponse]:
+    ) -> ChatCompletionResponse | StreamingResponse:
         messages = to_chat_agent_messages(request.messages)
         agent_request = ChatAgentRequest(messages=messages)
 
@@ -203,7 +203,7 @@ class ChatCompletion:
         )
 
     @staticmethod
-    def bind(app: FastAPI) -> "ChatCompletion":
+    def bind(app: FastAPI) -> ChatCompletion:
         """FastAPI と紐付けた ChatCompletion インスタンスを作成."""
         obj = ChatCompletion()
         app.post("/api/chat/completions", response_model=None)(obj._invoke_handler)

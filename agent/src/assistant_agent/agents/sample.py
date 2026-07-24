@@ -4,10 +4,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import langchain.agents
-from langchain_core.tools import BaseTool
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 
-from assistant_agent.agents.base import BaseAgent
 from assistant_agent.tools import obsidian, sample
 from assistant_agent.utils.context import CommonContext
 
@@ -25,43 +24,38 @@ SYSTEM_PROMPT = f"""
 
 # Background
 現在日時: {datetime.now(ZoneInfo("Asia/Tokyo")).isoformat()}
-"""  # noqa: E501
+"""
 
 
-class SampleAgent(BaseAgent):
-    """既存 RAG エージェントを Channel/checkpointer 連携可能にした具象実装."""
+def build_lc_agent(
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
+    """LLM・ツール・checkpointer を束ねたグラフを構築する."""
+    from langchain_aws import ChatBedrockConverse
+    from pydantic import SecretStr
 
-    def _build_agent(self) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
-        """LLM・ツール・checkpointer を束ねたグラフを構築する."""
-        from langchain_aws import ChatBedrockConverse
-        from pydantic import SecretStr
+    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    assert aws_access_key_id is not None
+    assert aws_secret_access_key is not None
 
-        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-        aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        assert aws_access_key_id is not None
-        assert aws_secret_access_key is not None
-
-        llm = ChatBedrockConverse(
-            model="qwen.qwen3-235b-a22b-2507-v1:0",
-            aws_access_key_id=SecretStr(aws_access_key_id),
-            aws_secret_access_key=SecretStr(aws_secret_access_key),
-            region_name=aws_default_region,
-        )
-        return langchain.agents.create_agent(
-            model=llm,
-            tools=self._get_tools(),
-            system_prompt=SYSTEM_PROMPT,
-            context_schema=CommonContext,
-            name="agent",
-            checkpointer=self._checkpointer,
-        )
-
-    def _get_tools(self) -> list[BaseTool]:
-        """エージェントに使用させるツールを返す."""
-        return [
+    llm = ChatBedrockConverse(
+        model="qwen.qwen3-235b-a22b-2507-v1:0",
+        aws_access_key_id=SecretStr(aws_access_key_id),
+        aws_secret_access_key=SecretStr(aws_secret_access_key),
+        region_name=aws_default_region,
+    )
+    return langchain.agents.create_agent(
+        model=llm,
+        tools=[
             sample.get_weather,
             sample.sample_search,
             obsidian.obsidian_vault_search,
             obsidian.obsidian_vault_get,
-        ]
+        ],
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=CommonContext,
+        name="agent",
+        checkpointer=checkpointer,
+    )

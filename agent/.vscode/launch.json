@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Solbot",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/assistant_agent/agent_bot.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python Debugger: FastAPI",
             "type": "debugpy",
             "request": "launch",

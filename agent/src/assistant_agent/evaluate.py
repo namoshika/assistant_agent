@@ -1,6 +1,6 @@
 import mlflow
 import mlflow.genai
-from mlflow.genai.scorers import Correctness, Guidelines  # noqa: F401
+from mlflow.genai.scorers import Correctness, Guidelines
 from mlflow.pyfunc.model import ChatAgent, ResponsesAgent
 from mlflow.types.agent import ChatAgentResponse
 from mlflow.types.responses import ResponsesAgentResponse

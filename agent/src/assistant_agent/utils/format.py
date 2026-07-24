@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence, TypeAlias
+from typing import Any
 
 import yaml
 from langchain_core.documents import Document
@@ -48,9 +49,6 @@ title: {{ doc.title }}
 {% endif %}
 {%- endfor -%}
 """
-
-
-TPayload: TypeAlias = str | int | float
 
 
 @dataclass

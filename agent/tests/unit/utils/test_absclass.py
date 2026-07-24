@@ -1,39 +1,46 @@
-from unittest.mock import MagicMock
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 
-from assistant_agent.utils.absclass import Channel
+from assistant_agent.utils.absclass import ActiveEmitter, Receiver
 
 
-class _DummyChannel(Channel):
-    async def start(self) -> None:
+class _DummyActiveEmitter(ActiveEmitter):
+    def start(self) -> None:
         pass
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         pass
 
 
-class TestChannel:
-    def test_publish_01(self):
-        """subscribe/publish の配信挙動を確認.
+class _DummyReceiver(Receiver):
+    def __init__(self):
+        self.received: list[Any] = []
 
-        観点1: 同一コールバックを複数回登録しても publish で1回しか呼ばれない
-        観点2: 異なるコールバックを複数登録すると publish で全員が呼ばれる
+    def on_received(self, msg: Any) -> None:
+        self.received.append(msg)
+
+
+class TestEmitter:
+    def test_emit_01(self):
+        """receiver/emit の配信挙動を確認.
+
+        観点1: 登録した配信先の receive が emit で呼ばれる
+        観点2: 後から receiver を代入し直すと配信先が上書きされ、新しい方のみ呼ばれる
         """
         # 試験準備
-        channel = _DummyChannel()
-        cb1 = MagicMock()
-        cb2 = MagicMock()
+        emitter = _DummyActiveEmitter()
+        dst1 = _DummyReceiver()
+        dst2 = _DummyReceiver()
         msg = HumanMessage(content="hello")
 
         # 試験実施
-        channel.subscribe(cb1)
-        channel.subscribe(cb1)
-        channel.subscribe(cb2)
-        channel.publish(msg)
+        emitter.receiver = dst1
+        emitter.receiver = dst2
+        emitter.emit(msg)
 
         # 結果検証
         # 観点1
-        cb1.assert_called_once_with(msg)
+        assert dst2.received == [msg]
         # 観点2
-        cb2.assert_called_once_with(msg)
+        assert dst1.received == []

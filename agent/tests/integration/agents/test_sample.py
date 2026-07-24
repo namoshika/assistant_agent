@@ -1,33 +1,54 @@
+import asyncio
+from typing import Any
+
 import pytest
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables.config import RunnableConfig
-from langgraph.checkpoint.memory import InMemorySaver
 
-from assistant_agent import agents
+from assistant_agent.agents import sample
+from assistant_agent.utils.absclass import ActiveEmitter, Receiver
+from assistant_agent.utils.workflow import Agent, BroadcastPipe
+
+
+class _DummyActiveEmitter(ActiveEmitter):
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+
+class _DummyReceiver(Receiver):
+    def __init__(self, event: asyncio.Event):
+        self.received: list[Any] = []
+        self._event = event
+
+    def on_received(self, msg: Any) -> None:
+        self.received.append(msg)
+        self._event.set()
 
 
 @pytest.mark.integration
-async def test_invoke_01():
-    """実 LLM で invoke() が意味のある応答を返し、履歴が引き継がれるか確認.
+async def test_receive_01():
+    """実 LLM で新着に応答し、BroadcastPipe 経由で配信されるか確認.
 
-    観点1: 実 LLM で単発の invoke() が意味のある応答を返すこと
-    観点2: InMemorySaver を渡すと複数回の invoke() で会話文脈が引き継がれること
+    観点1: BroadcastPipe で接続した発信元から新着を流すと、
+        実グラフの応答が Agent の購読者へ配信されること
     """
     # 試験準備
-    agent = agents.SampleAgent(checkpointer=InMemorySaver(), thread_id="integration-test")
-    config: RunnableConfig = {"configurable": {"thread_id": "integration-test"}}
+    lc_agent = sample.build_lc_agent()
+    agent = Agent(lc_agent, context={})
+    source = _DummyActiveEmitter()
+    BroadcastPipe(source, [agent])
+    received_event = asyncio.Event()
+    received = _DummyReceiver(received_event)
+    agent.receiver = received
 
     # 試験実施
-    result_1st = await agent.invoke(
-        {"messages": [HumanMessage(content="私の名前はテスト太郎です。覚えてください。")]},
-        config=config,
-    )
-    result_2nd = await agent.invoke(
-        {"messages": [HumanMessage(content="私の名前は何ですか？")]}, config=config
-    )
+    agent.start()
+    source.emit(HumanMessage(content="こんにちは。自己紹介してください。"))
+    await asyncio.wait_for(received_event.wait(), timeout=30)
 
     # 結果検証
     # 観点1
-    assert result_1st.value["messages"][-1].content
-    # 観点2
-    assert "テスト太郎" in result_2nd.value["messages"][-1].content
+    assert len(received.received) == 1
+    assert received.received[0].content

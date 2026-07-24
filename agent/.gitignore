@@ -15,6 +15,7 @@ wheels/
 
 # Dataset
 /docs/*
+/logs/
 /tests/data/vault_db*/
 !/docs/adr/
 !/docs/templates/

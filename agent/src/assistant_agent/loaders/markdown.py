@@ -1,8 +1,9 @@
 import datetime
 import re
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
 from langchain_core.document_loaders.base import BaseLoader

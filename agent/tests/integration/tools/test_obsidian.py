@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain.agents import create_agent
 from langchain_core.documents import Document
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 import assistant_agent.tools.obsidian as tools
-from assistant_agent import agents
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultObsidianRetriever
 from assistant_agent.services.vault_obsidian import SearchFilters
@@ -17,7 +17,7 @@ from assistant_agent.utils.context import CommonContext
 
 
 class _FakeChatModel(GenericFakeChatModel):
-    def bind_tools(self, tools: Any, **_: Any) -> "_FakeChatModel":
+    def bind_tools(self, tools: Any, **_: Any) -> _FakeChatModel:
         return self
 
 
@@ -76,7 +76,7 @@ async def test_obsidian_vault_search_01(
 
 
 @pytest.mark.integration
-async def test_obsidian_vault_search_02() -> None:
+async def test_obsidian_vault_search_02(llm: BaseChatModel) -> None:
     """実際の LLM から obsidian_vault_search をフィルタなしで呼び出せるか確認.
 
     観点1: LLM が search_query のみで tool call を生成し
@@ -88,7 +88,6 @@ async def test_obsidian_vault_search_02() -> None:
     ]
     m_store = MagicMock()
     m_store.search_documents = AsyncMock(return_value=docs)
-    llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )
@@ -106,7 +105,7 @@ async def test_obsidian_vault_search_02() -> None:
 
 
 @pytest.mark.integration
-async def test_obsidian_vault_search_03() -> None:
+async def test_obsidian_vault_search_03(llm: BaseChatModel) -> None:
     """実際の LLM から obsidian_vault_search をフィルタありで呼び出せるか確認.
 
     観点1: LLM が MetadataFilters を含む tool call を生成し
@@ -118,7 +117,6 @@ async def test_obsidian_vault_search_03() -> None:
     ]
     m_store = MagicMock()
     m_store.search_documents = AsyncMock(return_value=docs)
-    llm = agents.get_model()
     agent = create_agent(
         model=llm, tools=[tools.obsidian_vault_search], context_schema=CommonContext
     )

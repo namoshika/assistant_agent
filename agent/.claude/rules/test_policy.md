@@ -66,7 +66,8 @@ def fixture_name():
     """
     ...
 
-@pytest.mark.integration # (結合試験の場合はマークを付与。単体テストの場合は不要)
+
+@pytest.mark.integration  # (結合試験の場合はマークを付与。単体テストの場合は不要)
 def test_some_method_01(mocker: MockerFixture):
     """some_method_01 に対しテストすること
 
@@ -85,9 +86,10 @@ def test_some_method_01(mocker: MockerFixture):
     # 観点2: docstring とコメントが 25 行以上離れている場合は観点内容を引用する
     assert ...
 
+
 def _helper_method(connected: bool = False):
     """ヘルパーの役割を説明
-    
+
     テスト用インスタンス生成ヘルパーが有ればテストメソッド群の後ろに定義。
     """
     ...

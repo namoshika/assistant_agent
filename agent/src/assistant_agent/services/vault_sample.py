@@ -1,5 +1,6 @@
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import mlflow
 from langchain_core.documents import Document

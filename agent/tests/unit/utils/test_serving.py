@@ -126,7 +126,7 @@ def test_from_chat_agent_chunk_01():
 
 
 class TestChatCompletion:
-    def test_invoke_handler_01(self):
+    async def test_invoke_handler_01(self):
         """クライアントからの Chat Completion API リクエストを正しく応答できるか確認.
 
         (o: ストリーム対応あり、x: ストリーム対応なし)
@@ -230,7 +230,7 @@ class TestChatCompletion:
         endpoint = ChatCompletion.bind(app)
 
         @endpoint.regist(model_id="test-model")
-        def _predict(req: ChatAgentRequest) -> ChatAgentResponse:
+        async def _predict(req: ChatAgentRequest) -> ChatAgentResponse:
             return ChatAgentResponse(
                 messages=[ChatAgentMessage(id=str(uuid.uuid4()), role="assistant", content="応答")]
             )
@@ -238,7 +238,7 @@ class TestChatCompletion:
         if allow_stream:
 
             @endpoint.regist_stream(model_id="test-model")
-            def _stream(req: ChatAgentRequest):
+            async def _stream(req: ChatAgentRequest):
                 yield ChatAgentChunk(
                     delta=ChatAgentMessage(
                         id=str(uuid.uuid4()), role="assistant", content="ストリーム"

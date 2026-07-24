@@ -1,3 +1,3 @@
-FROM ghcr.io/open-webui/open-webui:git-59171da-slim
+FROM ghcr.io/open-webui/open-webui:main-slim
 
 EXPOSE 8080/tcp

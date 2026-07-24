@@ -1,5 +1,5 @@
-from collections.abc import AsyncIterator, Iterator
-from typing import Any, Optional
+from collections.abc import AsyncIterator, Generator
+from typing import Any
 from uuid import uuid4
 
 import mlflow
@@ -42,7 +42,9 @@ class LangGraphResponsesAgent(ResponsesAgent):
         ]
         return ResponsesAgentResponse(output=outputs, custom_outputs=request.custom_inputs)
 
-    def predict_stream(self, request: ResponsesAgentRequest) -> Iterator[ResponsesAgentStreamEvent]:
+    def predict_stream(
+        self, request: ResponsesAgentRequest
+    ) -> Generator[ResponsesAgentStreamEvent]:
         """エージェントの推論結果 (Streaming) を返す."""
         cc_msgs = to_chat_completions_input(
             request.input  # pyright: ignore[reportArgumentType]
@@ -144,8 +146,8 @@ class LangGraphChatAgent(ChatAgent):
     def predict(
         self,
         messages: list[ChatAgentMessage],
-        context: Optional[ChatContext] = None,
-        custom_inputs: Optional[dict[str, Any]] = None,
+        context: ChatContext | None = None,
+        custom_inputs: dict[str, Any] | None = None,
     ) -> ChatAgentResponse:
         """空実装."""
         raise NotImplementedError()
@@ -154,8 +156,8 @@ class LangGraphChatAgent(ChatAgent):
     async def predict_async(
         self,
         messages: list[ChatAgentMessage],
-        context: Optional[ChatContext] = None,
-        custom_inputs: Optional[dict[str, Any]] = None,
+        context: ChatContext | None = None,
+        custom_inputs: dict[str, Any] | None = None,
     ) -> ChatAgentResponse:
         """エージェントの推論結果を返す."""
         req = {"messages": self._convert_messages_to_dict(messages)}
@@ -180,9 +182,9 @@ class LangGraphChatAgent(ChatAgent):
     def predict_stream(
         self,
         messages: list[ChatAgentMessage],
-        context: Optional[ChatContext] = None,
-        custom_inputs: Optional[dict[str, Any]] = None,
-    ) -> Iterator[ChatAgentChunk]:
+        context: ChatContext | None = None,
+        custom_inputs: dict[str, Any] | None = None,
+    ) -> Generator[ChatAgentChunk]:
         """空実装."""
         raise NotImplementedError()
 
@@ -190,8 +192,8 @@ class LangGraphChatAgent(ChatAgent):
     async def predict_stream_async(
         self,
         messages: list[ChatAgentMessage],
-        context: Optional[ChatContext] = None,
-        custom_inputs: Optional[dict[str, Any]] = None,
+        context: ChatContext | None = None,
+        custom_inputs: dict[str, Any] | None = None,
     ) -> AsyncIterator[ChatAgentChunk]:
         """エージェントの推論結果 (Streaming) を返す."""
         request = {"messages": self._convert_messages_to_dict(messages)}

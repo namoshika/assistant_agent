@@ -99,7 +99,7 @@ async def test_get_backlinks_01(
     観点1: リンク元のみ返り、リンク先は含まれない
     観点2: 返ってきた Document の id, page_content, metadata が登録値と一致する
     観点3: 存在しない document_id を指定すると空リストが返る
-    """  # noqa: E501
+    """
     # 試験準備
     raw_entity = pg_entity_obs
     doc_a = next(

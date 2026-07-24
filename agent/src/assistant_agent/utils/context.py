@@ -1,4 +1,5 @@
-from typing import Any, Callable, TypedDict, cast
+from collections.abc import Callable
+from typing import Any, ClassVar, TypedDict, cast
 
 
 class CommonContext(TypedDict, total=False):
@@ -6,7 +7,7 @@ class CommonContext(TypedDict, total=False):
 
 
 class ContextRegistry:
-    _factories: dict[str, dict[str, Callable[..., Any]]] = {}
+    _factories: ClassVar[dict[str, dict[str, Callable[..., Any]]]] = {}
 
     @classmethod
     def register(cls, name: str, variant: str = "default") -> Callable:

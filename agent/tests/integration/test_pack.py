@@ -4,13 +4,13 @@ import sys
 
 import pytest
 from langchain_core.documents import Document
-from mlflow.pyfunc.model import ChatAgent
 from mlflow.types.agent import ChatAgentMessage, ChatAgentResponse
 from pytest_mock import MockerFixture
 
 from assistant_agent.entities.base import VaultUtils
 from assistant_agent.services import VaultObsidianRetriever
 from assistant_agent.store import PostgresStoreConnector
+from assistant_agent.utils.mlflow import LangGraphChatAgent
 
 
 @pytest.mark.integration
@@ -41,10 +41,10 @@ async def test_agent_01(
     agent_wrapped = mock_set_model.call_args.args[0]
 
     # 観点1
-    assert isinstance(agent_wrapped, ChatAgent)
+    assert isinstance(agent_wrapped, LangGraphChatAgent)
 
     # 観点2
-    result = agent_wrapped.predict(
+    result = await agent_wrapped.predict_async(
         messages=[ChatAgentMessage(role="user", content="東京の天気は?")]
     )
     assert isinstance(result, ChatAgentResponse)

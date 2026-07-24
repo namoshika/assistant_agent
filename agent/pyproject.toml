@@ -26,6 +26,9 @@ vsc = [
     "ipywidgets>=8.1.8",
 ]
 
+[project.scripts]
+solbot = "assistant_agent.agent_bot:main"
+
 [build-system]
 requires = ["uv_build>=0.10.9,<0.11.0"]
 build-backend = "uv_build"
@@ -39,6 +42,9 @@ env_files = [".env"]
 
 [tool.fastapi]
 entrypoint = "assistant_agent.agent_server:app"
+
+[tool.pyright]
+include = ["src"]
 
 [tool.ruff]
 extend-exclude = ["scripts/*.ipynb", "docs"]

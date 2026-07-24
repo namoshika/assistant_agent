@@ -1,5 +1,4 @@
 import abc
-from collections.abc import Callable
 
 from langchain_core.messages import BaseMessage
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -14,29 +13,37 @@ class StoreConnector(abc.ABC):
         raise NotImplementedError
 
 
-class Channel(abc.ABC):
-    """外部メッセージ源を購読者へ配信する抽象クラス."""
-
-    def __init__(self):
-        """購読者集合を初期化する."""
-        # set: 同じコールバックの重複登録を防ぐ
-        self._subscribers: set[Callable[[BaseMessage], None]] = set()
-
-    def subscribe(self, callback: Callable[[BaseMessage], None]) -> None:
-        """購読者を登録する（複数の購読者から呼ばれる想定）."""
-        self._subscribers.add(callback)
-
-    def publish(self, msg: BaseMessage) -> None:
-        """登録済みの購読者全員へ同期的に配信する（派生クラスはこれを使って送信する）."""
-        for cb in self._subscribers:
-            cb(msg)  # 同期呼び出し。重い処理はしない
+class Receiver(abc.ABC):
+    """メッセージを受信できる抽象クラス."""
 
     @abc.abstractmethod
-    async def start(self) -> None:
-        """外部接続を開始する."""
+    def on_received(self, msg: BaseMessage) -> None:
+        """外部からメッセージを1件受け取る."""
+        raise NotImplementedError
+
+
+class Emitter(abc.ABC):
+    """メッセージを発信できる抽象クラス（配信先の Receiver を1つ登録し、配信できる）."""
+
+    def __init__(self):
+        """配信先を未登録状態で初期化する."""
+        self.receiver: Receiver | None = None
+
+    def emit(self, msg: BaseMessage) -> None:
+        """登録済みの配信先へ同期的に配信する（派生クラスはこれを使って送信する）."""
+        if self.receiver is not None:
+            self.receiver.on_received(msg)
+
+
+class ActiveEmitter(Emitter):
+    """能動的に動作できる Emitter（起動・停止を持つ）."""
+
+    @abc.abstractmethod
+    def start(self) -> None:
+        """動作を開始する."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def stop(self) -> None:
-        """外部接続を終了する."""
+    def stop(self) -> None:
+        """動作を終了する."""
         raise NotImplementedError

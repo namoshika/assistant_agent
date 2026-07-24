@@ -3,8 +3,8 @@ services:
     build: { context: agent }
     volumes:
       - .:/workspaces/assistant_agent:cached
-    # ports:
-    #   - 8000:8000
+    ports:
+      - 8000:8000
     command: sleep infinity
 
   chatbot:

@@ -4,6 +4,7 @@ import mlflow
 from fastapi import FastAPI
 
 from assistant_agent import agents
+from assistant_agent.utils import mlflow as mlflow_utils
 from assistant_agent.utils.serving import ChatCompletion
 
 # トレース用設定
@@ -19,7 +20,8 @@ mlflow.langchain.autolog(run_tracer_inline=True)  # pyright: ignore[reportPrivat
 # エージェント初期化
 app = FastAPI(title="Agent Assistant")
 endpoint = ChatCompletion.bind(app)
-agent_wrapped = agents.build_agent()
+lc_agent, ctx = agents.build_agent()
+agent_wrapped = mlflow_utils.LangGraphChatAgent(lc_agent, ctx)
 
 
 @endpoint.regist(model_id="assistant_agent_v1")
