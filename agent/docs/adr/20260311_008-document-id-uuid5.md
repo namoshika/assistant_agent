@@ -17,6 +17,7 @@
 ```python
 import uuid
 
+
 def path_to_document_id(path: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, path))
 ```
