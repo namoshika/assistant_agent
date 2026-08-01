@@ -16,8 +16,8 @@ def test_build_agent_01(mocker: MockerFixture):
     mocker.patch.dict(
         os.environ,
         {
-            "ENV_GEMINI_API_KEY": "dummy-key",
-            "ENV_PG_CONNECTION_STRING": "postgresql://localhost/test",
+            "AA_GEMINI_API_KEY": "dummy-key",
+            "AA_PG_CONNECTION_STRING": "postgresql://localhost/test",
         },
     )
 

@@ -15,7 +15,7 @@ Gemini API (`ChatGoogleGenerativeAI`) の応答に十数分以上の遅延が発
 
   | 環境変数 | 扱い |
   |---|---|
-  | `ENV_GEMINI_API_KEY` | 必須 (埋め込み表現取得で引き続き使用) |
+  | `AA_GEMINI_API_KEY` | 必須 (埋め込み表現取得で引き続き使用) |
   | `ENV_GEMINI_MODEL_ID` | 不要 (未使用に変化) |
   | `AWS_ACCESS_KEY_ID` | 必須 (新規追加) |
   | `AWS_SECRET_ACCESS_KEY` | 必須 (新規追加) |

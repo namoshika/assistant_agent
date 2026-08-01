@@ -100,15 +100,15 @@ def build(store_conn: StoreConnector | None = None, **_: Any) -> VaultSampleRetr
     """Sample レトリーバーを生成する."""
     if store_conn is None:
         return None
-    env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
-    assert env_gemini_api_key is not None
+    api_key = os.getenv("AA_GEMINI_API_KEY")
+    assert api_key is not None
     retriever = VaultSampleRetriever(
         chunk_entity=entities.SampleChunkEntity,
         store_conn=store_conn,
         splitter=RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80),
         embed_model=GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
-            api_key=SecretStr(env_gemini_api_key),
+            api_key=SecretStr(api_key),
         ),
         vault_entity=entities.SampleEntity,
     )

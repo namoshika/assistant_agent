@@ -15,9 +15,9 @@ class TestPostgresStoreConnector:
         観点2: 同一インスタンスが返ること（キャッシュ）
         観点3: SELECT 1 で PostgreSQL と通信できること
         """
-        conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
+        conn_str = os.environ.get("AA_PG_CONNECTION_STRING")
         if not conn_str:
-            pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
+            pytest.fail("AA_PG_CONNECTION_STRING が未設定のため失敗")
         ctx = PostgresStoreConnector(conn_str)
 
         # 試験実施

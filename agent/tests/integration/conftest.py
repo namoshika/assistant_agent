@@ -28,9 +28,9 @@ async def pg_conn() -> AsyncIterator[PostgresStoreConnector]:
     session scope で使い回すとテストをまたいだ際に
     InterfaceError（イベントループ不整合）が発生する。そのため function scope とする。
     """
-    conn_str = os.environ.get("ENV_PG_CONNECTION_STRING")
+    conn_str = os.environ.get("AA_PG_CONNECTION_STRING")
     if not conn_str:
-        pytest.fail("ENV_PG_CONNECTION_STRING が未設定のため失敗")
+        pytest.fail("AA_PG_CONNECTION_STRING が未設定のため失敗")
     f = PostgresStoreConnector(conn_str)
     yield f
     await f.get_engine().dispose()
@@ -121,18 +121,18 @@ def pg_retriever_obs(
 ) -> VaultObsidianRetriever:
     """実際の PostgreSQL に接続した VaultObsidianRetriever.
 
-    ENV_PG_CONNECTION_STRING と ENV_GEMINI_API_KEY 環境変数が必要。
+    AA_PG_CONNECTION_STRING と AA_GEMINI_API_KEY 環境変数が必要。
     """
-    env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
-    if not env_gemini_api_key:
-        pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
+    api_key = os.environ.get("AA_GEMINI_API_KEY")
+    if not api_key:
+        pytest.fail("AA_GEMINI_API_KEY が未設定のため失敗")
 
     return VaultObsidianRetriever(
         store_conn=pg_conn,
         chunk_entity=pg_entity_chk,
         embed_model=GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
-            api_key=SecretStr(env_gemini_api_key),
+            api_key=SecretStr(api_key),
         ),
         splitter=RecursiveCharacterTextSplitter(),
         vault_entity=pg_entity_obs,
@@ -178,9 +178,9 @@ def pg_retriever_smpl(
     pg_conn: PostgresStoreConnector, pg_entity_smpl: type, pg_entity_chk: type
 ) -> VaultSampleRetriever:
     """実際の PostgreSQL に接続した VaultSampleRetriever."""
-    env_gemini_api_key = os.environ.get("ENV_GEMINI_API_KEY")
-    if not env_gemini_api_key:
-        pytest.fail("ENV_GEMINI_API_KEY が未設定のため失敗")
+    api_key = os.environ.get("AA_GEMINI_API_KEY")
+    if not api_key:
+        pytest.fail("AA_GEMINI_API_KEY が未設定のため失敗")
 
     return VaultSampleRetriever(
         chunk_entity=pg_entity_chk,
@@ -188,7 +188,7 @@ def pg_retriever_smpl(
         splitter=RecursiveCharacterTextSplitter(),
         embed_model=GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
-            api_key=SecretStr(env_gemini_api_key),
+            api_key=SecretStr(api_key),
         ),
         vault_entity=pg_entity_smpl,
     )

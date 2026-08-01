@@ -223,8 +223,8 @@ def build(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsidianRe
     """Obsidian レトリーバーを生成する (chunk_size=1024)."""
     if store_conn is None:
         return None
-    env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
-    assert env_gemini_api_key is not None
+    api_key = os.getenv("AA_GEMINI_API_KEY")
+    assert api_key is not None
 
     return VaultObsidianRetriever(
         chunk_entity=entities.ObsidianChunkEntity,
@@ -232,7 +232,7 @@ def build(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsidianRe
         splitter=RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=200),
         embed_model=GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
-            api_key=SecretStr(env_gemini_api_key),
+            api_key=SecretStr(api_key),
         ),
         vault_entity=entities.ObsidianEntity,
     )
@@ -243,8 +243,8 @@ def build_c512(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsid
     """Obsidian レトリーバーを生成する (chunk_size=512)."""
     if store_conn is None:
         return None
-    env_gemini_api_key = os.getenv("ENV_GEMINI_API_KEY")
-    assert env_gemini_api_key is not None
+    api_key = os.getenv("AA_GEMINI_API_KEY")
+    assert api_key is not None
 
     return VaultObsidianRetriever(
         chunk_entity=entities.ObsidianChunkEntity,
@@ -252,7 +252,7 @@ def build_c512(store_conn: StoreConnector | None = None, **_: Any) -> VaultObsid
         splitter=RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=80),
         embed_model=GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
-            api_key=SecretStr(env_gemini_api_key),
+            api_key=SecretStr(api_key),
         ),
         vault_entity=entities.ObsidianEntity,
     )
