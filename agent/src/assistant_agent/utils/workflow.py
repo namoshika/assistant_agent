@@ -4,12 +4,11 @@ import uuid
 from typing import Any
 
 import mlflow
-from langchain_core.messages import BaseMessage
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from mlflow.entities import SpanType
 
-from assistant_agent.utils.absclass import ActiveEmitter, Emitter, Receiver
+from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Emitter, Receiver
 from assistant_agent.utils.context import CommonContext
 
 
@@ -27,13 +26,13 @@ class Agent(ActiveEmitter, Receiver):
         self._agent = lc_agent
         self._thread_id = thread_id or str(uuid.uuid7())
         self._context = context
-        self._queue: asyncio.Queue[BaseMessage] = asyncio.Queue()
+        self._queue: asyncio.Queue[AgentInvocation] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._logger = logging.getLogger(__name__)
 
-    def on_received(self, msg: BaseMessage) -> None:
-        """BroadcastPipe から渡されたメッセージをキューへ積む."""
-        self._queue.put_nowait(msg)
+    def on_received(self, invocation: AgentInvocation) -> None:
+        """BroadcastPipe から渡された AgentInvocation をキューへ積む."""
+        self._queue.put_nowait(invocation)
 
     def start(self) -> None:
         """新着の処理を開始する（起動済みなら何もしない）."""
@@ -52,11 +51,11 @@ class Agent(ActiveEmitter, Receiver):
         while True:
             with mlflow.start_span(span_type=SpanType.CHAT_MODEL) as span:
                 try:
-                    msg_in = await self._queue.get()
-                    span.set_inputs(msg_in.content)
+                    invocation = await self._queue.get()
+                    span.set_inputs(invocation["input"]["messages"][-1].content)
                     self._logger.info(self._format_log_message("Consume a message"))
                     result = await self._agent.ainvoke(
-                        {"messages": [msg_in]}, config=config, context=self._context, version="v2"
+                        **invocation, config=config, context=self._context, version="v2"
                     )
                     msg_out = result.value["messages"][-1]
                     span.set_outputs(msg_out)
@@ -66,7 +65,7 @@ class Agent(ActiveEmitter, Receiver):
                             "mlflow.trace.session": self._thread_id,
                         }
                     )
-                    self.emit(msg_out)
+                    self.emit(AgentInvocation(input={"messages": [msg_out]}))
                 except Exception:
                     self._logger.exception(self._format_log_message("Exception during execution"))
 
@@ -82,10 +81,10 @@ class BroadcastPipe(Receiver):
         src.receiver = self
         self._dst = dst
 
-    def on_received(self, msg: BaseMessage) -> None:
+    def on_received(self, invocation: AgentInvocation) -> None:
         """発信元から受け取ったメッセージを dst の全要素へ配信する."""
         for d in self._dst:
-            d.on_received(msg)
+            d.on_received(invocation)
 
 
 class MergePipe(Receiver):
@@ -97,9 +96,9 @@ class MergePipe(Receiver):
         for s in src:
             s.receiver = self
 
-    def on_received(self, msg: BaseMessage) -> None:
+    def on_received(self, invocation: AgentInvocation) -> None:
         """いずれかの発信元から受け取ったメッセージを dst へ中継する."""
-        self._dst.on_received(msg)
+        self._dst.on_received(invocation)
 
 
 class LogWriter(Receiver):
@@ -110,8 +109,7 @@ class LogWriter(Receiver):
         super().__init__()
         self._logger = logging.getLogger(__name__)
 
-    def on_received(self, msg: BaseMessage) -> None:
+    def on_received(self, invocation: AgentInvocation) -> None:
         """メッセージ本文を INFO レベルで記録する."""
-        self._logger.debug(
-            f"Called agent (trace_id: {mlflow.get_active_trace_id()}):\n{msg.content}"
-        )
+        content = invocation["input"]["messages"][-1].content
+        self._logger.debug(f"Called agent (trace_id: {mlflow.get_active_trace_id()}):\n{content}")

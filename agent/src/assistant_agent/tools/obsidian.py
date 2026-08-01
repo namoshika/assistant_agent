@@ -20,7 +20,13 @@ class ObsidianContext(TypedDict):
 # --------------------------------
 class SearchToolInput(BaseModel):
     search_query: str = Field(
-        description="Search word (At least 1 character required).", default=" ", min_length=1
+        description=(
+            "Search word (At least 1 character required). "
+            "This field cannot be empty even when full_fetch=True or when filtering only by "
+            "metadata filters; use the default single-space value in that case."
+        ),
+        default=" ",
+        min_length=1,
     )
     filters: SearchFilters | None = Field(
         default=None,

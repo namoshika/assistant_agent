@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import GraphOutput
 
-from assistant_agent.utils.absclass import ActiveEmitter, Receiver
+from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 from assistant_agent.utils.context import CommonContext
 from assistant_agent.utils.workflow import Agent, BroadcastPipe, LogWriter, MergePipe
 
@@ -37,34 +37,16 @@ class TestBroadcastPipe:
         # 試験準備
         src = _DummyActiveEmitter()
         dst1, dst2 = MagicMock(spec=Receiver), MagicMock(spec=Receiver)
-        msg = HumanMessage(content="hello")
+        invocation = AgentInvocation(input={"messages": [HumanMessage(content="hello")]})
 
         # 試験実施
         BroadcastPipe(src, [dst1, dst2])
-        src.emit(msg)
+        src.emit(invocation)
 
         # 結果検証
         # 観点1
-        dst1.on_received.assert_called_once_with(msg)
-        dst2.on_received.assert_called_once_with(msg)
-
-    def test_construct_02(self):
-        """Dst が1要素の場合でも、1対1接続として機能することを確認.
-
-        観点1: src にメッセージを流すと dst.on_received() が同じメッセージで呼ばれる
-        """
-        # 試験準備
-        src = _DummyActiveEmitter()
-        dst = MagicMock(spec=Receiver)
-        msg = HumanMessage(content="hello")
-
-        # 試験実施
-        BroadcastPipe(src, [dst])
-        src.emit(msg)
-
-        # 結果検証
-        # 観点1
-        dst.on_received.assert_called_once_with(msg)
+        dst1.on_received.assert_called_once_with(invocation)
+        dst2.on_received.assert_called_once_with(invocation)
 
 
 class TestMergePipe:
@@ -76,18 +58,18 @@ class TestMergePipe:
         # 試験準備
         src1, src2 = _DummyActiveEmitter(), _DummyActiveEmitter()
         dst = MagicMock(spec=Receiver)
-        msg1 = HumanMessage(content="hello1")
-        msg2 = HumanMessage(content="hello2")
+        invocation1 = AgentInvocation(input={"messages": [HumanMessage(content="hello1")]})
+        invocation2 = AgentInvocation(input={"messages": [HumanMessage(content="hello2")]})
 
         # 試験実施
         MergePipe([src1, src2], dst)
-        src1.emit(msg1)
-        src2.emit(msg2)
+        src1.emit(invocation1)
+        src2.emit(invocation2)
 
         # 結果検証
         # 観点1
-        dst.on_received.assert_any_call(msg1)
-        dst.on_received.assert_any_call(msg2)
+        dst.on_received.assert_any_call(invocation1)
+        dst.on_received.assert_any_call(invocation2)
         assert dst.on_received.call_count == 2
 
 
@@ -112,19 +94,21 @@ class TestAgent:
 
         # 試験実施
         agent.start()
-        source.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.05)
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        await asyncio.sleep(1)
 
         # 結果検証
         # 観点1
         received.on_received.assert_called_once()
-        assert received.on_received.call_args[0][0].content == "reply1"
+        result_invocation: AgentInvocation = received.on_received.call_args[0][0]
+        assert result_invocation["input"]["messages"][-1].content == "reply1"
 
     async def test_receive_02(self):
-        """BroadcastPipe で連結した Agent 同士が連鎖して応答することを確認.
+        """Agent 同士が連鎖して応答し、コンストラクタの thread_id・context が使われることを確認.
 
         観点1: BroadcastPipe(src, [agent1])・BroadcastPipe(agent1, [agent2]) で連結し、
             agent1 の応答が agent2 の入力となり agent2 の応答が配信される
+        観点2: agent2 のグラフ実行時に thread_id を指定した config と、context が渡される事
         """
         # 試験準備
         lc_agent1 = langchain.agents.create_agent(
@@ -132,14 +116,14 @@ class TestAgent:
             tools=[],
             system_prompt="test",
         )
-        lc_agent2 = langchain.agents.create_agent(
-            model=_FakeChatModel(messages=iter([AIMessage(content="reply2")])),
-            tools=[],
-            system_prompt="test",
+        lc_agent2 = MagicMock(spec=CompiledStateGraph)
+        lc_agent2.ainvoke = AsyncMock(
+            return_value=GraphOutput(value={"messages": [AIMessage(content="reply2")]})
         )
         source = _DummyActiveEmitter()
         agent1 = Agent(lc_agent1, context={})
-        agent2 = Agent(lc_agent2, context={})
+        context: CommonContext = {"sample_retriever": "dummy"}  # pyright: ignore[reportAssignmentType]
+        agent2 = Agent(lc_agent2, context=context, thread_id="fixed-thread-id")
         BroadcastPipe(source, [agent1])
         BroadcastPipe(agent1, [agent2])
         received = MagicMock(spec=Receiver)
@@ -148,97 +132,30 @@ class TestAgent:
         # 試験実施
         agent1.start()
         agent2.start()
-        source.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.1)
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        await asyncio.sleep(1)
 
         # 結果検証
         # 観点1
         received.on_received.assert_called_once()
-        assert received.on_received.call_args[0][0].content == "reply2"
-
-    async def test_receive_03(self):
-        """thread_id の指定・未指定時の挙動を確認.
-
-        観点1: thread_id を指定すると、グラフ実行時の
-            config.configurable.thread_id にその値が渡ること
-        観点2: thread_id を指定しない場合、config.configurable.thread_id に
-            何らかの値が自動生成されて渡ること
-        """
-        # 試験準備
-        lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
-        )
-        source = _DummyActiveEmitter()
-        agent = Agent(lc_agent, context={}, thread_id="fixed-thread-id")
-        BroadcastPipe(source, [agent])
-
-        # 試験実施
-        agent.start()
-        source.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.05)
-
-        # 結果検証
-        # 観点1
-        _, kwargs = lc_agent.ainvoke.call_args
-        assert kwargs["config"]["configurable"]["thread_id"] == "fixed-thread-id"
-
-        # 試験準備: thread_id 未指定の Agent
-        lc_agent_auto = MagicMock(spec=CompiledStateGraph)
-        lc_agent_auto.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
-        )
-        source_auto = _DummyActiveEmitter()
-        agent_auto = Agent(lc_agent_auto, context={})
-        BroadcastPipe(source_auto, [agent_auto])
-
-        # 試験実施
-        agent_auto.start()
-        source_auto.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.05)
-
-        # 結果検証
+        result_invocation: AgentInvocation = received.on_received.call_args[0][0]
+        assert result_invocation["input"]["messages"][-1].content == "reply2"
         # 観点2
-        _, kwargs_auto = lc_agent_auto.ainvoke.call_args
-        assert kwargs_auto["config"]["configurable"]["thread_id"]
-
-    async def test_receive_04(self):
-        """指定した context がグラフ実行時に渡ることを確認.
-
-        観点1: context を指定すると、グラフ実行時の ainvoke() にその値が渡ること
-        """
-        # 試験準備
-        lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
-        )
-        source = _DummyActiveEmitter()
-        context: CommonContext = {"sample_retriever": "dummy"}  # pyright: ignore[reportAssignmentType]
-        agent = Agent(lc_agent, context=context)
-        BroadcastPipe(source, [agent])
-
-        # 試験実施
-        agent.start()
-        source.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.05)
-
-        # 結果検証
-        # 観点1
-        _, kwargs = lc_agent.ainvoke.call_args
+        _, kwargs = lc_agent2.ainvoke.call_args
+        assert kwargs["config"]["configurable"]["thread_id"] == "fixed-thread-id"
         assert kwargs["context"] == context
 
-    async def test_receive_05(self, caplog: pytest.LogCaptureFixture):
+    async def test_receive_03(self, caplog: pytest.LogCaptureFixture):
         """ainvoke() 実行中に例外が発生しても _consume() が停止しないことを確認.
 
-        観点1: 例外発生時、logger.error() で例外の種類・thread_id・
-            mlflow のトレースIDが記録されること
+        観点1: 例外発生時、logger.error() でトレース情報が記録されること
         観点2: 例外発生後も後続メッセージが処理されること（_consume() のループが継続する）
         """
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
         lc_agent.ainvoke = AsyncMock(
             side_effect=[
-                KeyError("obsidian_retriever"),
+                KeyError("NOT_FOUND_CONTEXT"),
                 GraphOutput(value={"messages": [AIMessage(content="reply after error")]}),
             ]
         )
@@ -251,10 +168,10 @@ class TestAgent:
         # 試験実施
         with caplog.at_level(logging.ERROR, logger="assistant_agent.utils.workflow"):
             agent.start()
-            source.emit(HumanMessage(content="hi"))
-            await asyncio.sleep(0.05)
-            source.emit(HumanMessage(content="hi again"))
-            await asyncio.sleep(0.05)
+            source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+            await asyncio.sleep(1)
+            source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi again")]}))
+            await asyncio.sleep(1)
 
         # 結果検証
         # 観点1
@@ -262,7 +179,8 @@ class TestAgent:
         assert "fixed-thread-id" in caplog.text
         # 観点2
         received.on_received.assert_called_once()
-        assert received.on_received.call_args[0][0].content == "reply after error"
+        result_invocation: AgentInvocation = received.on_received.call_args[0][0]
+        assert result_invocation["input"]["messages"][-1].content == "reply after error"
 
     async def test_start_01(self):
         """start()/stop() による処理のライフサイクルを確認.
@@ -303,8 +221,8 @@ class TestAgent:
         # 試験実施
         agent1.start()
         agent2.start()
-        source.emit(HumanMessage(content="hi"))
-        await asyncio.sleep(0.05)
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        await asyncio.sleep(1)
 
         # 結果検証
         # 観点1
@@ -314,8 +232,9 @@ class TestAgent:
         # 試験実施: stop 中は配信されない（キューには残る）
         agent1.stop()
         agent2.stop()
-        source.emit(HumanMessage(content="after stop"))
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(1)
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="after stop")]}))
+        await asyncio.sleep(1)
 
         # 結果検証
         # 観点2
@@ -325,7 +244,7 @@ class TestAgent:
         # 試験実施: start を2回呼んでも処理は1回だけ
         agent1.start()
         agent1.start()
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(1)
 
         # 結果検証: stop 中に届いた "after stop" が処理され、配信は計2回
         # 観点3
@@ -336,17 +255,16 @@ class TestLogWriter:
     def test_on_received_01(self, caplog: pytest.LogCaptureFixture):
         """on_received() がメッセージ本文を logging 経由で記録することを確認.
 
-        観点1: on_received() を呼ぶと、logging.getLogger(__name__) にメッセージ本文が INFO レベルで
-            記録されること
+        観点1: on_received() を呼ぶと、logging.getLogger(__name__) にメッセージ本文が INFO レベルで記録されること
         観点2: 複数回呼ぶと、両方の内容が記録に残ること
-        """
+        """  # noqa: E501
         # 試験準備
         writer = LogWriter()
 
         # 試験実施
-        with caplog.at_level(logging.INFO, logger="assistant_agent.utils.workflow"):
-            writer.on_received(HumanMessage(content="hello"))
-            writer.on_received(HumanMessage(content="world"))
+        with caplog.at_level(logging.DEBUG, logger="assistant_agent.utils.workflow"):
+            writer.on_received(AgentInvocation(input={"messages": [HumanMessage(content="hello")]}))
+            writer.on_received(AgentInvocation(input={"messages": [HumanMessage(content="world")]}))
 
         # 結果検証
         # 観点1

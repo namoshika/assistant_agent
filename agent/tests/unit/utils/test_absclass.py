@@ -2,7 +2,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage
 
-from assistant_agent.utils.absclass import ActiveEmitter, Receiver
+from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 
 
 class _DummyActiveEmitter(ActiveEmitter):
@@ -17,8 +17,8 @@ class _DummyReceiver(Receiver):
     def __init__(self):
         self.received: list[Any] = []
 
-    def on_received(self, msg: Any) -> None:
-        self.received.append(msg)
+    def on_received(self, invocation: AgentInvocation) -> None:
+        self.received.append(invocation)
 
 
 class TestEmitter:
@@ -32,15 +32,15 @@ class TestEmitter:
         emitter = _DummyActiveEmitter()
         dst1 = _DummyReceiver()
         dst2 = _DummyReceiver()
-        msg = HumanMessage(content="hello")
+        invocation: AgentInvocation = {"input": {"messages": [HumanMessage(content="hello")]}}
 
         # 試験実施
         emitter.receiver = dst1
         emitter.receiver = dst2
-        emitter.emit(msg)
+        emitter.emit(invocation)
 
         # 結果検証
         # 観点1
-        assert dst2.received == [msg]
+        assert dst2.received == [invocation]
         # 観点2
         assert dst1.received == []

@@ -11,11 +11,12 @@ import mlflow
 from langgraph.checkpoint.memory import InMemorySaver
 
 from assistant_agent.agents import build_agent
-from assistant_agent.services.schedule import ScheduleService
+from assistant_agent.services.discord import DiscordChannel, DiscordService
+from assistant_agent.services.dispatcher import DispatcherChannel, DispatcherService
 from assistant_agent.utils import workflow
 
-LOG_PATH = os.getenv("ASSISTANT_AGENT_LOG_PATH", "logs/solbot_history.log")
-LOG_LEVEL = os.getenv("ASSISTANT_AGENT_LOG_LEVEL", "INFO")
+LOG_PATH = os.getenv("AA_LOG_PATH", "logs/solbot_history.log")
+LOG_LEVEL = os.getenv("AA_LOG_LEVEL", "INFO")
 MLFLOW_EXPERIMENT_ID = os.getenv("MLFLOW_EXPERIMENT_ID")
 
 # トレース用設定（agent_server.py と同様。logger.exception() から mlflow のトレースIDを
@@ -32,7 +33,8 @@ mlflow.langchain.autolog(run_tracer_inline=True)  # pyright: ignore[reportPrivat
 class AgentBotContext(TypedDict):
     """agent_bot.py が使うコンテキスト（CommonContext から取り出す項目の型）."""
 
-    schedule_service: ScheduleService
+    discord_service: DiscordService
+    dispatcher_service: DispatcherService
 
 
 @asynccontextmanager
@@ -41,20 +43,23 @@ async def _init_flow() -> AsyncGenerator[None]:
     bot_ctx = cast(AgentBotContext, ctx)
 
     # フローを初期化
-    schedule_service = bot_ctx["schedule_service"]
+    dispatcher_channel = DispatcherChannel(service=bot_ctx["dispatcher_service"])
+    discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
     agent = workflow.Agent(lc_agent, context=ctx)
-    workflow.MergePipe([schedule_service.cron], agent)
     log_writer = workflow.LogWriter()
+    workflow.MergePipe([dispatcher_channel, discord_channel], agent)
     workflow.BroadcastPipe(agent, [log_writer])
 
     # フローを起動・終了
     try:
         agent.start()
-        schedule_service.cron.start()
+        dispatcher_channel.start()
+        discord_channel.start()
         yield
     finally:
         agent.stop()
-        schedule_service.cron.stop()
+        dispatcher_channel.stop()
+        discord_channel.stop()
 
 
 async def _amain() -> None:

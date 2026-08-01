@@ -1,6 +1,6 @@
 import abc
+from typing import Any, Required, TypedDict
 
-from langchain_core.messages import BaseMessage
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
@@ -17,8 +17,8 @@ class Receiver(abc.ABC):
     """メッセージを受信できる抽象クラス."""
 
     @abc.abstractmethod
-    def on_received(self, msg: BaseMessage) -> None:
-        """外部からメッセージを1件受け取る."""
+    def on_received(self, invocation: AgentInvocation) -> None:
+        """外部から AgentInvocation を1件受け取る."""
         raise NotImplementedError
 
 
@@ -29,10 +29,10 @@ class Emitter(abc.ABC):
         """配信先を未登録状態で初期化する."""
         self.receiver: Receiver | None = None
 
-    def emit(self, msg: BaseMessage) -> None:
+    def emit(self, invocation: AgentInvocation) -> None:
         """登録済みの配信先へ同期的に配信する（派生クラスはこれを使って送信する）."""
         if self.receiver is not None:
-            self.receiver.on_received(msg)
+            self.receiver.on_received(invocation)
 
 
 class ActiveEmitter(Emitter):
@@ -47,3 +47,13 @@ class ActiveEmitter(Emitter):
     def stop(self) -> None:
         """動作を終了する."""
         raise NotImplementedError
+
+
+class AgentInvocation(TypedDict, total=False):
+    """Agent.ainvoke() へ `**invocation` でそのまま展開して渡せるキーワード引数の集合.
+
+    input は必須。それ以外は stream_mode 等 ainvoke() が受け付ける任意のキーワード引数を、
+    既存の構築箇所を変更せず追加できる拡張の余地として残す。
+    """
+
+    input: Required[dict[str, Any]]

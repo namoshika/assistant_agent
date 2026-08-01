@@ -5,7 +5,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from assistant_agent.agents import sample
-from assistant_agent.utils.absclass import ActiveEmitter, Receiver
+from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 from assistant_agent.utils.workflow import Agent, BroadcastPipe
 
 
@@ -22,8 +22,8 @@ class _DummyReceiver(Receiver):
         self.received: list[Any] = []
         self._event = event
 
-    def on_received(self, msg: Any) -> None:
-        self.received.append(msg)
+    def on_received(self, invocation: AgentInvocation) -> None:
+        self.received.append(invocation)
         self._event.set()
 
 
@@ -45,10 +45,13 @@ async def test_receive_01():
 
     # 試験実施
     agent.start()
-    source.emit(HumanMessage(content="こんにちは。自己紹介してください。"))
+    invocation = AgentInvocation(
+        input={"messages": [HumanMessage(content="こんにちは。自己紹介してください。")]},
+    )
+    source.emit(invocation)
     await asyncio.wait_for(received_event.wait(), timeout=30)
 
     # 結果検証
     # 観点1
     assert len(received.received) == 1
-    assert received.received[0].content
+    assert received.received[0]["input"]["messages"][-1].content
