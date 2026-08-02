@@ -39,7 +39,7 @@ SYSTEM_PROMPT = """
 ## Report
 (ユーザーへの報告)
 ```
-"""  # noqa: E501
+"""
 
 
 def build_lc_agent(
@@ -47,6 +47,14 @@ def build_lc_agent(
 ) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
     """LLM・ツール・checkpointer を束ねたグラフを構築する."""
     from langchain_aws import ChatBedrockConverse
+    from langchain_tavily import (
+        TavilyCrawl,
+        TavilyExtract,
+        TavilyGetResearch,
+        TavilyMap,
+        TavilyResearch,
+        TavilySearch,
+    )
     from pydantic import SecretStr
 
     aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
@@ -61,6 +69,14 @@ def build_lc_agent(
         aws_secret_access_key=SecretStr(aws_secret_access_key),
         region_name=aws_default_region,
     )
+
+    tavily_search = TavilySearch(topic="general", country="japan")
+    tavily_extract = TavilyExtract()
+    tavily_crawl = TavilyCrawl()
+    tavily_map = TavilyMap()
+    tavily_research = TavilyResearch()
+    tavily_get_research = TavilyGetResearch()
+
     return langchain.agents.create_agent(
         model=llm,
         tools=[
@@ -70,13 +86,19 @@ def build_lc_agent(
             dispatcher.dispatcher_invoke_delay,
             dispatcher.dispatcher_cancel,
             dispatcher.dispatcher_list,
-            sample.sample_search,
+            # sample.sample_search,
             obsidian.obsidian_vault_search,
             obsidian.obsidian_vault_get,
             discord.discord_get_messages,
             discord.discord_send_message,
             discord.discord_mention_user,
             discord.discord_reply_message,
+            tavily_search,
+            tavily_extract,
+            tavily_crawl,
+            tavily_map,
+            tavily_research,
+            tavily_get_research,
         ],
         system_prompt=SYSTEM_PROMPT,
         context_schema=CommonContext,

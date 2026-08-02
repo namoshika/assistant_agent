@@ -15,6 +15,7 @@ dependencies = [
     "langchain-community>=0.4.2",
     "langchain-google-genai>=4.2.1",
     "langchain-postgres>=0.0.17",
+    "langchain-tavily>=0.2.18",
     "mlflow>=3.11.1",
     "obsidianmd-parser>=0.4.0",
     "pydantic>=2.13.4",
