@@ -30,16 +30,21 @@ class SearchToolInput(BaseModel):
     )
     filters: SearchFilters | None = Field(
         default=None,
-        description="Metadata filter. Set to null if not needed.",
+        description=(
+            "Metadata filter. Set to null if not needed. "
+            "Never invent a file_path or date value that was not explicitly given by the user; "
+            "leave this null instead."
+        ),
     )
     full_fetch: bool = Field(
         default=False,
         description=(
-            "When set to True, disables filtering by similarity score and fetches all matching filters. \n"  # noqa: E501
-            "Use this when filtering only by metadata filters \n"
-            "(e.g., all notes created within a specific period). \n"
-            "It is forbidden to set this to True without applying a metadata filter (too much data). \n"  # noqa: E501
-            "When False, performs a normal search returning only the top 10 vector similarities. \n"
+            "Keep this False for normal searches (default: top 10 vector similarities). \n"
+            "Only set to True when the user explicitly asks for ALL notes matching a metadata "
+            "filter (e.g., all notes created within a specific period) and you have set a "
+            "concrete filters value from information the user actually provided. \n"
+            "It is forbidden to set this to True without such a user-provided filter "
+            "(too much data)."
         ),
     )
 
