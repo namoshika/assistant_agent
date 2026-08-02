@@ -28,7 +28,7 @@ async def test_dispatcher_invoke_at_01():
     at = datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC)
     m_service.invoke_at.return_value = Dispatch(
         dispatch_id="dispatch-1",
-        invocation={"input": {"messages": [HumanMessage(content="おはよう")]}},
+        prompt="おはよう",
         interval_seconds=DispatcherService.ONE_SHOT,
         next_fire_at=at,
     )
@@ -55,9 +55,9 @@ async def test_dispatcher_invoke_at_01():
     # 結果検証
     # 観点1
     m_service.invoke_at.assert_called_once()
-    invocation, called_at = m_service.invoke_at.call_args[0]
+    prompt, called_at = m_service.invoke_at.call_args[0]
     assert called_at == at
-    assert invocation["input"]["messages"][-1].content == "おはよう"
+    assert prompt == "おはよう"
     # 観点2
     tool_message = result["messages"][2]
     assert "dispatch-1" in tool_message.content
@@ -146,7 +146,7 @@ async def test_dispatcher_invoke_delay_01():
     m_service = MagicMock(spec=DispatcherService)
     m_service.invoke_delay.return_value = Dispatch(
         dispatch_id="dispatch-1",
-        invocation={"input": {"messages": [HumanMessage(content="こんにちは")]}},
+        prompt="こんにちは",
         interval_seconds=10,
         next_fire_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
     )
@@ -301,13 +301,13 @@ async def test_dispatcher_list_01():
     m_service.list_dispatch.return_value = [
         Dispatch(
             dispatch_id="dispatch-1",
-            invocation={"input": {"messages": [HumanMessage(content=long_content)]}},
+            prompt=long_content,
             interval_seconds=-1,
             next_fire_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
         ),
         Dispatch(
             dispatch_id="dispatch-2",
-            invocation={"input": {"messages": [HumanMessage(content="定期連絡")]}},
+            prompt="定期連絡",
             interval_seconds=30,
             next_fire_at=datetime(2026, 7, 30, 9, 5, 0, tzinfo=UTC),
         ),

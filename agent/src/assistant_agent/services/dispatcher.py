@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import logging
 import uuid
 from dataclasses import dataclass
@@ -7,8 +6,19 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any, Self
 
+from langchain_core.messages import HumanMessage
+
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation
 from assistant_agent.utils.context import ContextRegistry
+
+DISPATCHER_MESSAGE_TMPL = """\
+# Dispatcher Channel
+予約イベントが発火しました。
+
+イベント詳細: {dispatch}
+受信プロンプト:
+{content}
+"""
 
 
 class IntervalUnit(Enum):
@@ -31,14 +41,13 @@ class IntervalUnit(Enum):
 @dataclass
 class Dispatch:
     dispatch_id: str
-    invocation: AgentInvocation
+    prompt: str
     interval_seconds: int
     next_fire_at: datetime
 
     def __str__(self) -> str:
         """LLM への提示用に、予定の内容を英語の1行テキストへ整形する（LLM の精度向上のため）."""
-        content = str(self.invocation["input"]["messages"][-1].content)
-        content = content[:100]
+        content = self.prompt[:100]
         interval = (
             "once"
             if self.interval_seconds == DispatcherService.ONE_SHOT
@@ -51,9 +60,9 @@ class Dispatch:
 
 
 class DispatcherService:
-    """予定（発信する AgentInvocation と発火タイミング）の登録・解除・参照を担うサービス.
+    """予定（発信するプロンプトと発火タイミング）の登録・解除・参照を担うサービス.
 
-    発火判定・emit() は行わない（DispatcherChannel の責務）。
+    発火判定・AgentInvocation への変換・emit() は行わない（DispatcherChannel の責務）。
     """
 
     ONE_SHOT = -1
@@ -63,7 +72,7 @@ class DispatcherService:
         """予定を保持しない空の状態で初期化する."""
         self._dispatches: dict[str, Dispatch] = {}
 
-    def invoke_at(self, invocation: AgentInvocation, at: datetime) -> Dispatch:
+    def invoke_at(self, prompt: str, at: datetime) -> Dispatch:
         """指定日時に発火する単発予定を登録し、登録した Dispatch を返す.
 
         naive datetime は UTC とみなして正規化する。現在時刻より _PAST_TOLERANCE を超えて
@@ -74,11 +83,11 @@ class DispatcherService:
         now = datetime.now(UTC)
         if at < now - self._PAST_TOLERANCE:
             raise ValueError(f"過去の日時は指定できません: {at.isoformat()}")
-        return self._register(invocation, at, self.ONE_SHOT)
+        return self._register(prompt, at, self.ONE_SHOT)
 
     def invoke_delay(
         self,
-        invocation: AgentInvocation,
+        prompt: str,
         delay_value: int = 10,
         delay_unit: IntervalUnit = IntervalUnit.SECONDS,
         interval_value: int = 0,
@@ -94,7 +103,7 @@ class DispatcherService:
         interval_seconds = (
             self.ONE_SHOT if interval_value <= 0 else interval_value * interval_unit.seconds
         )
-        return self._register(invocation, at, interval_seconds)
+        return self._register(prompt, at, interval_seconds)
 
     def cancel_dispatch(self, dispatch_id: str) -> bool:
         """dispatch_id を指定して予定を解除する.
@@ -129,13 +138,11 @@ class DispatcherService:
                     dispatch.next_fire_at += timedelta(seconds=dispatch.interval_seconds)
         return due
 
-    def _register(
-        self, invocation: AgentInvocation, at: datetime, interval_seconds: int
-    ) -> Dispatch:
+    def _register(self, prompt: str, at: datetime, interval_seconds: int) -> Dispatch:
         dispatch_id = str(uuid.uuid7())
         dispatch = Dispatch(
             dispatch_id=dispatch_id,
-            invocation=invocation,
+            prompt=prompt,
             interval_seconds=interval_seconds,
             next_fire_at=at,
         )
@@ -177,7 +184,14 @@ class DispatcherChannel(ActiveEmitter):
             try:
                 for dispatch in self._service.pop_dispatch(datetime.now(UTC)):
                     try:
-                        self.emit(copy.deepcopy(dispatch.invocation))
+                        prompt = DISPATCHER_MESSAGE_TMPL.format(
+                            dispatch=dispatch, content=dispatch.prompt
+                        )
+                        invocation = AgentInvocation(
+                            input={"messages": [HumanMessage(content=prompt)]},
+                            context={"request_id": str(uuid.uuid7())},
+                        )
+                        self.emit(invocation)
                     except Exception:
                         self._logger.exception("Exception during dispatch emit")
             except Exception:

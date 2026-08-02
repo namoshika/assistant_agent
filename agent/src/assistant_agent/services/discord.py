@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -12,6 +13,24 @@ from langchain_core.prompts import PromptTemplate
 
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation
 from assistant_agent.utils.context import ContextRegistry
+
+DISCORD_CHANNEL_TMPL = """\
+# Discord Channel (channel_id: {channel_id}, guild_id: {guild_id})
+## Guideline
+受信した Discord チャネルの新着ポストが来ます。
+自身に関係有るか判別し、関係が有れば応答してください。
+
+1. 新着受信時
+    1. 直近投稿を 20 件取得し、直近の文脈を把握。自身に関係の有るものか判別
+    2. 関係有る場合: 応答する。応答は必ず受信した Discord サーバーの同じチャンネルへ送信する
+    3. 関係ない場合: 応答しない (サーバーには複数人参加しているため、自分宛でない場合は応答禁止)
+2. 応答時 (特定の投稿やユーザに対してリアクションする場合)
+    1. 対象の投稿が直近10件以内の投稿の場合: ツール discord_send_message で投稿
+    2. 対象の投稿が直近10件より前の投稿の場合: ツール discord_reply_message を使用
+    3. 対象の相手を指名した投稿の場合: ツール discord_mention_user を使用
+
+{messages}
+"""
 
 DISCORD_MESSAGE_TMPL = """\
 ## Discord Post
@@ -25,13 +44,6 @@ is_owned (自分（Bot 自身）の投稿かどうか): {is_owned}
 ```
 
 {content}
-"""
-
-DISCORD_CHANNEL_TMPL = """\
-# Discord Channel (channel_id: {channel_id}, guild_id: {guild_id})
-{desc}
-
-{messages}
 """
 
 
@@ -194,9 +206,13 @@ class DiscordChannel(ActiveEmitter):
     def _on_message(self, message: DiscordIncomingMessage) -> None:
         """DiscordService から渡された新着メッセージを AgentInvocation にして emit する."""
         content = PromptTemplate.from_template(DISCORD_CHANNEL_TMPL).format(
-            desc="受信した Discord チャネルの新着ポスト",
             guild_id=message.guild_id,
             channel_id=message.channel_id,
             messages=message,
         )
-        self.emit(AgentInvocation(input={"messages": [HumanMessage(content=content)]}))
+        self.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content=content)]},
+                context={"request_id": str(uuid.uuid7())},
+            )
+        )

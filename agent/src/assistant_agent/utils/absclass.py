@@ -3,6 +3,8 @@ from typing import Any, Required, TypedDict
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from assistant_agent.utils.context import CommonContext
+
 
 class StoreConnector(abc.ABC):
     """SQLAlchemy AsyncEngine を生成するファクトリ抽象クラス."""
@@ -52,8 +54,9 @@ class ActiveEmitter(Emitter):
 class AgentInvocation(TypedDict, total=False):
     """Agent.ainvoke() へ `**invocation` でそのまま展開して渡せるキーワード引数の集合.
 
-    input は必須。それ以外は stream_mode 等 ainvoke() が受け付ける任意のキーワード引数を、
+    input, context 以外は stream_mode 等 ainvoke() が受け付ける任意のキーワード引数を、
     既存の構築箇所を変更せず追加できる拡張の余地として残す。
     """
 
     input: Required[dict[str, Any]]
+    context: Required[CommonContext]

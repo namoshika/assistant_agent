@@ -47,6 +47,7 @@ async def test_receive_01():
     agent.start()
     invocation = AgentInvocation(
         input={"messages": [HumanMessage(content="こんにちは。自己紹介してください。")]},
+        context={},
     )
     source.emit(invocation)
     await asyncio.wait_for(received_event.wait(), timeout=30)

@@ -3,7 +3,14 @@ from typing import Any, ClassVar, TypedDict, cast
 
 
 class CommonContext(TypedDict, total=False):
-    """エージェント共通コンテキスト。将来の共通フィールド追加の置き場."""
+    """エージェント共通コンテキスト。将来の共通フィールド追加の置き場.
+
+    request_id: 入力と応答を紐付けるための相関 ID。
+    timeout_seconds: リクエスト単位のタイムアウト秒数（既定値からの上書き）。
+    """
+
+    request_id: str
+    timeout_seconds: int
 
 
 class ContextRegistry:

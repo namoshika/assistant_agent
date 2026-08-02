@@ -6,7 +6,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from langchain_core.messages import HumanMessage
 from pytest_mock import MockerFixture
 
 from assistant_agent import agent_bot
@@ -39,7 +38,7 @@ async def test_amain_01(mocker: MockerFixture, log_path: Path):
     # 試験準備
     dispatch = Dispatch(
         dispatch_id="test-dispatch",
-        invocation={"input": {"messages": [HumanMessage(content="面白い話をして。")]}},
+        prompt="面白い話をして。",
         interval_seconds=-1,
         next_fire_at=datetime.now(ZoneInfo("Asia/Tokyo")),
     )

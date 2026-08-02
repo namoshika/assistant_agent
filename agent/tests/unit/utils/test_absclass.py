@@ -32,7 +32,10 @@ class TestEmitter:
         emitter = _DummyActiveEmitter()
         dst1 = _DummyReceiver()
         dst2 = _DummyReceiver()
-        invocation: AgentInvocation = {"input": {"messages": [HumanMessage(content="hello")]}}
+        invocation: AgentInvocation = {
+            "input": {"messages": [HumanMessage(content="hello")]},
+            "context": {},
+        }
 
         # 試験実施
         emitter.receiver = dst1

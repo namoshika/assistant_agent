@@ -328,9 +328,10 @@ class TestDiscordChannel:
     def test_on_message_01(self):
         """on_message() が DiscordIncomingMessage を AgentInvocation に変換して emit することを確認.
 
-        観点1（R011）: content を持つ AgentInvocation が emit されること。
-            guild_id・channel_id・本文が生成された文字列に含まれること
-            （装飾的な書式は試験範囲外とする）
+        観点1: content を持つ AgentInvocation が emit されること
+        観点2: emit される AgentInvocation が期待通りであること
+            content: guild_id・channel_id・本文が生成された文字列に含まれること
+            context["request_id"]: 空でない文字列であること
         """
         # 試験準備
         service = MagicMock(spec=DiscordService)
@@ -354,11 +355,14 @@ class TestDiscordChannel:
         # 結果検証
         # 観点1
         received.on_received.assert_called_once()
+        # 観点2
         invocation: AgentInvocation = received.on_received.call_args[0][0]
         content = invocation["input"]["messages"][-1].content
         assert "111" in content
         assert "222" in content
         assert "hello" in content
+        assert isinstance(invocation["context"]["request_id"], str)  # pyright: ignore[reportTypedDictNotRequiredAccess]
+        assert invocation["context"]["request_id"] != ""  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
     def test_start_01(self):
         """start()/stop() が DiscordService への委譲のみであることを確認.

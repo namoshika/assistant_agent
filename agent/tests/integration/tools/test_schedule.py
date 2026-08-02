@@ -23,7 +23,7 @@ async def test_dispatcher_invoke_at_01(llm: BaseChatModel) -> None:
     m_service = MagicMock(spec=DispatcherService)
     m_service.invoke_at.return_value = Dispatch(
         dispatch_id="dispatch-1",
-        invocation={"input": {"messages": [HumanMessage(content="おはよう")]}},
+        prompt="おはよう",
         interval_seconds=DispatcherService.ONE_SHOT,
         next_fire_at=datetime.now(UTC),
     )
@@ -56,7 +56,7 @@ async def test_dispatcher_invoke_delay_01(llm: BaseChatModel) -> None:
     m_service = MagicMock(spec=DispatcherService)
     m_service.invoke_delay.return_value = Dispatch(
         dispatch_id="dispatch-2",
-        invocation={"input": {"messages": [HumanMessage(content="こんにちは")]}},
+        prompt="こんにちは",
         interval_seconds=DispatcherService.ONE_SHOT,
         next_fire_at=datetime.now(UTC),
     )
@@ -118,7 +118,7 @@ async def test_dispatcher_list_01(llm: BaseChatModel) -> None:
     m_service.list_dispatch.return_value = [
         Dispatch(
             dispatch_id="dispatch-4",
-            invocation={"input": {"messages": [HumanMessage(content="定期連絡")]}},
+            prompt="定期連絡",
             interval_seconds=DispatcherService.ONE_SHOT,
             next_fire_at=datetime.now(UTC),
         )

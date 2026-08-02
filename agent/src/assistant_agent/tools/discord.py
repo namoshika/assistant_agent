@@ -51,7 +51,7 @@ async def discord_send_message(
     content: str,
     runtime: ToolRuntime[DiscordContext],
 ) -> str:
-    """指定チャンネルへメッセージを投稿する."""
+    """指定チャンネルへメッセージを投稿する. ※この関数を呼び出さない限り、テキスト出力はユーザーに届かない."""  # noqa: E501
     service = runtime.context["discord_service"]
     await service.send_message(int(channel_id), content)
     return "sent"

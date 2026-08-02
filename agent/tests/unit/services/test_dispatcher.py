@@ -2,8 +2,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
-from langchain_core.messages import HumanMessage
-
 from assistant_agent.services.dispatcher import (
     Dispatch,
     DispatcherChannel,
@@ -27,7 +25,7 @@ class TestDispatch:
         next_fire_at = datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC)
         dispatch = Dispatch(
             dispatch_id="dispatch-1",
-            invocation=AgentInvocation(input={"messages": [HumanMessage(content=long_content)]}),
+            prompt=long_content,
             interval_seconds=DispatcherService.ONE_SHOT,
             next_fire_at=next_fire_at,
         )
@@ -71,10 +69,7 @@ class TestDispatcherService:
         at_naive = (now + timedelta(seconds=10)).replace(tzinfo=None)
 
         # 試験実施
-        dispatch = service.invoke_at(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            at_naive,
-        )
+        dispatch = service.invoke_at("test", at_naive)
 
         # 結果検証
         # 観点1
@@ -99,10 +94,7 @@ class TestDispatcherService:
         # 試験実施・結果検証
         # 観点1
         try:
-            service.invoke_at(
-                AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-                now - timedelta(minutes=5),
-            )
+            service.invoke_at("test", now - timedelta(minutes=5))
             raised = False
         except ValueError:
             raised = True
@@ -110,10 +102,7 @@ class TestDispatcherService:
         assert service.list_dispatch() == []
 
         # 観点2
-        dispatch = service.invoke_at(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            now - timedelta(seconds=1),
-        )
+        dispatch = service.invoke_at("test", now - timedelta(seconds=1))
         assert dispatch.dispatch_id in {d.dispatch_id for d in service.list_dispatch()}
 
     def test_invoke_delay_01(self):
@@ -129,11 +118,7 @@ class TestDispatcherService:
         now = datetime.now(UTC)
 
         # 試験実施
-        dispatch = service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=5,
-            delay_unit=IntervalUnit.SECONDS,
-        )
+        dispatch = service.invoke_delay("test", delay_value=5, delay_unit=IntervalUnit.SECONDS)
 
         # 結果検証
         # 観点1
@@ -144,17 +129,13 @@ class TestDispatcherService:
 
         # 観点2
         service2 = DispatcherService()
-        service2.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=1,
-            delay_unit=IntervalUnit.MINUTES,
-        )
+        service2.invoke_delay("test", delay_value=1, delay_unit=IntervalUnit.MINUTES)
         assert service2.pop_dispatch(now + timedelta(seconds=30)) == []
         assert len(service2.pop_dispatch(now + timedelta(minutes=1, seconds=1))) == 1
 
         # 観点3
         service3 = DispatcherService()
-        service3.invoke_delay(AgentInvocation(input={"messages": [HumanMessage(content="test")]}))
+        service3.invoke_delay("test")
         assert service3.pop_dispatch(now + timedelta(seconds=5)) == []
         assert len(service3.pop_dispatch(now + timedelta(seconds=11))) == 1
 
@@ -167,16 +148,8 @@ class TestDispatcherService:
         # 試験準備
         service = DispatcherService()
         now = datetime.now(UTC)
-        service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=1,
-            interval_value=-1,
-        )
-        service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=1,
-            interval_value=0,
-        )
+        service.invoke_delay("test", delay_value=1, interval_value=-1)
+        service.invoke_delay("test", delay_value=1, interval_value=0)
 
         # 試験実施
         due = service.pop_dispatch(now + timedelta(seconds=2))
@@ -196,10 +169,7 @@ class TestDispatcherService:
         # 試験準備
         service = DispatcherService()
         now = datetime.now(UTC)
-        dispatch = service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=1,
-        )
+        dispatch = service.invoke_delay("test", delay_value=1)
 
         # 試験実施・結果検証
         # 観点1
@@ -214,9 +184,7 @@ class TestDispatcherService:
         """
         # 試験準備
         service = DispatcherService()
-        dispatch = service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]})
-        )
+        dispatch = service.invoke_delay("test")
 
         # 試験実施・結果検証
         # 観点1
@@ -233,13 +201,9 @@ class TestDispatcherService:
         # 試験準備
         service = DispatcherService()
         now = datetime.now(UTC)
+        service.invoke_delay("test", delay_value=1, interval_value=-1)
         service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=1,
-            interval_value=-1,
-        )
-        service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
+            "test",
             delay_value=1,
             interval_value=5,
             interval_unit=IntervalUnit.SECONDS,
@@ -271,7 +235,7 @@ class TestDispatcherService:
         service = DispatcherService()
         now = datetime.now(UTC)
         service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
+            "test",
             delay_value=1,
             interval_value=2,
             interval_unit=IntervalUnit.SECONDS,
@@ -296,14 +260,13 @@ class TestDispatcherChannel:
         """単発予定登録後、start() で emit() されることを確認.
 
         観点1: 単発予定（invoke_at() 等）を登録した DispatcherService を渡して start() すると、
-          登録した AgentInvocation と同じ内容が emit() されること。emit() には複製が渡るため
-          同一インスタンスであることは検証しない
+          登録した prompt を content に持つ AgentInvocation が emit() されること
+        観点2: emit される AgentInvocation の context["request_id"] が空でない文字列であること
         """
         # 試験準備
         received = MagicMock(spec=Receiver)
         service = DispatcherService()
-        invocation = AgentInvocation(input={"messages": [HumanMessage(content="test")]})
-        service.invoke_delay(invocation, delay_value=0)
+        service.invoke_delay("test", delay_value=0)
         channel = DispatcherChannel(service=service, poll_interval_seconds=0.01)
         channel.receiver = received
 
@@ -315,21 +278,27 @@ class TestDispatcherChannel:
         # 結果検証
         # 観点1
         received.on_received.assert_called_once()
-        emitted = received.on_received.call_args[0][0]
-        assert emitted == invocation
+        emitted: AgentInvocation = received.on_received.call_args[0][0]
+        assert "test" in emitted["input"]["messages"][-1].content
+        # 観点2
+        assert isinstance(emitted["context"]["request_id"], str)  # pyright: ignore[reportTypedDictNotRequiredAccess]
+        assert emitted["context"]["request_id"] != ""  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
     async def test_emit_02(self):
         """繰り返し予定が stop() まで複数回 emit() されることを確認.
 
         観点1: 一定間隔予定は stop() するまで繰り返し emit() されること
-        観点2: 各回に渡される AgentInvocation が保持中のオブジェクトと同一インスタンスではないこと
+        観点2: 各回に emit() される AgentInvocation が別インスタンスであること
+        観点3: 複数回 emit された AgentInvocation の context["request_id"] が毎回異なる値であること
         """
         # 試験準備
         received = MagicMock(spec=Receiver)
         service = DispatcherService()
-        invocation = AgentInvocation(input={"messages": [HumanMessage(content="test")]})
         service.invoke_delay(
-            invocation, delay_value=0, interval_value=1, interval_unit=IntervalUnit.SECONDS
+            "test",
+            delay_value=0,
+            interval_value=1,
+            interval_unit=IntervalUnit.SECONDS,
         )
         channel = DispatcherChannel(service=service, poll_interval_seconds=0.02)
         channel.receiver = received
@@ -343,8 +312,11 @@ class TestDispatcherChannel:
         # 観点1
         assert received.on_received.call_count >= 2
         # 観点2
-        emitted = received.on_received.call_args_list[0][0][0]
-        assert emitted is not invocation
+        emitted_1 = received.on_received.call_args_list[0][0][0]
+        emitted_2 = received.on_received.call_args_list[1][0][0]
+        assert emitted_1 is not emitted_2
+        # 観点3
+        assert emitted_1["context"]["request_id"] != emitted_2["context"]["request_id"]
 
     async def test_emit_03(self):
         """配信先の例外発生時もポーリングが継続することを確認.
@@ -357,14 +329,8 @@ class TestDispatcherChannel:
         received = MagicMock(spec=Receiver)
         received.on_received.side_effect = [RuntimeError("boom"), None]
         service = DispatcherService()
-        service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=0,
-        )
-        service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
-            delay_value=0,
-        )
+        service.invoke_delay("test", delay_value=0)
+        service.invoke_delay("test", delay_value=0)
         channel = DispatcherChannel(service=service, poll_interval_seconds=0.01)
         channel.receiver = received
 
@@ -389,7 +355,7 @@ class TestDispatcherChannel:
         received = MagicMock(spec=Receiver)
         service = DispatcherService()
         service.invoke_delay(
-            AgentInvocation(input={"messages": [HumanMessage(content="test")]}),
+            "test",
             delay_value=0,
             interval_value=1,
             interval_unit=IntervalUnit.SECONDS,

@@ -12,7 +12,13 @@ from langgraph.types import GraphOutput
 
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 from assistant_agent.utils.context import CommonContext
-from assistant_agent.utils.workflow import Agent, BroadcastPipe, LogWriter, MergePipe
+from assistant_agent.utils.workflow import (
+    Agent,
+    BroadcastPipe,
+    LogWriter,
+    MergePipe,
+    SyncRequestChannel,
+)
 
 
 class _DummyActiveEmitter(ActiveEmitter):
@@ -37,7 +43,9 @@ class TestBroadcastPipe:
         # 試験準備
         src = _DummyActiveEmitter()
         dst1, dst2 = MagicMock(spec=Receiver), MagicMock(spec=Receiver)
-        invocation = AgentInvocation(input={"messages": [HumanMessage(content="hello")]})
+        invocation = AgentInvocation(
+            input={"messages": [HumanMessage(content="hello")]}, context={}
+        )
 
         # 試験実施
         BroadcastPipe(src, [dst1, dst2])
@@ -58,8 +66,12 @@ class TestMergePipe:
         # 試験準備
         src1, src2 = _DummyActiveEmitter(), _DummyActiveEmitter()
         dst = MagicMock(spec=Receiver)
-        invocation1 = AgentInvocation(input={"messages": [HumanMessage(content="hello1")]})
-        invocation2 = AgentInvocation(input={"messages": [HumanMessage(content="hello2")]})
+        invocation1 = AgentInvocation(
+            input={"messages": [HumanMessage(content="hello1")]}, context={}
+        )
+        invocation2 = AgentInvocation(
+            input={"messages": [HumanMessage(content="hello2")]}, context={}
+        )
 
         # 試験実施
         MergePipe([src1, src2], dst)
@@ -94,7 +106,7 @@ class TestAgent:
 
         # 試験実施
         agent.start()
-        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={}))
         await asyncio.sleep(1)
 
         # 結果検証
@@ -132,7 +144,7 @@ class TestAgent:
         # 試験実施
         agent1.start()
         agent2.start()
-        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={}))
         await asyncio.sleep(1)
 
         # 結果検証
@@ -146,11 +158,12 @@ class TestAgent:
         assert kwargs["context"] == context
 
     async def test_receive_03(self, caplog: pytest.LogCaptureFixture):
-        """ainvoke() 実行中に例外が発生しても _consume() が停止しないことを確認.
+        """ainvoke() 実行中に例外が発生しても _consume() が停止せず、エラー内容が emit されることを確認.
 
         観点1: 例外発生時、logger.error() でトレース情報が記録されること
-        観点2: 例外発生後も後続メッセージが処理されること（_consume() のループが継続する）
-        """
+        観点2: 例外発生時もエラー内容を積んだ AgentInvocation が emit されること
+        観点3: 例外発生後も後続メッセージが処理されること（_consume() のループが継続する）
+        """  # noqa: E501
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
         lc_agent.ainvoke = AsyncMock(
@@ -168,9 +181,13 @@ class TestAgent:
         # 試験実施
         with caplog.at_level(logging.ERROR, logger="assistant_agent.utils.workflow"):
             agent.start()
-            source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+            source.emit(
+                AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={})
+            )
             await asyncio.sleep(1)
-            source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi again")]}))
+            source.emit(
+                AgentInvocation(input={"messages": [HumanMessage(content="hi again")]}, context={})
+            )
             await asyncio.sleep(1)
 
         # 結果検証
@@ -178,9 +195,116 @@ class TestAgent:
         assert "KeyError" in caplog.text
         assert "fixed-thread-id" in caplog.text
         # 観点2
+        assert received.on_received.call_count == 2
+        error_invocation: AgentInvocation = received.on_received.call_args_list[0][0][0]
+        assert isinstance(error_invocation["input"]["messages"][-1], AIMessage)
+        # 観点3
+        result_invocation: AgentInvocation = received.on_received.call_args_list[1][0][0]
+        assert result_invocation["input"]["messages"][-1].content == "reply after error"
+
+    async def test_receive_04(self):
+        """入力の context がサービス群の context とマージされて ainvoke() へ渡ることを確認.
+
+        観点1: 入力に context={"request_id": "xxx"} を含めて emit すると、ainvoke() へ渡る
+            context にサービス群の値と request_id の両方が含まれること
+        観点2: emit される応答の AgentInvocation["context"] に入力側の context がそのまま
+            積まれること
+        """
+        # 試験準備
+        lc_agent = MagicMock(spec=CompiledStateGraph)
+        lc_agent.ainvoke = AsyncMock(
+            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
+        )
+        source = _DummyActiveEmitter()
+        context: CommonContext = {"sample_retriever": "dummy"}  # pyright: ignore[reportAssignmentType]
+        agent = Agent(lc_agent, context=context)
+        BroadcastPipe(source, [agent])
+        received = MagicMock(spec=Receiver)
+        agent.receiver = received
+
+        # 試験実施
+        agent.start()
+        source.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content="hi")]},
+                context={"request_id": "req-1"},
+            )
+        )
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点1
+        _, kwargs = lc_agent.ainvoke.call_args
+        assert kwargs["context"] == {"sample_retriever": "dummy", "request_id": "req-1"}
+        # 観点2
+        result_invocation: AgentInvocation = received.on_received.call_args[0][0]
+        assert result_invocation["context"] == {"request_id": "req-1"}
+
+    async def test_receive_05(self):
+        """ainvoke() のタイムアウト・例外時にエラー内容を積んだ応答が emit されることを確認.
+
+        観点1: ainvoke() が context.timeout_seconds 以内に完了しない場合、AIMessage
+            （エラー内容）を積んだ AgentInvocation が context を引き継いだ状態で emit される
+        観点2: context.timeout_seconds を指定した場合、TIMEOUT_SECONDS_DEFAULT ではなく
+            指定した秒数でタイムアウトすること
+        観点3: ainvoke() がタイムアウト以外の例外を送出した場合も、AIMessage（エラー内容）を
+            積んだ AgentInvocation が context を引き継いだ状態で emit されること
+        """
+
+        async def _sleep_forever(**_: Any) -> GraphOutput:
+            await asyncio.sleep(3600)
+            raise AssertionError("unreachable")
+
+        lc_agent = MagicMock(spec=CompiledStateGraph)
+        lc_agent.ainvoke = AsyncMock(side_effect=_sleep_forever)
+        source = _DummyActiveEmitter()
+        agent = Agent(lc_agent, context={})
+        BroadcastPipe(source, [agent])
+        received = MagicMock(spec=Receiver)
+        agent.receiver = received
+
+        # 試験実施
+        agent.start()
+        source.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content="hi")]},
+                context={"request_id": "req-timeout", "timeout_seconds": 1},
+            )
+        )
+        await asyncio.sleep(3)
+
+        # 結果検証
+        # 観点1・観点2
         received.on_received.assert_called_once()
         result_invocation: AgentInvocation = received.on_received.call_args[0][0]
-        assert result_invocation["input"]["messages"][-1].content == "reply after error"
+        assert result_invocation["context"] == {"request_id": "req-timeout", "timeout_seconds": 1}
+        msg_out = result_invocation["input"]["messages"][-1]
+        assert isinstance(msg_out, AIMessage)
+
+        # 試験準備: タイムアウト以外の例外
+        lc_agent2 = MagicMock(spec=CompiledStateGraph)
+        lc_agent2.ainvoke = AsyncMock(side_effect=KeyError("boom"))
+        agent2 = Agent(lc_agent2, context={})
+        BroadcastPipe(source, [agent2])
+        received2 = MagicMock(spec=Receiver)
+        agent2.receiver = received2
+
+        # 試験実施
+        agent2.start()
+        source.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content="hi")]},
+                context={"request_id": "req-error"},
+            )
+        )
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点3
+        received2.on_received.assert_called_once()
+        result_invocation2: AgentInvocation = received2.on_received.call_args[0][0]
+        assert result_invocation2["context"] == {"request_id": "req-error"}
+        assert isinstance(result_invocation2["input"]["messages"][-1], AIMessage)
 
     async def test_start_01(self):
         """start()/stop() による処理のライフサイクルを確認.
@@ -221,7 +345,7 @@ class TestAgent:
         # 試験実施
         agent1.start()
         agent2.start()
-        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}))
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={}))
         await asyncio.sleep(1)
 
         # 結果検証
@@ -233,7 +357,9 @@ class TestAgent:
         agent1.stop()
         agent2.stop()
         await asyncio.sleep(1)
-        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="after stop")]}))
+        source.emit(
+            AgentInvocation(input={"messages": [HumanMessage(content="after stop")]}, context={})
+        )
         await asyncio.sleep(1)
 
         # 結果検証
@@ -251,6 +377,113 @@ class TestAgent:
         assert received1.on_received.call_count == 2
 
 
+class TestSyncRequestChannel:
+    async def test_emit_and_wait_01(self):
+        """emit_and_wait() が content・channel_name, request_id を持つ AgentInvocation を emit することを確認.
+
+        観点1: emit する AgentInvocation の input.messages[-1].content に引数の channel_name と content が含まれること
+        観点2: emit する AgentInvocation の context.request_id が一意な値であること
+        """  # noqa: E501
+        # 試験準備
+        channel = SyncRequestChannel()
+        received = MagicMock(spec=Receiver)
+        channel.receiver = received
+
+        # 試験実施
+        task1 = asyncio.ensure_future(
+            channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=1)
+        )
+        task2 = asyncio.ensure_future(
+            channel.emit_and_wait("world", channel_name="Test Channel", timeout_seconds=1)
+        )
+        await asyncio.sleep(0.2)
+
+        # 結果検証
+        # 観点1
+        invocation1: AgentInvocation = received.on_received.call_args_list[0][0][0]
+        invocation2: AgentInvocation = received.on_received.call_args_list[1][0][0]
+        content1 = invocation1["input"]["messages"][-1].content
+        content2 = invocation2["input"]["messages"][-1].content
+        assert "Test Channel" in content1
+        assert "hello" in content1
+        assert "Test Channel" in content2
+        assert "world" in content2
+        # 観点2
+        assert invocation1["context"]["request_id"] != invocation2["context"]["request_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+
+        # 後始末
+        for task in (task1, task2):
+            task.cancel()
+            with pytest.raises((asyncio.CancelledError, TimeoutError)):
+                await task
+
+    async def test_emit_and_wait_02(self):
+        """emit_and_wait() の応答解決・未知の request_id の扱いを確認.
+
+        観点1: emit_and_wait() 呼び出し後、対応する context.request_id を積んだ AgentInvocation を on_received() に渡すと await が解決し、戻り値の BaseMessage が応答内容と一致すること
+        観点2: 未知の request_id（_pending に無い値）を持つ AgentInvocation を on_received() に渡しても例外を送出しないこと
+        """  # noqa: E501
+        # 試験準備
+        channel = SyncRequestChannel()
+        received = MagicMock(spec=Receiver)
+        channel.receiver = received
+
+        # 試験実施
+        task = asyncio.ensure_future(channel.emit_and_wait("hello", channel_name="Test Channel"))
+        await asyncio.sleep(0.05)
+        invocation: AgentInvocation = received.on_received.call_args[0][0]
+        request_id = invocation["context"]["request_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+        channel.on_received(
+            AgentInvocation(
+                input={"messages": [AIMessage(content="reply")]},
+                context={"request_id": request_id},
+            )
+        )
+        result = await task
+
+        # 結果検証
+        # 観点1
+        assert result.content == "reply"
+
+        # 試験実施・結果検証: 未知の request_id
+        # 観点2
+        channel.on_received(
+            AgentInvocation(
+                input={"messages": [AIMessage(content="reply")]},
+                context={"request_id": "unknown"},
+            )
+        )
+
+    async def test_emit_and_wait_03(self):
+        """timeout_seconds 経過時・stop() 時の待機中断を確認.
+
+        観点1: 対応する応答が来ないまま timeout_seconds が経過すると TimeoutError を送出すること
+        観点2: stop() を呼び出すと、待機中の emit_and_wait() が CancelledError で終了すること
+        """
+        # 試験準備
+        channel = SyncRequestChannel()
+        channel.receiver = MagicMock(spec=Receiver)
+
+        # 試験実施・結果検証
+        # 観点1
+        with pytest.raises(TimeoutError):
+            await channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=0)
+
+        # 試験準備: stop() によるキャンセル
+        task = asyncio.ensure_future(
+            channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=10)
+        )
+        await asyncio.sleep(0.05)
+
+        # 試験実施
+        channel.stop()
+
+        # 結果検証
+        # 観点2
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+
 class TestLogWriter:
     def test_on_received_01(self, caplog: pytest.LogCaptureFixture):
         """on_received() がメッセージ本文を logging 経由で記録することを確認.
@@ -263,8 +496,12 @@ class TestLogWriter:
 
         # 試験実施
         with caplog.at_level(logging.DEBUG, logger="assistant_agent.utils.workflow"):
-            writer.on_received(AgentInvocation(input={"messages": [HumanMessage(content="hello")]}))
-            writer.on_received(AgentInvocation(input={"messages": [HumanMessage(content="world")]}))
+            writer.on_received(
+                AgentInvocation(input={"messages": [HumanMessage(content="hello")]}, context={})
+            )
+            writer.on_received(
+                AgentInvocation(input={"messages": [HumanMessage(content="world")]}, context={})
+            )
 
         # 結果検証
         # 観点1

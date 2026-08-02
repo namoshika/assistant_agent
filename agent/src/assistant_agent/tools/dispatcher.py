@@ -2,12 +2,10 @@ from datetime import datetime
 from typing import Annotated, TypedDict
 
 from langchain.tools import ToolRuntime, tool
-from langchain_core.messages import HumanMessage
 from langchain_core.prompts import PromptTemplate
 from pydantic import Field
 
 from assistant_agent.services.dispatcher import Dispatch, DispatcherService, IntervalUnit
-from assistant_agent.utils.absclass import AgentInvocation
 
 _PROMPT_DESCRIPTION = "エージェントへの指示を入力。具体的な指示を入力してください。"
 
@@ -24,9 +22,8 @@ async def dispatcher_invoke_at(
 ) -> str:
     """指定日時に指示メッセージを発信する予定を登録する. 過去の日時は指定できない."""
     service = runtime.context["dispatcher_service"]
-    invocation = AgentInvocation(input={"messages": [HumanMessage(content=prompt)]})
     try:
-        dispatch = service.invoke_at(invocation, at)
+        dispatch = service.invoke_at(prompt, at)
         return _format_response(str(dispatch), "The registered dispatch.")
     except ValueError as e:
         return _format_response(str(e), "Failed to register the dispatch.")
@@ -47,10 +44,7 @@ async def dispatcher_invoke_delay(
     「10秒後に単発発信」（即時発信相当）になる。
     """
     service = runtime.context["dispatcher_service"]
-    invocation = AgentInvocation(input={"messages": [HumanMessage(content=prompt)]})
-    dispatch = service.invoke_delay(
-        invocation, delay_value, delay_unit, interval_value, interval_unit
-    )
+    dispatch = service.invoke_delay(prompt, delay_value, delay_unit, interval_value, interval_unit)
     return _format_response(str(dispatch), "The registered dispatch.")
 
 

@@ -38,46 +38,52 @@ class AgentBotContext(TypedDict):
 
 
 @asynccontextmanager
-async def _init_flow() -> AsyncGenerator[None]:
+async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
+    """エージェントハーネスを初期化."""
+    # ログ出力を構成
+    proj_dir = Path(__file__).resolve().parents[2]
+    log_path = proj_dir / LOG_PATH
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=LOG_LEVEL,
+        format="[%(asctime)s] [%(levelname)s] [%(filename)s] %(message)s",
+        handlers=[logging.FileHandler(log_path, encoding="utf-8")],
+    )
+
     lc_agent, ctx = build_agent(InMemorySaver())
     bot_ctx = cast(AgentBotContext, ctx)
 
     # フローを初期化
+    sync_request_channel = workflow.SyncRequestChannel()
     dispatcher_channel = DispatcherChannel(service=bot_ctx["dispatcher_service"])
     discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
     agent = workflow.Agent(lc_agent, context=ctx)
     log_writer = workflow.LogWriter()
-    workflow.MergePipe([dispatcher_channel, discord_channel], agent)
-    workflow.BroadcastPipe(agent, [log_writer])
+    workflow.MergePipe([sync_request_channel, dispatcher_channel, discord_channel], agent)
+    workflow.BroadcastPipe(agent, [sync_request_channel, log_writer])
 
     # フローを起動・終了
     try:
         agent.start()
+        sync_request_channel.start()
         dispatcher_channel.start()
         discord_channel.start()
-        yield
+        yield sync_request_channel
     finally:
         agent.stop()
+        sync_request_channel.stop()
         dispatcher_channel.stop()
         discord_channel.stop()
 
 
 async def _amain() -> None:
-    async with _init_flow():
+    async with init_harness():
         await asyncio.Event().wait()
 
 
 def main() -> None:
     """agent_bot.py のエントリーポイント（pyproject.toml の project.scripts から呼ばれる）."""
     try:
-        proj_dir = Path(__file__).resolve().parents[2]
-        log_path = proj_dir / LOG_PATH
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        logging.basicConfig(
-            level=LOG_LEVEL,
-            format="[%(asctime)s] [%(levelname)s] [%(filename)s] %(message)s",
-            handlers=[logging.FileHandler(log_path, encoding="utf-8")],
-        )
         asyncio.run(_amain())
     except KeyboardInterrupt:
         print("\nStopping because Ctrl+C was received.")
