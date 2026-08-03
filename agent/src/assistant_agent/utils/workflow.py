@@ -60,7 +60,13 @@ class Agent(ActiveEmitter, Receiver):
     async def _consume(self) -> None:
         config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
         while True:
-            with mlflow.start_span(span_type=SpanType.CHAT_MODEL) as span:
+            with mlflow.start_span("SampleAgent", span_type=SpanType.CHAT_MODEL) as span:
+                mlflow.update_current_trace(
+                    metadata={
+                        "mlflow.trace.user": "123",
+                        "mlflow.trace.session": self._thread_id,
+                    }
+                )
                 invocation = await self._queue.get()
                 received_context = invocation["context"]
                 timeout_seconds = received_context.get("timeout_seconds", TIMEOUT_SECONDS_DEFAULT)
@@ -77,12 +83,6 @@ class Agent(ActiveEmitter, Receiver):
                     )
                     msg_out = result.value["messages"][-1]
                     span.set_outputs(msg_out)
-                    mlflow.update_current_trace(
-                        metadata={
-                            "mlflow.trace.user": "123",
-                            "mlflow.trace.session": self._thread_id,
-                        }
-                    )
                 except TimeoutError:
                     txt = self._format_log_message(f"ainvoke() timed out after {timeout_seconds}s")
                     self._logger.error(txt)
@@ -91,7 +91,9 @@ class Agent(ActiveEmitter, Receiver):
                     txt = self._format_log_message("Exception during execution")
                     self._logger.exception(txt)
                     msg_out = AIMessage(content=txt)
-                self.emit(AgentInvocation(input={"messages": [msg_out]}, context=received_context))
+
+            # 後続へ送信
+            self.emit(AgentInvocation(input={"messages": [msg_out]}, context=received_context))
 
     def _format_log_message(self, message: str) -> str:
         return f"{message} (thread_id: {self._thread_id}, queue: {self._queue.qsize()},  trace_id: {mlflow.get_last_active_trace_id()})"  # noqa: E501
