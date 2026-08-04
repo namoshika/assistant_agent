@@ -1,167 +1,69 @@
 # Design: {機能名}
 
-<!-- 機能名はタスクの内容を端的に表す名詞句で記載する。例: "DuckDB StoreConnector" -->
+<!-- 機能名はタスクを端的に表す名詞句。
+     役割: research.md で確定した事実を前提に、設計判断（何を選び・なぜか）とコードを書く。
+     調査事実そのもの（API挙動・制約・「確認済み」で終わる文）は書かない → research.md へ、
+     ここでは "research.md の《節》参照" と一行で繋ぐ。
+     Python コード例は ruff の line-length に従う。
 
-<!-- 改行方針: 改行は意味のまとまり（文単位・文節単位）でのみ入れる。
-     1行あたりの文字数で機械的に折り返さない（エディタの折り返し表示に任せる）。
-     1文が長く読みにくい場合のみ、句点や接続部などの意味の区切りで改行してよい。
-     ただし Python コード例は ruff の line-length（pyproject.toml）に従って折り返す。 -->
+     禁止: 文中を文字数で機械的に折り返すこと。改行は文・意味の区切りでのみ入れる。
+     禁止: 設計変更の経緯（「以前は〜だったが、今回〜にする」）を書くこと。今採用している設計だけを書く。
+     禁止: 同一の決定・確認事実を複数セクションに書くこと。1箇所にのみ書き、他セクションからは "◯節参照" とだけ繋ぐ。
+     確認: Edit 後、関連する他セクションに↑の禁止に反する記述が残っていないか探して消す（迷ったら Write で全文を書き直す方が安全）。 -->
 
 ## 概要
 
 ### 実装する機能
 
-<!-- 何を・なぜ実装するか。目的・背景・達成したいゴールを2〜4文で記載する。 -->
+<!-- 何を・なぜ実装するか。目的・ゴールを2〜4文。 -->
 
-> 記載例:
->
-> DuckDB をバックエンドとする `DuckDBStoreConnector` を追加し、PostgreSQL なしでローカル・Databricks 環境の両方で動作する RAG パイプラインを実現する。
->
-> あわせてエンティティ層を DB 種別に依存しない設計へ整理し、PostgreSQL / DuckDB を同一インターフェースで切り替えられるようにする。
+> 例: DuckDB バックエンドの `DuckDBStoreConnector` を追加し、PostgreSQL なしでも RAG パイプラインを動かせるようにする。
 
 ### モジュール構成と責務
 
-<!-- 変更・追加が及ぶモジュールのディレクトリツリーを示し、各モジュールの責務を 1 行で記載する。 -->
+<!-- 変更が及ぶモジュールのディレクトリツリーと、各モジュールの責務を1行で。 -->
 
-> 記載例:
->
-> ```
-> src/assistant_agent/
-> ├── entities/
-> │   ├── base.py        # 共通基底クラス・backlink_filter 抽象定義
-> │   ├── postgres.py    # PostgreSQL 用ミックスイン・テーブルクラス
-> │   └── duckdb.py      # DuckDB 用ミックスイン・テーブルクラス
-> └── utils/
->     └── store_connector.py  # StoreConnector 実装群（DuckDBStoreConnector 追加）
-> ```
->
+> 例:
 > | モジュール | 責務 |
 > |---|---|
-> | `entities/base.py` | DB 非依存の列定義と `backlink_filter` の抽象インターフェース |
-> | `entities/postgres.py` | PostgreSQL 固有の JSONB 型と `backlink_filter` 実装 |
-> | `utils/store_connector.py` | VectorStore / DocumentStore の生成を DB 種別ごとに隠蔽 |
+> | `entities/base.py` | DB 非依存の列定義と抽象インターフェース |
 
 ## 変更対象ファイル
 
-<!-- 変更・新規作成・削除するファイルを列挙する。変更種別は「新規作成 / 改修 / 削除」のいずれかを記載する。 -->
+<!-- 変更・新規作成・削除するファイルを列挙し、変更種別を添える。 -->
 
-> 記載例:
->
+> 例:
 > | ファイル | 変更種別 |
 > |---|---|
-> | `src/assistant_agent/entities.py` | 削除（ディレクトリへ移行） |
-> | `src/assistant_agent/entities/base.py` | 新規作成（共通基底クラス） |
 > | `src/assistant_agent/store.py` | 改修（DuckDBStoreConnector 追加） |
-> | `tests/integration/test_store_connector.py` | 新規作成（DuckDB テスト追加） |
 
 ## 1. {変更対象}: `{ファイルパス}`
 
-<!-- 変更対象ごとにセクションを設ける。番号は変更対象ファイルテーブルの順番と対応させる。 -->
-
-### 現状
-
-<!-- 変更前のコード・クラス構成・依存関係など、現在の状態を記載する。変更の動機が伝わるよう、問題点や制約も添える。 -->
-
-> 記載例:
->
-> `src/assistant_agent/entities.py` に以下が定義されている。
->
-> ```python
-> class DocumentFields:      # 基底（JSONB 列定義込み）
-> class VaultBase(DeclarativeBase): ...
-> class ObsidianEntity(VaultBase, DocumentFields): ...
-> ```
->
-> `backlink_filter` に PostgreSQL 固有の `JSONB.contains` が直接使われており、DuckDB では動作しない。
+<!-- 変更対象ごとにセクションを設ける。番号は変更対象ファイル一覧の順と対応させる。 -->
 
 ### 変更方針
 
-<!-- 変更の具体的な内容を記載する。方針の説明 + 変更後コードの両方を示す。
-     コード変更が大きい場合はビフォー/アフターを並べる。注意点・制約・設計上の意図も記載する。 -->
-
-> 記載例:
->
-> `entities.py` を削除し `entities/` ディレクトリへ移行する。`backlink_filter` を抽象メソッドとして基底クラスに定義し、DB 固有実装は各サブクラスに委譲する。
->
-> ```python
-> # entities/base.py（変更後）
-> from abc import abstractmethod
-> from sqlalchemy.sql.elements import ColumnElement
->
-> class ObsidianFields:
->     @classmethod
->     @abstractmethod
->     def backlink_filter(cls, document_id: str) -> ColumnElement[bool]:
->         raise NotImplementedError
-> ```
->
-> **注意:** `@classmethod` + `@abstractmethod` の二重デコレータは実行時・pyright ともにエラーなし（検証済み）。
+<!-- 変更の具体的な内容＋変更後コード。決定の理由もここに書く。
+     背景の調査結果は書かず "research.md の《節》参照" とだけ繋ぐ。
+     変更前の状態はファイルを読めば分かるので書かない（新規作成ファイルの場合のみ「新規作成」と明記）。 -->
 
 ### テスト（単体）
 
-<!-- 単体テストで確認すべき観点と方針を記載する。追加・削除がない場合もその旨を明示する。 -->
-
-> 記載例:
->
-> 追加・削除なし（`entities/` は純粋なデータモデル定義のため単体テストの対象外）。
-
-> 追加ありの場合の例:
->
-> `tests/unit/test_store_connector.py` の Chroma 関連テスト4件をすべて削除し、関連インポートも削除する。
+<!-- 確認すべき観点。追加・削除がなければその旨を明示する。 -->
 
 ### テスト（結合）
 
-<!-- 結合テストで確認すべき観点・テストメソッド名・フィクスチャを記載する。 -->
-
-> 記載例:
->
-> `tests/integration/test_entities.py`（新規作成）で検証する。
->
-> - `test_backlink_filter_01`（PostgreSQL）
->   - 観点1: `backlink_filter` が `document_metadata["forward_links"]` に対してフィルタできること
-> - `test_backlink_filter_02`（DuckDB）
->   - 観点1: `backlink_filter` が `document_metadata["forward_links"]` に対してフィルタできること
+<!-- 確認すべき観点・テストメソッド名。 -->
 
 ## 2. {変更対象}: `{ファイルパス}`
 
-<!-- 上記と同じ構成で繰り返す。変更対象が増えるたびにセクションを追加する。 -->
-
-### 現状
-
-<!-- （記載する） -->
-
-### 変更方針
-
-<!-- （記載する） -->
-
-### テスト（単体）
-
-<!-- （記載する） -->
-
-### テスト（結合）
-
-<!-- （記載する） -->
-
+<!-- 上記と同じ構成で繰り返す。 -->
 
 ## 使用パッケージ
 
-<!-- 使用するサードパーティパッケージを記載。 -->
-
-変更なし。実装で使用する 3rd party パッケージは以下の通り（すべて既存依存）。
-
-> 記載例:
-> | パッケージ | 用途 |
-> |---|---|
-> | `pyyaml` | フロントマターの YAML パース（`yaml.safe_load`） |
-> | `llama-index-core` | `SimpleDirectoryReader` / `BaseReader` / `Document` |
+<!-- 使用するサードパーティパッケージ。変更なしなら「変更なし」。 -->
 
 ## 設計チェック
 
-<!-- 設計全体を横断する注意点・制約・検証済み事項をまとめる。
-     個別ファイルに書くと埋もれる「型チェックの挙動」「パッケージの制約」「将来の拡張への考慮」などを記載する。 -->
-
-> 記載例:
->
-> - `document_metadata: Mapped[dict]`（`mapped_column()` なし）を基底に置くことで pyright が各サブクラスの `row.document_metadata` アクセスを認識できる（検証済み）
-> - `postgres.py` / `duckdb.py` でクラス名が重複するが、`DeclarativeBase` が異なるため `metadata` は独立し衝突しない（検証済み）
-> - `DuckDBVectorStore` はノードのメタデータに list 型を受け付けない（`str / int / float / None` のみ）。`forward_links`（`list[str]`）はメタデータから除外して渡す
+<!-- 設計全体を横断するトレードオフ・将来課題。個別ファイル節に書くと埋もれる横断的判断を記載する。
+     背景の調査結果ではなく決定とその理由のみ。 -->
