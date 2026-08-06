@@ -8,11 +8,16 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from mlflow.entities import SpanType
+from mlflow.langchain.utils.chat import convert_lc_message_to_chat_message
 
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Emitter, Receiver
 from assistant_agent.utils.context import CommonContext
 
 TIMEOUT_SECONDS_DEFAULT = 300
+# MLflow UI の Chat タブは mlflow.chat.messages 属性を読んで表示する
+# (このバージョンの mlflow には SpanAttributeKey.CHAT_MESSAGES 定数が無いため直接指定する)
+CHAT_MESSAGES_ATTR_KEY = "mlflow.chat.messages"
+
 SYNC_REQUEST_MESSAGE_TMPL = """\
 # {channel_name}
 ## Guideline
@@ -75,14 +80,18 @@ class Agent(ActiveEmitter, Receiver):
                         AgentInvocation,
                         invocation | {"context": self._context | received_context},
                     )
-                    span.set_inputs(invocation["input"]["messages"][-1].content)
+                    msg_in = invocation["input"]["messages"][-1]
+                    chat_msg_in = convert_lc_message_to_chat_message(msg_in).model_dump()
+                    span.set_inputs({"messages": [chat_msg_in]})
                     self._logger.info(self._format_log_message("Consume a message"))
                     result = await asyncio.wait_for(
                         self._agent.ainvoke(**merged_invocation, config=config, version="v2"),
                         timeout=timeout_seconds,
                     )
                     msg_out = result.value["messages"][-1]
-                    span.set_outputs(msg_out)
+                    chat_msg_out = convert_lc_message_to_chat_message(msg_out).model_dump()
+                    span.set_outputs({"messages": [chat_msg_out]})
+                    span.set_attribute(CHAT_MESSAGES_ATTR_KEY, [chat_msg_in, chat_msg_out])
                 except TimeoutError:
                     txt = self._format_log_message(f"ainvoke() timed out after {timeout_seconds}s")
                     self._logger.error(txt)
