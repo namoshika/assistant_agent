@@ -1,16 +1,20 @@
 import asyncio
 from typing import Any
 
-import pytest
 from deepagents.backends.store import StoreBackend
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
 from assistant_agent.agents import sample
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 from assistant_agent.utils.workflow import Agent, BroadcastPipe, DefaultRolloverStrategy
+
+
+class _FakeChatModel(GenericFakeChatModel):
+    def bind_tools(self, tools: Any, **_: Any) -> _FakeChatModel:
+        return self
 
 
 class _DummyActiveEmitter(ActiveEmitter):
@@ -31,14 +35,14 @@ class _DummyReceiver(Receiver):
         self._event.set()
 
 
-@pytest.mark.integration
-async def test_receive_01(llm: BaseChatModel):
-    """実 LLM で新着に応答し、BroadcastPipe 経由で配信されるか確認.
+async def test_receive_01() -> None:
+    """build_lc_agent() で構築したグラフを Agent 化し、新着に応答して emit することを確認.
 
     観点1: BroadcastPipe で接続した発信元から新着を流すと、
-        実グラフの応答が Agent の購読者へ配信されること
+        グラフの応答が Agent の購読者へ配信されること
     """
     # 試験準備
+    llm = _FakeChatModel(messages=iter([AIMessage(content="こんにちは、assistant_agent_1です。")]))
     store = InMemoryStore()
     lc_agent = sample.build_lc_agent(InMemorySaver(), store, llm)
     backend = StoreBackend(store=store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem"))
@@ -62,9 +66,12 @@ async def test_receive_01(llm: BaseChatModel):
         context={},
     )
     source.emit(invocation)
-    await asyncio.wait_for(received_event.wait(), timeout=30)
+    await asyncio.wait_for(received_event.wait(), timeout=5)
 
     # 結果検証
     # 観点1
     assert len(received.received) == 1
-    assert received.received[0]["input"]["messages"][-1].content
+    assert (
+        received.received[0]["input"]["messages"][-1].content
+        == "こんにちは、assistant_agent_1です。"
+    )

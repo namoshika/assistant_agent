@@ -1,13 +1,14 @@
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from langchain_aws import ChatBedrockConverse
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import SecretStr
 from sqlalchemy import MetaData, text
@@ -18,6 +19,23 @@ from assistant_agent.entities.postgres import ChunkFields
 from assistant_agent.loaders import ObsidianLoader
 from assistant_agent.services import VaultObsidianRetriever, VaultSampleRetriever
 from assistant_agent.store import PostgresStoreConnector
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup() -> Iterator[None]:
+    """Mlflow."""
+    import mlflow
+
+    # トレース用設定（agent_server.py と同様。logger.exception() から mlflow のトレースIDを
+    # 参照できるようにするため、常駐プロセスでも autolog を有効化する）
+    mlflow.set_experiment(experiment_name="agent-rag")
+    mlflow.openai.autolog()  # pyright: ignore[reportPrivateImportUsage]
+    mlflow.gemini.autolog()  # pyright: ignore[reportPrivateImportUsage]
+    mlflow.langchain.autolog(run_tracer_inline=True)  # pyright: ignore[reportPrivateImportUsage]
+
+    session_id = f"pytest-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    with mlflow.start_run(run_name=session_id):
+        yield
 
 
 @pytest.fixture()
@@ -37,13 +55,13 @@ async def pg_conn() -> AsyncIterator[PostgresStoreConnector]:
 
 
 @pytest.fixture()
-def vault_name() -> str:
-    """テストごとに一意なテーブルプレフィックス."""
+def test_id() -> str:
+    """テストごとに一意な識別子（テーブル名プレフィックス等に使用）."""
     return f"test_{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture()
-async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
+async def pg_entity_chk(pg_conn: PostgresStoreConnector, test_id: str) -> AsyncIterator[type]:
     """一意なテーブル名を持つチャンク Entity を生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -53,7 +71,7 @@ async def pg_entity_chk(pg_conn: PostgresStoreConnector, vault_name: str) -> Asy
         metadata = MetaData("app")
 
     class _TestChunkEntity(_TestAppBase, ChunkFields):
-        __tablename__ = f"{vault_name}_vectors"
+        __tablename__ = f"{test_id}_vectors"
 
     engine = pg_conn.get_engine()
     async with engine.connect() as conn:
@@ -78,24 +96,11 @@ def llm() -> BaseChatModel:
 
     AWS_ACCESS_KEY_ID・AWS_SECRET_ACCESS_KEY 環境変数が必要。
     """
-    aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
-    aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-    aws_default_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-    if not aws_access_key_id:
-        pytest.fail("AWS_ACCESS_KEY_ID が未設定のため失敗")
-    if not aws_secret_access_key:
-        pytest.fail("AWS_SECRET_ACCESS_KEY が未設定のため失敗")
-
-    return ChatBedrockConverse(
-        model="qwen.qwen3-235b-a22b-2507-v1:0",
-        aws_access_key_id=SecretStr(aws_access_key_id),
-        aws_secret_access_key=SecretStr(aws_secret_access_key),
-        region_name=aws_default_region,
-    )
+    return ChatOpenAI(model="openai.gpt-5.6-luna", reasoning={"effort": "low"})
 
 
 @pytest.fixture()
-async def pg_entity_obs(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
+async def pg_entity_obs(pg_conn: PostgresStoreConnector, test_id: str) -> AsyncIterator[type]:
     """Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -106,7 +111,7 @@ async def pg_entity_obs(pg_conn: PostgresStoreConnector, vault_name: str) -> Asy
         metadata = MetaData("assets")
 
     class _TestVaultRawEntity(_TestBase, postgres.ObsidianFields):
-        __tablename__ = f"{vault_name}_raw"
+        __tablename__ = f"{test_id}_raw"
 
     async with engine.begin() as conn:
         await conn.run_sync(_TestBase.metadata.create_all)
@@ -153,7 +158,7 @@ def docs_smpl() -> list[Document]:
 
 
 @pytest.fixture()
-async def pg_entity_smpl(pg_conn: PostgresStoreConnector, vault_name: str) -> AsyncIterator[type]:
+async def pg_entity_smpl(pg_conn: PostgresStoreConnector, test_id: str) -> AsyncIterator[type]:
     """サンプル用 Vault テーブルの ORM エンティティクラスを生成しテーブルを作成する.
 
     テスト終了後に作成したテーブルを DROP する。
@@ -164,7 +169,7 @@ async def pg_entity_smpl(pg_conn: PostgresStoreConnector, vault_name: str) -> As
         metadata = MetaData("assets")
 
     class _TestSampleEntity(_TestBase, postgres.DocumentFields):
-        __tablename__ = f"{vault_name}_raw"
+        __tablename__ = f"{test_id}_raw"
 
     async with engine.begin() as conn:
         await conn.run_sync(_TestBase.metadata.create_all)

@@ -1,19 +1,32 @@
 import asyncio
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import mlflow
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from deepagents.backends.store import StoreBackend
+from langchain.agents.middleware.summarization import DEFAULT_SUMMARY_PROMPT
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage
+from langchain_core.messages.utils import get_buffer_string
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from mlflow.entities import SpanType
 from mlflow.langchain.utils.chat import convert_lc_message_to_chat_message
 
-from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Emitter, Receiver
+from assistant_agent.utils.absclass import (
+    ActiveEmitter,
+    AgentInvocation,
+    Emitter,
+    Receiver,
+    RolloverStrategy,
+)
 from assistant_agent.utils.context import CommonContext
 
 TIMEOUT_SECONDS_DEFAULT = 300
+SUMMARY_TIMEOUT_SECONDS = 300  # ロールオーバー時の要約生成のタイムアウト
+THREAD_ROLLOVER_INTERVAL_DAYS = 3  # thread_id の世代交代間隔（日数）
 # MLflow UI の Chat タブは mlflow.chat.messages 属性を読んで表示する
 # (このバージョンの mlflow には SpanAttributeKey.CHAT_MESSAGES 定数が無いため直接指定する)
 CHAT_MESSAGES_ATTR_KEY = "mlflow.chat.messages"
@@ -26,6 +39,16 @@ SYNC_REQUEST_MESSAGE_TMPL = """\
 ## Received Prompt
 {content}
 """
+SUMMARY_HANDOFF_TMPL = """\
+You are in the middle of a conversation that has been summarized.
+
+The full conversation history has been saved to {history_path} should you need to
+refer back to it for details.
+
+<summary>
+{summary}
+</summary>
+"""
 
 
 class Agent(ActiveEmitter, Receiver):
@@ -35,13 +58,17 @@ class Agent(ActiveEmitter, Receiver):
         self,
         lc_agent: CompiledStateGraph[Any, Any, Any, Any],
         context: CommonContext,
-        thread_id: str | None = None,
+        agent_id: str,
+        thread_id: str | None,
+        rollover_strategy: RolloverStrategy,
     ):
         """Agentを構成する."""
         super().__init__()
         self._agent = lc_agent
-        self._thread_id = thread_id or str(uuid.uuid7())
+        self._agent_id = agent_id
+        self._thread_id = thread_id or self._new_thread_id()
         self._context = context
+        self._rollover_strategy = rollover_strategy
         self._queue: asyncio.Queue[AgentInvocation] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._logger = logging.getLogger(__name__)
@@ -65,17 +92,23 @@ class Agent(ActiveEmitter, Receiver):
     async def _consume(self) -> None:
         config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
         while True:
-            with mlflow.start_span("SampleAgent", span_type=SpanType.CHAT_MODEL) as span:
-                mlflow.update_current_trace(
-                    metadata={
-                        "mlflow.trace.user": "123",
-                        "mlflow.trace.session": self._thread_id,
-                    }
-                )
-                invocation = await self._queue.get()
+            invocation = await self._queue.get()
+            with mlflow.start_span("Agent", span_type=SpanType.CHAT_MODEL) as span:
                 received_context = invocation["context"]
                 timeout_seconds = received_context.get("timeout_seconds", TIMEOUT_SECONDS_DEFAULT)
                 try:
+                    # スレッドをロールオーバー (戦略の判断に応じて実施される)
+                    self._thread_id, config = await self._rollover_strategy.invoke(
+                        self._agent, self._agent_id, self._thread_id, config
+                    )
+                    mlflow.update_current_trace(
+                        metadata={
+                            "mlflow.trace.user": "123",
+                            "mlflow.trace.session": self._thread_id,
+                        }
+                    )
+
+                    # エージェントを呼び出しオブジェクトを準備
                     merged_invocation = cast(
                         AgentInvocation,
                         invocation | {"context": self._context | received_context},
@@ -84,6 +117,8 @@ class Agent(ActiveEmitter, Receiver):
                     chat_msg_in = convert_lc_message_to_chat_message(msg_in).model_dump()
                     span.set_inputs({"messages": [chat_msg_in]})
                     self._logger.info(self._format_log_message("Consume a message"))
+
+                    # エージェントを呼び出し
                     result = await asyncio.wait_for(
                         self._agent.ainvoke(**merged_invocation, config=config, version="v2"),
                         timeout=timeout_seconds,
@@ -106,6 +141,85 @@ class Agent(ActiveEmitter, Receiver):
 
     def _format_log_message(self, message: str) -> str:
         return f"{message} (thread_id: {self._thread_id}, queue: {self._queue.qsize()},  trace_id: {mlflow.get_last_active_trace_id()})"  # noqa: E501
+
+    def _new_thread_id(self) -> str:
+        return f"{self._agent_id}:{uuid.uuid7()}"
+
+
+class DefaultRolloverStrategy(RolloverStrategy):
+    """thread_id の経過日数のみで判定し、無条件にロールオーバーする既定の戦略.
+
+    要約は新 thread の checkpoint（messages）へ aupdate_state() で直接差し込む。
+    要約・退避に失敗しても世代交代自体は継続する（要約が無くても新 thread への
+    移行は成立するため）。要約生成・生ログ退避に使う llm・backend はコンストラクタで受け取る。
+    """
+
+    def __init__(self, llm: BaseChatModel, backend: StoreBackend) -> None:
+        """DefaultRolloverStrategy を構成する."""
+        self._llm = llm
+        self._backend = backend
+        self._logger = logging.getLogger(__name__)
+
+    async def invoke(
+        self,
+        lc_agent: CompiledStateGraph[Any, Any, Any, Any],
+        agent_id: str,
+        thread_id: str,
+        config: RunnableConfig,
+    ) -> tuple[str, RunnableConfig]:
+        """現在の thread_id・config を判定し、必要なら新しい thread_id・config を返す."""
+        if not self.should_rollover(thread_id):
+            return thread_id, config
+
+        new_thread_id = f"{agent_id}:{uuid.uuid7()}"
+        new_config: RunnableConfig = {"configurable": {"thread_id": new_thread_id}}
+
+        snapshot = await lc_agent.aget_state(config)
+        messages = snapshot.values.get("messages", [])
+        if len(messages) > 0:
+            try:
+                summary_message = await self.summarize_and_offload(
+                    messages, f"/conversation_history/{thread_id}.md", self._llm, self._backend
+                )
+                await lc_agent.aupdate_state(new_config, {"messages": [summary_message]})
+            except Exception:
+                self._logger.exception(f"Failed to summarize/offload (thread_id: {thread_id})")
+
+        self._logger.info(f"Rolled over thread_id: {thread_id} -> {new_thread_id}")
+        return new_thread_id, new_config
+
+    @staticmethod
+    def should_rollover(thread_id: str) -> bool:
+        """thread_id に含まれる uuid7 部分から生成時刻を取り出し、経過日数で判定する.
+
+        想定外の形式（移行前に払い出された prefix 無しの thread_id 等）は
+        世代交代の対象として True を返し、新しい形式へ移行させる。
+        """
+        _, _, uuid_part = thread_id.partition(":")
+        try:
+            created_at = datetime.fromtimestamp(uuid.UUID(uuid_part).time / 1000, tz=UTC)
+        except ValueError:
+            return True
+        return datetime.now(UTC) - created_at >= timedelta(days=THREAD_ROLLOVER_INTERVAL_DAYS)
+
+    @staticmethod
+    async def summarize_and_offload(
+        messages: list[AnyMessage],
+        history_path: str,
+        llm: BaseChatModel,
+        backend: StoreBackend,
+    ) -> HumanMessage:
+        """旧 thread の全メッセージを要約し、生ログを仮想ファイルシステムへ退避する."""
+        formatted = get_buffer_string(messages, format="xml")
+        await backend.awrite(history_path, formatted)  # 要約より先に退避
+        response = await asyncio.wait_for(
+            llm.ainvoke(DEFAULT_SUMMARY_PROMPT.format(messages=formatted)),
+            timeout=SUMMARY_TIMEOUT_SECONDS,
+        )
+        content = SUMMARY_HANDOFF_TMPL.format(
+            history_path=history_path, summary=response.text.strip()
+        )
+        return HumanMessage(content=content, additional_kwargs={"lc_source": "summarization"})
 
 
 class SyncRequestChannel(ActiveEmitter, Receiver):

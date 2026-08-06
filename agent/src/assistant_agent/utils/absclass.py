@@ -1,6 +1,8 @@
 import abc
 from typing import Any, Required, TypedDict
 
+from langchain_core.runnables.config import RunnableConfig
+from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from assistant_agent.utils.context import CommonContext
@@ -12,6 +14,26 @@ class StoreConnector(abc.ABC):
     @abc.abstractmethod
     def get_engine(self) -> AsyncEngine:
         """SQLAlchemy AsyncEngine を生成する."""
+        raise NotImplementedError
+
+
+class RolloverStrategy(abc.ABC):
+    """thread_id の世代交代要否を判定し、必要なら実施する戦略の抽象クラス."""
+
+    @abc.abstractmethod
+    async def invoke(
+        self,
+        lc_agent: CompiledStateGraph[Any, Any, Any, Any],
+        agent_id: str,
+        thread_id: str,
+        config: RunnableConfig,
+    ) -> tuple[str, RunnableConfig]:
+        """現在の thread_id, config を判定し、必要なら新しい thread_id, config を返す."""
+        # 呼び出しのたびに現在の thread_id, config を受け取り、
+        # ロールオーバーしない場合は入力をそのまま、する場合は新しい thread_id, config を返す。
+        # 要約の引き継ぎ（新 thread の checkpoint への差し込み等）が必要な場合はここで完結させる。
+        # 要約生成・退避に使う llm, backend 等は、実装クラスのコンストラクタで受け取り保持する
+        # （Agent はそれらを知らない）。
         raise NotImplementedError
 
 

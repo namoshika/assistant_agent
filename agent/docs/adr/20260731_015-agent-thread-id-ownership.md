@@ -37,3 +37,4 @@ guild_id・channel_id(発信先の特定に必要な情報)は、config では�
 - `docs/experimental/20260729_dispatcher_service/requirements.md` の R004・R005・R019・R021・R025・R027(thread_id ベースのスレッド分離・予定フィルタに関する要件)は、本決定により廃止された。当該ファイルに廃止注記を追記済み
 - 本変更の詳細な設計・実装記録は `docs/experimental/20260731_agent_thread_id_rollback/` を参照
 - Discord の複数サーバー対応は、当面テナント分離されない(すべてのサーバーの会話が単一の `Agent` インスタンス・単一 thread_id に統合される)。マルチテナント化が必要になった場合は、`Agent` の複数インスタンス化とチャンネル側のルーティングで対応する(将来課題)
+- ADR-016(`docs/adr/20260803_016-thread-id-time-based-rollover.md`)により、本決定の核心(外部から渡される内容に左右されない)は維持したまま、「`Agent` 自身の判断で、`thread_id` 生成からの経過時間を基準に新しい `thread_id` へロールオーバーしてよい」という例外が追加された

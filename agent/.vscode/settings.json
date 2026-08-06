@@ -1,6 +1,5 @@
 {
     "task.autoDetect": "off",
-    "python.analysis.typeCheckingMode": "basic",
     "python.testing.pytestArgs": [
         "tests"
     ],

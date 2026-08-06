@@ -1,28 +1,14 @@
 import logging
-import os
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import mlflow
 from fastapi import FastAPI, HTTPException
 from langchain_core.messages import BaseMessage
 from mlflow.types.agent import ChatAgentMessage, ChatAgentRequest, ChatAgentResponse
 
 from assistant_agent import agent_bot
 from assistant_agent.utils.serving import ChatCompletion
-
-logger = logging.getLogger(__name__)
-
-# トレース用設定
-MLFLOW_EXPERIMENT_ID = os.getenv("MLFLOW_EXPERIMENT_ID")
-if MLFLOW_EXPERIMENT_ID is not None:
-    mlflow.set_experiment(experiment_id=MLFLOW_EXPERIMENT_ID)
-else:
-    mlflow.set_experiment(experiment_name="agent-rag")
-mlflow.bedrock.autolog()  # pyright: ignore[reportPrivateImportUsage]
-mlflow.gemini.autolog()  # pyright: ignore[reportPrivateImportUsage]
-mlflow.langchain.autolog(run_tracer_inline=True)  # pyright: ignore[reportPrivateImportUsage]
 
 
 def _extract_text_content(msg: BaseMessage) -> str | None:
@@ -45,6 +31,7 @@ def _extract_text_content(msg: BaseMessage) -> str | None:
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncGenerator[None]:
     async with agent_bot.init_harness() as sync_request_channel:
+        logger = logging.getLogger(__name__)
 
         @endpoint.regist(model_id="assistant_agent_v1")
         async def predict(req: ChatAgentRequest) -> ChatAgentResponse:

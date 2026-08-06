@@ -1,12 +1,17 @@
-import os
 from typing import Any
 
-import langchain.agents
+import deepagents
+from deepagents.backends.store import StoreBackend
+from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.store.base import BaseStore
 
+from assistant_agent import subagents
 from assistant_agent.tools import discord, dispatcher, obsidian, sample
 from assistant_agent.utils.context import CommonContext
+
+AGENT_ID = "assistant-agent-1"  # thread_id の prefix・StoreBackend の namespace に使う識別子
 
 SYSTEM_PROMPT = """
 # Instruction
@@ -58,41 +63,13 @@ SYSTEM_PROMPT = """
 
 
 def build_lc_agent(
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
+    store: BaseStore,
+    llm: BaseChatModel,
 ) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
-    """LLM・ツール・checkpointer を束ねたグラフを構築する."""
-    from langchain_aws import ChatBedrockConverse
-    from langchain_tavily import (
-        TavilyCrawl,
-        TavilyExtract,
-        TavilyGetResearch,
-        TavilyMap,
-        TavilyResearch,
-        TavilySearch,
-    )
-    from pydantic import SecretStr
-
-    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_default_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    assert aws_access_key_id is not None
-    assert aws_secret_access_key is not None
-
-    llm = ChatBedrockConverse(
-        model="global.anthropic.claude-sonnet-5",
-        aws_access_key_id=SecretStr(aws_access_key_id),
-        aws_secret_access_key=SecretStr(aws_secret_access_key),
-        region_name=aws_default_region,
-    )
-
-    tavily_search = TavilySearch(topic="general", country="japan")
-    tavily_extract = TavilyExtract()
-    tavily_crawl = TavilyCrawl()
-    tavily_map = TavilyMap()
-    tavily_research = TavilyResearch()
-    tavily_get_research = TavilyGetResearch()
-
-    return langchain.agents.create_agent(
+    """ツール・checkpointer/store を束ねたグラフを構築する（LLM は呼び出し元から受け取る）."""
+    backend = StoreBackend(store=store, namespace=lambda _rt: (AGENT_ID, "filesystem"))
+    lc_agent = deepagents.create_deep_agent(
         model=llm,
         tools=[
             sample.get_weather,
@@ -101,22 +78,21 @@ def build_lc_agent(
             dispatcher.dispatcher_invoke_delay,
             dispatcher.dispatcher_cancel,
             dispatcher.dispatcher_list,
-            # sample.sample_search,
             obsidian.obsidian_vault_search,
             obsidian.obsidian_vault_get,
             discord.discord_get_messages,
             discord.discord_send_message,
             discord.discord_mention_user,
             discord.discord_reply_message,
-            tavily_search,
-            tavily_extract,
-            tavily_crawl,
-            tavily_map,
-            tavily_research,
-            tavily_get_research,
         ],
+        subagents=[
+            subagents.web_researcher,
+        ],
+        backend=backend,
         system_prompt=SYSTEM_PROMPT,
         context_schema=CommonContext,
-        name="agent",
+        name="SampleAgent",
         checkpointer=checkpointer,
+        store=store,
     )
+    return lc_agent
