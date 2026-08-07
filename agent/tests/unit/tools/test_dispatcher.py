@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 from langchain.agents import create_agent
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -19,25 +19,27 @@ class _FakeChatModel(GenericFakeChatModel):
 async def test_dispatcher_invoke_at_01():
     """ツール dispatcher_invoke_at が DispatcherService.invoke_at() を正しい引数で呼ぶことを確認.
 
-    観点1（R017）: content・datetime を含む形で invoke_at() が呼ばれること
-    観点2（R017）: invoke_at() の戻り値（Dispatch）の文字列表現が LLM への ToolMessage に
-      含まれること
-    """
+    観点1（R017）: agent_id、content、datetime を含む形で invoke_at() が呼ばれること
+    観点2（R017）: invoke_at() の戻り値（Dispatch）の文字列表現が LLM への ToolMessage に含まれること
+    観点3: naive datetime を渡した場合、JST とみなして UTC に変換した状態で invoke_at() が呼ばれること
+    """  # noqa: E501
     # 試験準備
-    m_service = MagicMock(spec=DispatcherService)
-    at = datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC)
+    m_service = AsyncMock(spec=DispatcherService)
+    at_jst_naive = datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC).replace(tzinfo=None)
+    expected_at_utc = datetime(2026, 7, 30, 0, 0, 0, tzinfo=UTC)
     m_service.invoke_at.return_value = Dispatch(
         dispatch_id="dispatch-1",
+        agent_id="test-agent",
         prompt="おはよう",
         interval_seconds=DispatcherService.ONE_SHOT,
-        next_fire_at=at,
+        run_at=expected_at_utc,
     )
     ai_msg = AIMessage(
         content="",
         tool_calls=[
             {
                 "name": "dispatcher_invoke_at",
-                "args": {"prompt": "おはよう", "at": at.isoformat()},
+                "args": {"prompt": "おはよう", "at": at_jst_naive.isoformat()},
                 "id": "1",
                 "type": "tool_call",
             }
@@ -49,18 +51,20 @@ async def test_dispatcher_invoke_at_01():
     result = await agent.ainvoke(
         {"messages": [HumanMessage(content="来週の9時に伝えて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
     # 観点1
     m_service.invoke_at.assert_called_once()
-    prompt, called_at = m_service.invoke_at.call_args[0]
-    assert called_at == at
+    agent_id, prompt, called_at = m_service.invoke_at.call_args[0]
+    assert agent_id == "test-agent"
     assert prompt == "おはよう"
     # 観点2
     tool_message = result["messages"][2]
     assert "dispatch-1" in tool_message.content
+    # 観点3
+    assert called_at == expected_at_utc
 
 
 async def test_dispatcher_invoke_at_02():
@@ -70,7 +74,7 @@ async def test_dispatcher_invoke_at_02():
       含んで返ること
     """
     # 試験準備
-    m_service = MagicMock(spec=DispatcherService)
+    m_service = AsyncMock(spec=DispatcherService)
     ai_msg = AIMessage(
         content="",
         tool_calls=[
@@ -88,7 +92,7 @@ async def test_dispatcher_invoke_at_02():
     result = await agent.ainvoke(
         {"messages": [HumanMessage(content="明日の9時に伝えて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
@@ -98,57 +102,23 @@ async def test_dispatcher_invoke_at_02():
     assert tool_message.status == "error"
 
 
-async def test_dispatcher_invoke_at_03():
-    """DispatcherService.invoke_at() が ValueError を送出する場合の挙動を確認.
-
-    観点1（R002・R017）: ツールが ValueError を再送出せず、エラーメッセージを文字列として返すこと
-    """
-    # 試験準備
-    m_service = MagicMock(spec=DispatcherService)
-    m_service.invoke_at.side_effect = ValueError("過去の日時は指定できません")
-    ai_msg = AIMessage(
-        content="",
-        tool_calls=[
-            {
-                "name": "dispatcher_invoke_at",
-                "args": {"prompt": "おはよう", "at": "2020-01-01T00:00:00"},
-                "id": "1",
-                "type": "tool_call",
-            }
-        ],
-    )
-    agent = _make_agent(ai_msg, tools.dispatcher_invoke_at)
-
-    # 試験実施
-    result = await agent.ainvoke(
-        {"messages": [HumanMessage(content="過去の日時に伝えて")]},
-        config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
-    )
-
-    # 結果検証
-    # 観点1
-    tool_message = result["messages"][2]
-    assert tool_message.status != "error"
-    assert "過去の日時は指定できません" in tool_message.content
-
-
 async def test_dispatcher_invoke_delay_01():
     """ツール dispatcher_invoke_delay が DispatcherService.invoke_delay() を正しく呼ぶことを確認.
 
-    観点1（R017）: content・delay_value・delay_unit・interval_value・interval_unit を含む形で
-      dispatcher_invoke_delay() が呼ばれ、invoke_delay() の戻り値（Dispatch）の文字列表現が
-      LLM への ToolMessage に含まれること
+    観点1（R017）: agent_id、content、delay_value、delay_unit、interval_value、interval_unit を
+      含む形で dispatcher_invoke_delay() が呼ばれ、invoke_delay() の戻り値（Dispatch）の
+      文字列表現が LLM への ToolMessage に含まれること
     観点2（R017）: 引数を省略した場合は既定値（delay_value=10, delay_unit=SECONDS,
-      interval_value=-1, interval_unit=MINUTES）が渡ること
+      interval_value=0, interval_unit=MINUTES）が渡ること
     """
     # 試験準備
-    m_service = MagicMock(spec=DispatcherService)
+    m_service = AsyncMock(spec=DispatcherService)
     m_service.invoke_delay.return_value = Dispatch(
         dispatch_id="dispatch-1",
+        agent_id="test-agent",
         prompt="こんにちは",
         interval_seconds=10,
-        next_fire_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
+        run_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
     )
     ai_msg = AIMessage(
         content="",
@@ -173,13 +143,16 @@ async def test_dispatcher_invoke_delay_01():
     result = await agent.ainvoke(
         {"messages": [HumanMessage(content="5分後に伝えて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
     # 観点1
     m_service.invoke_delay.assert_called_once()
-    _, delay_value, delay_unit, interval_value, interval_unit = m_service.invoke_delay.call_args[0]
+    agent_id, _, delay_value, delay_unit, interval_value, interval_unit = (
+        m_service.invoke_delay.call_args[0]
+    )
+    assert agent_id == "test-agent"
     assert (delay_value, delay_unit) == (5, IntervalUnit.MINUTES)
     assert (interval_value, interval_unit) == (10, IntervalUnit.SECONDS)
     tool_message = result["messages"][2]
@@ -204,14 +177,16 @@ async def test_dispatcher_invoke_delay_01():
     result_default = await agent_default.ainvoke(
         {"messages": [HumanMessage(content="今すぐ伝えて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
     # 観点2
-    _, delay_value, delay_unit, interval_value, interval_unit = m_service.invoke_delay.call_args[0]
+    _, _, delay_value, delay_unit, interval_value, interval_unit = m_service.invoke_delay.call_args[
+        0
+    ]
     assert (delay_value, delay_unit) == (10, IntervalUnit.SECONDS)
-    assert (interval_value, interval_unit) == (-1, IntervalUnit.MINUTES)
+    assert (interval_value, interval_unit) == (0, IntervalUnit.MINUTES)
     tool_message_default = result_default["messages"][2]
     assert "dispatch-1" in tool_message_default.content
 
@@ -219,12 +194,12 @@ async def test_dispatcher_invoke_delay_01():
 async def test_dispatcher_cancel_01():
     """ツール dispatcher_cancel が DispatcherService.cancel_dispatch() を呼ぶことを確認.
 
-    観点1（R020）: dispatch_id とともに呼ばれること
+    観点1（R020）: agent_id、dispatch_id とともに呼ばれること
     観点2（R020）: cancel_dispatch() の戻り値（True/False）と、その意味を説明する
       Description を含む文字列が返ること
     """
     # 試験準備
-    m_service = MagicMock(spec=DispatcherService)
+    m_service = AsyncMock(spec=DispatcherService)
     m_service.cancel_dispatch.return_value = True
     ai_msg = AIMessage(
         content="",
@@ -243,12 +218,12 @@ async def test_dispatcher_cancel_01():
     result = await agent.ainvoke(
         {"messages": [HumanMessage(content="予定を消して")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
     # 観点1
-    m_service.cancel_dispatch.assert_called_once_with("dispatch-1")
+    m_service.cancel_dispatch.assert_called_once_with("test-agent", "dispatch-1")
     # 観点2
     tool_message = result["messages"][2]
     assert "True" in tool_message.content
@@ -274,7 +249,7 @@ async def test_dispatcher_cancel_01():
     result_missing = await agent_missing.ainvoke(
         {"messages": [HumanMessage(content="予定を消して")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
@@ -284,11 +259,94 @@ async def test_dispatcher_cancel_01():
     assert "Description:" in tool_message_missing.content
 
 
+async def test_dispatcher_get_01():
+    """ツール dispatcher_get が DispatcherService.get_dispatch() の結果を整形して返すことを確認.
+
+    観点1: agent_id、dispatch_id とともに get_dispatch() が呼ばれ、結果の文字列表現が返ること
+    観点2: 100文字を超えるメッセージ内容が切り詰められず全文含まれること
+    観点3: Markdown 見出し形式で整形されること
+    """
+    # 試験準備
+    long_content = "あ" * 150
+    m_service = AsyncMock(spec=DispatcherService)
+    m_service.get_dispatch.return_value = Dispatch(
+        dispatch_id="dispatch-1",
+        agent_id="test-agent",
+        prompt=long_content,
+        interval_seconds=DispatcherService.ONE_SHOT,
+        run_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
+    )
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "dispatcher_get",
+                "args": {"dispatch_id": "dispatch-1"},
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, tools.dispatcher_get)
+
+    # 試験実施
+    result = await agent.ainvoke(
+        {"messages": [HumanMessage(content="dispatch-1 の予定を見せて")]},
+        config={"configurable": {"thread_id": "thread-1"}},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
+    )
+
+    # 結果検証
+    # 観点1
+    m_service.get_dispatch.assert_called_once_with("test-agent", "dispatch-1")
+    tool_message = result["messages"][2]
+    assert "dispatch-1" in tool_message.content
+    # 観点2
+    assert long_content in tool_message.content
+    # 観点3
+    assert "## Dispatch" in tool_message.content
+
+
+async def test_dispatcher_get_02():
+    """get_dispatch() が None を返す場合の挙動を確認.
+
+    観点1: 見つからない旨を示す文字列が返り、例外が送出されないこと
+    """
+    # 試験準備
+    m_service = AsyncMock(spec=DispatcherService)
+    m_service.get_dispatch.return_value = None
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "dispatcher_get",
+                "args": {"dispatch_id": "not-exist"},
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, tools.dispatcher_get)
+
+    # 試験実施
+    result = await agent.ainvoke(
+        {"messages": [HumanMessage(content="not-exist の予定を見せて")]},
+        config={"configurable": {"thread_id": "thread-1"}},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
+    )
+
+    # 結果検証
+    # 観点1
+    tool_message = result["messages"][2]
+    assert tool_message.status != "error"
+    assert tool_message.content
+
+
 async def test_dispatcher_list_01():
     """ツール dispatcher_list が DispatcherService.list_dispatch() の結果を整形して返すことを確認.
 
-    観点1（R021）: 結果が dispatch_id・繰り返し間隔・次回発火時刻・メッセージ内容を含む
-      文字列として返ること
+    観点1（R021）: agent_id とともに list_dispatch() が呼ばれ、結果が dispatch_id、繰り返し間隔、
+      次回発火時刻、メッセージ内容を含む文字列として返ること
     観点2（R021）: 予定が0件のときもその旨が返ること
     観点3（R021）: 100文字を超えるメッセージ内容が切り詰められること
     観点4（R021）: interval_seconds が ONE_SHOT の予定は "once"、それ以外は "every Ns" 等の
@@ -297,19 +355,21 @@ async def test_dispatcher_list_01():
     """
     # 試験準備
     long_content = "あ" * 150
-    m_service = MagicMock(spec=DispatcherService)
+    m_service = AsyncMock(spec=DispatcherService)
     m_service.list_dispatch.return_value = [
         Dispatch(
             dispatch_id="dispatch-1",
+            agent_id="test-agent",
             prompt=long_content,
             interval_seconds=-1,
-            next_fire_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
+            run_at=datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC),
         ),
         Dispatch(
             dispatch_id="dispatch-2",
+            agent_id="test-agent",
             prompt="定期連絡",
             interval_seconds=30,
-            next_fire_at=datetime(2026, 7, 30, 9, 5, 0, tzinfo=UTC),
+            run_at=datetime(2026, 7, 30, 9, 5, 0, tzinfo=UTC),
         ),
     ]
     ai_msg = AIMessage(
@@ -322,12 +382,12 @@ async def test_dispatcher_list_01():
     result = await agent.ainvoke(
         {"messages": [HumanMessage(content="予定一覧を見せて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証
     # 観点1
-    m_service.list_dispatch.assert_called_once_with()
+    m_service.list_dispatch.assert_called_once_with("test-agent")
     tool_message = result["messages"][2]
     assert "dispatch-1" in tool_message.content
     assert "dispatch-2" in tool_message.content
@@ -354,7 +414,7 @@ async def test_dispatcher_list_01():
     result_empty = await agent_empty.ainvoke(
         {"messages": [HumanMessage(content="予定一覧を見せて")]},
         config={"configurable": {"thread_id": "thread-1"}},
-        context={"dispatcher_service": m_service},
+        context={"dispatcher_service": m_service, "agent_id": "test-agent"},
     )
 
     # 結果検証

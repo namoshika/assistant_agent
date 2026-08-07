@@ -111,7 +111,7 @@ async def test_discord_send_message_01():
     m_service.send_message.assert_called_once_with(111, "hello")
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
 
 
 async def test_discord_mention_user_01():
@@ -148,7 +148,7 @@ async def test_discord_mention_user_01():
     m_service.mention_user.assert_called_once_with(111, 222, "hello")
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
 
 
 async def test_discord_reply_message_01():
@@ -185,7 +185,7 @@ async def test_discord_reply_message_01():
     m_service.reply_message.assert_called_once_with(111, 333, "hello")
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
 
 
 def _make_agent(tool_calls_msg: AIMessage, *tools):

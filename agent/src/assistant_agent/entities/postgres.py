@@ -58,3 +58,9 @@ class SampleChunkEntity(AppBase, ChunkFields):
     """sample_retriever のチャンクテーブル."""
 
     __tablename__ = "sample_vectors"
+
+
+class DispatchEntity(AppBase, base.DispatchFields):
+    """base.DispatchFields をそのまま利用."""
+
+    __tablename__ = "dispatches"

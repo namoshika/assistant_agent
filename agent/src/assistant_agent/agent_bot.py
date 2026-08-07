@@ -95,6 +95,7 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         )
         await checkpointer.setup()
         await pg_store.setup()
+        await bot_ctx["dispatcher_service"].setup()
         await pg_store.start_ttl_sweeper()
 
         # エージェントを構築
@@ -104,7 +105,9 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
 
         # フローを初期化
         sync_request_channel = workflow.SyncRequestChannel()
-        dispatcher_channel = DispatcherChannel(service=bot_ctx["dispatcher_service"])
+        dispatcher_channel = DispatcherChannel(
+            service=bot_ctx["dispatcher_service"], poll_interval_seconds=60.0
+        )
         discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
         rollover_backend = StoreBackend(
             store=pg_store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem")

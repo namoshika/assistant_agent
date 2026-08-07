@@ -5,10 +5,12 @@ from typing import Any, ClassVar, TypedDict, cast
 class CommonContext(TypedDict, total=False):
     """エージェント共通コンテキスト。将来の共通フィールド追加の置き場.
 
+    agent_id: 予定の発火などで、どの Agent インスタンス宛ての入力かを区別するための識別子。
     request_id: 入力と応答を紐付けるための相関 ID。
     timeout_seconds: リクエスト単位のタイムアウト秒数（既定値からの上書き）。
     """
 
+    agent_id: str
     request_id: str
     timeout_seconds: int
 

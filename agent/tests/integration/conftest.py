@@ -14,7 +14,7 @@ from pydantic import SecretStr
 from sqlalchemy import MetaData, text
 from sqlalchemy.orm import DeclarativeBase
 
-from assistant_agent.entities import postgres
+from assistant_agent.entities import base, postgres
 from assistant_agent.entities.postgres import ChunkFields
 from assistant_agent.loaders import ObsidianLoader
 from assistant_agent.services import VaultObsidianRetriever, VaultSampleRetriever
@@ -80,6 +80,27 @@ async def pg_entity_chk(pg_conn: PostgresStoreConnector, test_id: str) -> AsyncI
     async with engine.begin() as conn:
         await conn.run_sync(_TestAppBase.metadata.create_all)
     yield _TestChunkEntity
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestAppBase.metadata.drop_all)
+
+
+@pytest.fixture()
+async def pg_entity_dispatch(pg_conn: PostgresStoreConnector, test_id: str) -> AsyncIterator[type]:
+    """一意なテーブル名を持つ Dispatch Entity を生成しテーブルを作成する.
+
+    テスト終了後に作成したテーブルを DROP する。
+    """
+
+    class _TestAppBase(DeclarativeBase):
+        metadata = MetaData("app")
+
+    class _TestDispatchEntity(_TestAppBase, base.DispatchFields):
+        __tablename__ = f"{test_id}_dispatches"
+
+    engine = pg_conn.get_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(_TestAppBase.metadata.create_all)
+    yield _TestDispatchEntity
     async with engine.begin() as conn:
         await conn.run_sync(_TestAppBase.metadata.drop_all)
 

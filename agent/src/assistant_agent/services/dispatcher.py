@@ -5,9 +5,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any, Self
+from zoneinfo import ZoneInfo
 
 from langchain_core.messages import HumanMessage
+from sqlalchemy import delete, func, literal_column, select, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from assistant_agent.entities import base
+from assistant_agent.entities.postgres import DispatchEntity
+from assistant_agent.store import PostgresStoreConnector
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation
 from assistant_agent.utils.context import ContextRegistry
 
@@ -41,9 +47,10 @@ class IntervalUnit(Enum):
 @dataclass
 class Dispatch:
     dispatch_id: str
+    agent_id: str
     prompt: str
     interval_seconds: int
-    next_fire_at: datetime
+    run_at: datetime
 
     def __str__(self) -> str:
         """LLM への提示用に、予定の内容を英語の1行テキストへ整形する（LLM の精度向上のため）."""
@@ -53,9 +60,10 @@ class Dispatch:
             if self.interval_seconds == DispatcherService.ONE_SHOT
             else f"every {self.interval_seconds}s"
         )
+        run_at_jst = self.run_at.astimezone(ZoneInfo("Asia/Tokyo"))
         return (
             f"dispatch_id={self.dispatch_id}, interval={interval}, "
-            f"next_fire_at={self.next_fire_at.isoformat()}, content={content}"
+            f"run_at={run_at_jst.isoformat()}, content={content}"
         )
 
 
@@ -66,27 +74,36 @@ class DispatcherService:
     """
 
     ONE_SHOT = -1
-    _PAST_TOLERANCE = timedelta(minutes=1)
 
-    def __init__(self) -> None:
-        """予定を保持しない空の状態で初期化する."""
-        self._dispatches: dict[str, Dispatch] = {}
+    def __init__(self, dispatch_entity: type, sa_engine: AsyncEngine) -> None:
+        """予定を dispatch_entity のテーブル（sa_engine 経由）で管理する状態で初期化する."""
+        self._entity = dispatch_entity
+        self._engine = sa_engine
 
-    def invoke_at(self, prompt: str, at: datetime) -> Dispatch:
-        """指定日時に発火する単発予定を登録し、登録した Dispatch を返す.
+    async def setup(self) -> None:
+        """dispatch_entity のテーブルが存在しなければ作成し、期限切れの単発予定を削除する.
 
-        naive datetime は UTC とみなして正規化する。現在時刻より _PAST_TOLERANCE を超えて
-        過去の日時は ValueError を送出する。
+        プロセス起動時に呼ばれる想定。停止中に run_at を過ぎた単発予定が emit されず
+        一括発火しないよう、テーブル作成後に削除する（繰り返し予定は対象外）。
         """
-        if at.tzinfo is None:
-            at = at.replace(tzinfo=UTC)
-        now = datetime.now(UTC)
-        if at < now - self._PAST_TOLERANCE:
-            raise ValueError(f"過去の日時は指定できません: {at.isoformat()}")
-        return self._register(prompt, at, self.ONE_SHOT)
+        entity = self._entity
+        async with self._engine.begin() as conn:
+            await conn.run_sync(entity.metadata.create_all)
+        async with AsyncSession(self._engine) as session:
+            await session.execute(
+                delete(entity).where(
+                    entity.run_at <= datetime.now(UTC), entity.interval_seconds == self.ONE_SHOT
+                )
+            )
+            await session.commit()
 
-    def invoke_delay(
+    async def invoke_at(self, agent_id: str, prompt: str, at: datetime) -> Dispatch:
+        """指定した次回発火時刻（at）で単発予定を登録し、登録した Dispatch を返す."""
+        return await self._register(agent_id, prompt, at, self.ONE_SHOT)
+
+    async def invoke_delay(
         self,
+        agent_id: str,
         prompt: str,
         delay_value: int = 10,
         delay_unit: IntervalUnit = IntervalUnit.SECONDS,
@@ -98,68 +115,121 @@ class DispatcherService:
         interval_value が 0 以下の場合は単発予定として登録する。既定値のまま呼ぶと
         「10秒後に単発発火」（即時発信相当）になる。
         """
-        now = datetime.now(UTC)
-        at = now + timedelta(seconds=delay_value * delay_unit.seconds)
+        at = datetime.now(UTC) + timedelta(seconds=delay_value * delay_unit.seconds)
         interval_seconds = (
             self.ONE_SHOT if interval_value <= 0 else interval_value * interval_unit.seconds
         )
-        return self._register(prompt, at, interval_seconds)
+        return await self._register(agent_id, prompt, at, interval_seconds)
 
-    def cancel_dispatch(self, dispatch_id: str) -> bool:
+    async def cancel_dispatch(self, agent_id: str, dispatch_id: str) -> bool:
         """dispatch_id を指定して予定を解除する.
 
         存在しない dispatch_id を指定した場合は何もせず False を返す。
         """
-        if dispatch_id not in self._dispatches:
-            return False
-        del self._dispatches[dispatch_id]
-        return True
+        async with AsyncSession(self._engine) as session:
+            deleted = (
+                await session.scalars(
+                    delete(self._entity)
+                    .where(
+                        self._entity.dispatch_id == dispatch_id, self._entity.agent_id == agent_id
+                    )
+                    .returning(self._entity)
+                )
+            ).all()
+            found = len(deleted) > 0
+            await session.commit()
+            return found
 
-    def list_dispatch(self) -> list[Dispatch]:
-        """現在保持している予定の一覧を返す."""
-        return list(self._dispatches.values())
+    async def get_dispatch(self, agent_id: str, dispatch_id: str) -> Dispatch | None:
+        """dispatch_id を指定して予定1件を取得する.
 
-    def pop_dispatch(self, now: datetime) -> list[Dispatch]:
+        存在しない dispatch_id を指定した場合は None を返す。
+        """
+        async with AsyncSession(self._engine) as session:
+            row = await session.scalar(
+                select(self._entity).where(
+                    self._entity.dispatch_id == dispatch_id, self._entity.agent_id == agent_id
+                )
+            )
+            return self._to_dispatch(row) if row is not None else None
+
+    async def list_dispatch(self, agent_id: str) -> list[Dispatch]:
+        """現在登録されている予定の一覧を返す."""
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.scalars(select(self._entity).where(self._entity.agent_id == agent_id))
+            ).all()
+            return [self._to_dispatch(row) for row in rows]
+
+    async def pop_dispatch(self, now: datetime) -> list[Dispatch]:
         """発火条件を満たす予定を取得し、後始末（単発削除・繰り返し次回時刻更新）まで行う.
 
-        繰り返しの次回時刻は、直前の発火予定時刻を起点に間隔を加算し、now を超えるまで
-        繰り返して更新する（ポーリング周期の累積ずれと連続発火を避けるため）。
+        戻り値の Dispatch.run_at は単発・繰り返しいずれも「今回発火した時刻」を表す。
         """
-        due: list[Dispatch] = []
-        for dispatch_id in list(self._dispatches):
-            dispatch = self._dispatches[dispatch_id]
-            if dispatch.next_fire_at > now:
-                continue
-            due.append(dispatch)
-            if dispatch.interval_seconds == self.ONE_SHOT:
-                del self._dispatches[dispatch_id]
-            else:
-                while dispatch.next_fire_at <= now:
-                    dispatch.next_fire_at += timedelta(seconds=dispatch.interval_seconds)
-        return due
+        entity = self._entity
+        due_condition = entity.run_at <= now
+        one_second = literal_column("interval '1 second'")
+        elapsed_seconds = func.extract("epoch", now - entity.run_at)
+        steps = func.floor(elapsed_seconds / entity.interval_seconds)
+        advanced_seconds = steps * entity.interval_seconds + entity.interval_seconds
+        new_run_at = entity.run_at + advanced_seconds * one_second
 
-    def _register(self, prompt: str, at: datetime, interval_seconds: int) -> Dispatch:
+        async with AsyncSession(self._engine) as session:
+            deleted = (
+                await session.scalars(
+                    delete(entity)
+                    .where(due_condition, entity.interval_seconds == self.ONE_SHOT)
+                    .returning(entity)
+                )
+            ).all()
+
+            fired = (
+                await session.scalars(
+                    select(entity).where(due_condition, entity.interval_seconds != self.ONE_SHOT)
+                )
+            ).all()
+            due = [self._to_dispatch(row) for row in (*deleted, *fired)]
+
+            await session.execute(
+                update(entity)
+                .where(due_condition, entity.interval_seconds != self.ONE_SHOT)
+                .values(run_at=new_run_at)
+            )
+            await session.commit()
+            return due
+
+    async def _register(
+        self, agent_id: str, prompt: str, at: datetime, interval_seconds: int
+    ) -> Dispatch:
         dispatch_id = str(uuid.uuid7())
-        dispatch = Dispatch(
-            dispatch_id=dispatch_id,
-            prompt=prompt,
-            interval_seconds=interval_seconds,
-            next_fire_at=at,
-        )
-        self._dispatches[dispatch_id] = dispatch
-        return dispatch
+        async with AsyncSession(self._engine) as session:
+            session.add(
+                self._entity(
+                    dispatch_id=dispatch_id,
+                    agent_id=agent_id,
+                    prompt=prompt,
+                    interval_seconds=interval_seconds,
+                    run_at=at,
+                )
+            )
+            await session.commit()
+        return Dispatch(dispatch_id, agent_id, prompt, interval_seconds, at)
+
+    @staticmethod
+    def _to_dispatch(row: base.DispatchFields) -> Dispatch:
+        return Dispatch(row.dispatch_id, row.agent_id, row.prompt, row.interval_seconds, row.run_at)
 
 
 @ContextRegistry.register("dispatcher_service")
-def build(**_: Any) -> DispatcherService:
-    """DispatcherService を生成する（他コンテキストに依存しない）."""
-    return DispatcherService()
+def build(store_conn: PostgresStoreConnector, **_: Any) -> DispatcherService:
+    """DispatcherService を PostgresStoreConnector から生成する（PostgreSQL バックエンドで運用）."""
+    return DispatcherService(dispatch_entity=DispatchEntity, sa_engine=store_conn.get_engine())
 
 
 class DispatcherChannel(ActiveEmitter):
     """DispatcherService に登録された予定を、固定間隔でポーリングし emit() する実行エンジン."""
 
-    def __init__(self, service: DispatcherService, poll_interval_seconds: float = 1.0):
+    def __init__(self, service: DispatcherService, poll_interval_seconds: float):
         """service（DispatcherService）とポーリング間隔（秒）を構成する."""
         super().__init__()
         self._service = service
@@ -182,14 +252,17 @@ class DispatcherChannel(ActiveEmitter):
     async def _loop(self) -> None:
         while True:
             try:
-                for dispatch in self._service.pop_dispatch(datetime.now(UTC)):
+                for dispatch in await self._service.pop_dispatch(datetime.now(UTC)):
                     try:
                         prompt = DISPATCHER_MESSAGE_TMPL.format(
                             dispatch=dispatch, content=dispatch.prompt
                         )
                         invocation = AgentInvocation(
                             input={"messages": [HumanMessage(content=prompt)]},
-                            context={"request_id": str(uuid.uuid7())},
+                            context={
+                                "request_id": str(uuid.uuid7()),
+                                "agent_id": dispatch.agent_id,
+                            },
                         )
                         self.emit(invocation)
                     except Exception:

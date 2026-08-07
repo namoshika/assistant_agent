@@ -165,7 +165,8 @@ class TestAgent:
 
         観点1: BroadcastPipe(src, [agent1])・BroadcastPipe(agent1, [agent2]) で連結し、
             agent1 の応答が agent2 の入力となり agent2 の応答が配信される
-        観点2: agent2 のグラフ実行時に thread_id を指定した config と、context が渡される事
+        観点2: agent2 のグラフ実行時に thread_id を指定した config と、agent_id を含む context が
+            渡される事
         """
         # 試験準備
         lc_agent1 = langchain.agents.create_agent(
@@ -212,13 +213,13 @@ class TestAgent:
         # 観点2
         _, kwargs = lc_agent2.ainvoke.call_args
         assert kwargs["config"]["configurable"]["thread_id"] == fixed_thread_id
-        assert kwargs["context"] == context
+        assert kwargs["context"] == context | {"agent_id": "test-agent"}
 
     async def test_receive_03(self):
         """入力の context がサービス群の context とマージされて ainvoke() へ渡ることを確認.
 
         観点1: 入力に context={"request_id": "xxx"} を含めて emit すると、ainvoke() へ渡る
-            context にサービス群の値と request_id の両方が含まれること
+            context にサービス群の値、request_id、自身の agent_id が含まれること
         観点2: emit される応答の AgentInvocation["context"] に入力側の context がそのまま
             積まれること
         """
@@ -253,7 +254,11 @@ class TestAgent:
         # 結果検証
         # 観点1
         _, kwargs = lc_agent.ainvoke.call_args
-        assert kwargs["context"] == {"sample_retriever": "dummy", "request_id": "req-1"}
+        assert kwargs["context"] == {
+            "sample_retriever": "dummy",
+            "request_id": "req-1",
+            "agent_id": "test-agent",
+        }
         # 観点2
         result_invocation: AgentInvocation = received.on_received.call_args[0][0]
         assert result_invocation["context"] == {"request_id": "req-1"}
@@ -399,6 +404,69 @@ class TestAgent:
         assert result_invocation["context"] == {"request_id": "req-timeout", "timeout_seconds": 1}
         msg_out = result_invocation["input"]["messages"][-1]
         assert isinstance(msg_out, AIMessage)
+
+    async def test_receive_07(self):
+        """受信した context["agent_id"] によるフィルタを確認.
+
+        観点1: context["agent_id"] が自身の agent_id と不一致の場合、ainvoke() が呼ばれず
+            応答も配信されないこと
+        観点2: context["agent_id"] が自身の agent_id と一致する場合、従来どおり処理されること
+        観点3: context に agent_id を含まない場合、従来どおり処理されること
+        """
+        # 試験準備
+        lc_agent = MagicMock(spec=CompiledStateGraph)
+        lc_agent.ainvoke = AsyncMock(
+            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
+        )
+        source = _DummyActiveEmitter()
+        agent = Agent(
+            lc_agent,
+            context={},
+            agent_id="test-agent",
+            thread_id=None,
+            rollover_strategy=_NoopRolloverStrategy(),
+        )
+        BroadcastPipe(source, [agent])
+        received = MagicMock(spec=Receiver)
+        agent.receiver = received
+
+        # 試験実施: 不一致の agent_id
+        agent.start()
+        source.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content="hi")]},
+                context={"agent_id": "other-agent"},
+            )
+        )
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点1
+        lc_agent.ainvoke.assert_not_called()
+        received.on_received.assert_not_called()
+
+        # 試験実施: 一致する agent_id
+        source.emit(
+            AgentInvocation(
+                input={"messages": [HumanMessage(content="hi")]},
+                context={"agent_id": "test-agent"},
+            )
+        )
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点2
+        lc_agent.ainvoke.assert_called_once()
+        received.on_received.assert_called_once()
+
+        # 試験実施: agent_id を含まない
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={}))
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点3
+        assert lc_agent.ainvoke.call_count == 2
+        assert received.on_received.call_count == 2
 
     async def test_start_01(self):
         """start()/stop() による処理のライフサイクルを確認.

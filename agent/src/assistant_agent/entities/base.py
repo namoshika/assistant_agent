@@ -1,9 +1,10 @@
 import hashlib
 from abc import abstractmethod
 from collections.abc import Sequence
+from datetime import datetime
 
 from langchain_core.documents import Document
-from sqlalchemy import JSON, Row, String, delete, insert, select
+from sqlalchemy import JSON, DateTime, Integer, Row, String, Text, delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
@@ -28,6 +29,16 @@ class ChunkFields:
     document_content_hash: Mapped[str] = mapped_column(String, nullable=False, sort_order=3)
     content: Mapped[str] = mapped_column(String, nullable=False, sort_order=4)
     embedding: Mapped[list[float]] = mapped_column(String, nullable=False, sort_order=5)
+
+
+class DispatchFields:
+    """DispatcherService が扱う予定（Dispatch）の共通カラム定義."""
+
+    dispatch_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    agent_id: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ObsidianFields(DocumentFields):

@@ -43,6 +43,7 @@ async def test_amain_01(mocker: MockerFixture, log_path: Path):
     # 試験準備
     dispatch = Dispatch(
         dispatch_id="test-dispatch",
+        agent_id="test-agent",
         prompt="面白い話をして。",
         interval_seconds=-1,
         run_at=datetime.now(ZoneInfo("Asia/Tokyo")),

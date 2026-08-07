@@ -74,10 +74,11 @@ def build_lc_agent(
         tools=[
             sample.get_weather,
             sample.get_datetime_now,
+            dispatcher.dispatcher_get,
+            dispatcher.dispatcher_list,
             dispatcher.dispatcher_invoke_at,
             dispatcher.dispatcher_invoke_delay,
             dispatcher.dispatcher_cancel,
-            dispatcher.dispatcher_list,
             obsidian.obsidian_vault_search,
             obsidian.obsidian_vault_get,
             discord.discord_get_messages,

@@ -67,7 +67,7 @@ class Agent(ActiveEmitter, Receiver):
         self._agent = lc_agent
         self._agent_id = agent_id
         self._thread_id = thread_id or self._new_thread_id()
-        self._context = context
+        self._context = context | {"agent_id": agent_id}
         self._rollover_strategy = rollover_strategy
         self._queue: asyncio.Queue[AgentInvocation] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
@@ -93,8 +93,11 @@ class Agent(ActiveEmitter, Receiver):
         config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
         while True:
             invocation = await self._queue.get()
+            received_context = invocation["context"]
+            agent_id = received_context.get("agent_id")
+            if agent_id is not None and agent_id != self._agent_id:
+                continue
             with mlflow.start_span("Agent", span_type=SpanType.CHAT_MODEL) as span:
-                received_context = invocation["context"]
                 timeout_seconds = received_context.get("timeout_seconds", TIMEOUT_SECONDS_DEFAULT)
                 try:
                     # スレッドをロールオーバー (戦略の判断に応じて実施される)
@@ -111,7 +114,7 @@ class Agent(ActiveEmitter, Receiver):
                     # エージェントを呼び出しオブジェクトを準備
                     merged_invocation = cast(
                         AgentInvocation,
-                        invocation | {"context": self._context | received_context},
+                        invocation | {"context": received_context | self._context},
                     )
                     msg_in = invocation["input"]["messages"][-1]
                     chat_msg_in = convert_lc_message_to_chat_message(msg_in).model_dump()
