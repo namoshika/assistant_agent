@@ -127,7 +127,11 @@ class Agent(ActiveEmitter, Receiver):
                         timeout=timeout_seconds,
                     )
                     msg_out = result.value["messages"][-1]
-                    chat_msg_out = convert_lc_message_to_chat_message(msg_out).model_dump()
+                    # Responses API に差し込まれる type=reasoning ブロックは、mlflow の
+                    # ChatMessage（text/image_url/input_audio のみ許容）が検証エラーとするため除去
+                    chat_msg_out = convert_lc_message_to_chat_message(
+                        self._drop_reasoning_content(msg_out)
+                    ).model_dump()
                     span.set_outputs({"messages": [chat_msg_out]})
                     span.set_attribute(CHAT_MESSAGES_ATTR_KEY, [chat_msg_in, chat_msg_out])
                 except TimeoutError:
@@ -147,6 +151,16 @@ class Agent(ActiveEmitter, Receiver):
 
     def _new_thread_id(self) -> str:
         return f"{self._agent_id}:{uuid.uuid7()}"
+
+    @staticmethod
+    def _drop_reasoning_content(message: AIMessage) -> AIMessage:
+        """Content 内の reasoning ブロックを取り除いた複製を返す."""
+        if not isinstance(message.content, list):
+            return message
+        filtered = [
+            b for b in message.content if not (isinstance(b, dict) and b.get("type") == "reasoning")
+        ]
+        return message.model_copy(update={"content": filtered})
 
 
 class DefaultRolloverStrategy(RolloverStrategy):

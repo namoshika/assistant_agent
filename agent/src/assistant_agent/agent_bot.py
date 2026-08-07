@@ -99,7 +99,7 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         await pg_store.start_ttl_sweeper()
 
         # エージェントを構築
-        llm = ChatOpenAI(model="openai.gpt-5.6-terra", reasoning={"effort": "low"})
+        llm = ChatOpenAI(model="openai.gpt-5.6-terra", use_responses_api=True)
         lc_agent = sample.build_lc_agent(checkpointer, pg_store, llm)
         latest_thread_id = await find_latest_thread_id(store_conn.get_engine(), sample.AGENT_ID)
 

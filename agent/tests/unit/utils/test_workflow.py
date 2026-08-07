@@ -130,10 +130,20 @@ class TestAgent:
         """BroadcastPipe から受けた新着に実グラフが応答し、自身の購読者へ配信されることを確認.
 
         観点1: BroadcastPipe で接続した発信元から新着を流すと、実グラフの応答が Agent 自身の購読者へ配信される
+        観点2: 応答の content に reasoning ブロックが含まれても例外にならず、そのまま配信されること
         """  # noqa: E501
         # 試験準備
+        reasoning_block = {"type": "reasoning", "id": "rs_test", "summary": []}
+        text_block = {"type": "text", "text": "reply2"}
         lc_agent = langchain.agents.create_agent(
-            model=_FakeChatModel(messages=iter([AIMessage(content="reply1")])),
+            model=_FakeChatModel(
+                messages=iter(
+                    [
+                        AIMessage(content="reply1"),
+                        AIMessage(content=[reasoning_block, text_block]),
+                    ]
+                )
+            ),
             tools=[],
             system_prompt="test",
         )
@@ -159,6 +169,19 @@ class TestAgent:
         received.on_received.assert_called_once()
         result_invocation: AgentInvocation = received.on_received.call_args[0][0]
         assert result_invocation["input"]["messages"][-1].content == "reply1"
+
+        # 試験実施: reasoning ブロックを含む応答
+        source.emit(AgentInvocation(input={"messages": [HumanMessage(content="hi")]}, context={}))
+        await asyncio.sleep(1)
+
+        # 結果検証
+        # 観点2
+        assert received.on_received.call_count == 2
+        result_invocation2: AgentInvocation = received.on_received.call_args_list[1][0][0]
+        assert result_invocation2["input"]["messages"][-1].content == [
+            reasoning_block,
+            text_block,
+        ]
 
     async def test_receive_02(self, fixed_thread_id: str):
         """Agent 同士が連鎖して応答し、コンストラクタの thread_id・context が使われることを確認.
