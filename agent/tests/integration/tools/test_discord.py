@@ -79,7 +79,7 @@ async def test_discord_send_message_01(llm: BaseChatModel) -> None:
     # 結果検証
     # 観点1
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
     assert m_service.send_message.call_args.args[0] == 123456789
 
 
@@ -112,7 +112,7 @@ async def test_discord_mention_user_01(llm: BaseChatModel) -> None:
     # 結果検証
     # 観点1
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
     assert m_service.mention_user.call_args.args[0] == 123456789
     assert m_service.mention_user.call_args.args[1] == 987654321
 
@@ -147,6 +147,6 @@ async def test_discord_reply_message_01(llm: BaseChatModel) -> None:
     # 結果検証
     # 観点1
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert tool_msg.content == "sent"
+    assert tool_msg.content == "Message sent successfully."
     assert m_service.reply_message.call_args.args[0] == 123456789
     assert m_service.reply_message.call_args.args[1] == 555555555
