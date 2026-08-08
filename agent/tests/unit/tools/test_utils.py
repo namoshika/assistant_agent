@@ -1,6 +1,8 @@
 import urllib.error
+from datetime import datetime
 from email.message import Message
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 from langchain.agents import create_agent
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -15,6 +17,61 @@ class _FakeChatModel(GenericFakeChatModel):
 
     def bind_tools(self, tools, **_):
         return self
+
+
+def test_get_weather_01():
+    """天気を取得できるか確認.
+
+    観点: ToolMessage として返り、content に引数の都市名が含まれる
+    """
+    # 試験準備
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_weather",
+                "args": {"city": "Tokyo"},
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, tools.get_weather)
+
+    # 試験実施
+    result = agent.invoke({"messages": [HumanMessage(content="東京の天気は?")]})
+    # 結果検証
+    tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+    assert "Tokyo" in tool_msg.content
+
+
+def test_get_datetime_now_01(mocker: MockerFixture):
+    """現在時刻を JST の ISO8601 文字列として取得できるか確認.
+
+    観点: ToolMessage の content が JST の ISO8601 形式の現在時刻と一致する
+    """
+    # 試験準備
+    fixed_now = datetime(2026, 8, 1, 21, 34, 56, tzinfo=ZoneInfo("Asia/Tokyo"))
+    mocker.patch("assistant_agent.tools.utils.datetime").now.return_value = fixed_now
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_datetime_now",
+                "args": {},
+                "id": "1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    agent = _make_agent(ai_msg, tools.get_datetime_now)
+
+    # 試験実施
+    result = agent.invoke({"messages": [HumanMessage(content="今何時?")]})
+
+    # 結果検証
+    tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+    assert tool_msg.content == "2026-08-01T21:34:56+09:00"
 
 
 def test_web_fetch_01(mocker: MockerFixture):

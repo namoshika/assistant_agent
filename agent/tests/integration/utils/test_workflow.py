@@ -2,6 +2,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import langchain.agents
 import pytest
 from deepagents.backends.store import StoreBackend
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -62,7 +63,7 @@ class TestDefaultRolloverStrategy:
         # 試験準備
         checkpointer = InMemorySaver()
         store = InMemoryStore()
-        lc_agent = sample.build_lc_agent(checkpointer, store, llm)
+        lc_agent = langchain.agents.create_agent(llm, checkpointer=checkpointer)
         backend = StoreBackend(store=store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem"))
         rollover_strategy = DefaultRolloverStrategy(llm, backend)
 

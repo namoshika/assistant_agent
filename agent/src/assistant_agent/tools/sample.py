@@ -1,8 +1,6 @@
 import os
 from collections.abc import Sequence
-from datetime import datetime
 from typing import TypedDict
-from zoneinfo import ZoneInfo
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.documents import Document
@@ -14,24 +12,6 @@ from assistant_agent.services import VaultSampleRetriever
 
 class SampleContext(TypedDict):
     sample_retriever: VaultSampleRetriever
-
-
-# --------------------------------
-# Tool: get_weather
-# --------------------------------
-@tool
-def get_weather(city: str) -> str:
-    """Get weather for a given city."""
-    return f"It's always sunny in {city}!"
-
-
-# --------------------------------
-# Tool: get_datetime_now
-# --------------------------------
-@tool
-def get_datetime_now() -> str:
-    """現在時刻を JST の ISO8601 文字列で取得する."""
-    return datetime.now(ZoneInfo("Asia/Tokyo")).isoformat()
 
 
 # --------------------------------

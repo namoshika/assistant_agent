@@ -1,4 +1,5 @@
 from deepagents.middleware.subagents import SubAgent
+from langchain_openai import ChatOpenAI
 from langchain_tavily import (
     TavilyCrawl,
     TavilyExtract,
@@ -25,6 +26,7 @@ web_researcher: SubAgent = {
     "name": "web-researcher",
     "description": "Web 検索・クロール・調査を行い、要約結果を返すサブエージェント。",
     "system_prompt": _WEB_RESEARCHER_SYSTEM_PROMPT,
+    "model": ChatOpenAI(model="openai.gpt-5.6-luna", use_responses_api=True),
     "tools": [
         TavilySearch(topic="general", country="japan"),
         TavilyExtract(),

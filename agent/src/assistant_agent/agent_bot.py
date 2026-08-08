@@ -67,6 +67,7 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         datefmt="%Y-%m-%d %H:%M:%S%z",
         handlers=[logging.FileHandler(log_path, encoding="utf-8")],
     )
+    logger = logging.getLogger(__name__)
 
     # トレース用設定（agent_server.py と同様。logger.exception() から mlflow のトレースIDを
     # 参照できるようにするため、常駐プロセスでも autolog を有効化する）
@@ -74,7 +75,7 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         mlflow.set_experiment(experiment_id=MLFLOW_EXPERIMENT_ID)
     else:
         mlflow.set_experiment(experiment_name="agent-rag")
-    mlflow.openai.autolog()  # pyright: ignore[reportPrivateImportUsage]
+    # mlflow.openai.autolog()  # pyright: ignore[reportPrivateImportUsage]
     mlflow.gemini.autolog()  # pyright: ignore[reportPrivateImportUsage]
     mlflow.langchain.autolog(run_tracer_inline=True)  # pyright: ignore[reportPrivateImportUsage]
 
@@ -125,6 +126,7 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         workflow.BroadcastPipe(agent, [sync_request_channel, log_writer])
 
         # フローを起動・終了
+        logger.info(f"Start Assistant Agent Loop (thread_id: {latest_thread_id})")
         try:
             agent.start()
             sync_request_channel.start()
