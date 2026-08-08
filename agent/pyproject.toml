@@ -23,18 +23,15 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.48",
 ]
 
-[project.optional-dependencies]
-vsc = [
-    "ipykernel>=7.2.0",
-    "ipywidgets>=8.1.8",
-]
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
 
 [project.scripts]
 solbot = "assistant_agent.agent_bot:main"
 
-[build-system]
-requires = ["uv_build>=0.10.9,<0.11.0"]
-build-backend = "uv_build"
+[tool.fastapi]
+entrypoint = "assistant_agent.agent_server:app"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -42,9 +39,6 @@ markers = [
     "integration: 実際の外部システム (PostgreSQL, Gemini API) を必要とするテスト",
 ]
 env_files = [".env"]
-
-[tool.fastapi]
-entrypoint = "assistant_agent.agent_server:app"
 
 [tool.pyright]
 include = ["src", "tests"]
@@ -61,8 +55,8 @@ ignore = ["D100", "D101", "D104", "D203", "D213"]
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
-    "boto3>=1.42.63",
     "ipykernel>=7.3.0",
+    "ipywidgets>=8.1.8",
     "pyright>=1.1.408",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.4.0",
