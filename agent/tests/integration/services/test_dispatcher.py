@@ -30,8 +30,8 @@ class TestDispatcherService:
         # 結果検証
         # 観点1
         assert isinstance(dispatch, Dispatch)
-        assert await service.pop_dispatch(now) == []
-        due = await service.pop_dispatch(now + timedelta(seconds=11))
+        assert await service.pop_dispatch(now, ["agent-a"]) == []
+        due = await service.pop_dispatch(now + timedelta(seconds=11), ["agent-a"])
         assert len(due) == 1
         assert due[0].dispatch_id == dispatch.dispatch_id
 
@@ -58,8 +58,8 @@ class TestDispatcherService:
         dispatch = await service.invoke_delay(
             "agent-a", "test", delay_value=5, delay_unit=IntervalUnit.SECONDS
         )
-        assert await service.pop_dispatch(now + timedelta(seconds=1)) == []
-        due = await service.pop_dispatch(now + timedelta(seconds=6))
+        assert await service.pop_dispatch(now + timedelta(seconds=1), ["agent-a"]) == []
+        due = await service.pop_dispatch(now + timedelta(seconds=6), ["agent-a"])
         assert len(due) == 1
         assert due[0].dispatch_id == dispatch.dispatch_id
 
@@ -68,22 +68,25 @@ class TestDispatcherService:
         await service2.invoke_delay(
             "agent-a", "test", delay_value=1, delay_unit=IntervalUnit.MINUTES
         )
-        assert await service2.pop_dispatch(now + timedelta(seconds=30)) == []
-        assert len(await service2.pop_dispatch(now + timedelta(minutes=1, seconds=1))) == 1
+        assert await service2.pop_dispatch(now + timedelta(seconds=30), ["agent-a"]) == []
+        assert (
+            len(await service2.pop_dispatch(now + timedelta(minutes=1, seconds=1), ["agent-a"]))
+            == 1
+        )
 
         # 観点3
         service3 = DispatcherService(dispatch_entity=pg_entity_dispatch, sa_engine=engine)
         await service3.invoke_delay("agent-a", "test", delay_value=1, interval_value=-1)
         await service3.invoke_delay("agent-a", "test", delay_value=1, interval_value=0)
-        due3 = await service3.pop_dispatch(now + timedelta(seconds=2))
+        due3 = await service3.pop_dispatch(now + timedelta(seconds=2), ["agent-a"])
         assert len(due3) == 2
-        assert await service3.pop_dispatch(now + timedelta(seconds=3)) == []
+        assert await service3.pop_dispatch(now + timedelta(seconds=3), ["agent-a"]) == []
 
         # 観点4
         service4 = DispatcherService(dispatch_entity=pg_entity_dispatch, sa_engine=engine)
         await service4.invoke_delay("agent-a", "test")
-        assert await service4.pop_dispatch(now + timedelta(seconds=5)) == []
-        assert len(await service4.pop_dispatch(now + timedelta(seconds=11))) == 1
+        assert await service4.pop_dispatch(now + timedelta(seconds=5), ["agent-a"]) == []
+        assert len(await service4.pop_dispatch(now + timedelta(seconds=11), ["agent-a"])) == 1
 
     @pytest.mark.integration
     async def test_cancel_dispatch_01(
@@ -116,7 +119,7 @@ class TestDispatcherService:
         # 試験実施・結果検証
         # 観点1
         assert await service.cancel_dispatch("agent-a", dispatch.dispatch_id) is True
-        assert await service.pop_dispatch(now + timedelta(seconds=2)) == []
+        assert await service.pop_dispatch(now + timedelta(seconds=2), ["agent-a"]) == []
 
     @pytest.mark.integration
     async def test_get_dispatch_01(
@@ -217,12 +220,12 @@ class TestDispatcherService:
         fire_at = now + timedelta(seconds=2)
 
         # 試験実施
-        due = await service.pop_dispatch(fire_at)
+        due = await service.pop_dispatch(fire_at, ["agent-a"])
 
         # 結果検証
         # 観点1
         assert len(due) == 2
-        assert await service.pop_dispatch(fire_at) == []
+        assert await service.pop_dispatch(fire_at, ["agent-a"]) == []
 
         # 観点2
         remaining = await service.list_dispatch("agent-a")
@@ -256,7 +259,7 @@ class TestDispatcherService:
         first_fire_at = now + timedelta(seconds=1)
 
         # 試験実施
-        due = await service.pop_dispatch(now + timedelta(seconds=10))
+        due = await service.pop_dispatch(now + timedelta(seconds=10), ["agent-a"])
 
         # 結果検証
         # 観点1
@@ -271,10 +274,10 @@ class TestDispatcherService:
     async def test_pop_dispatch_03(
         self, pg_conn: PostgresStoreConnector, pg_entity_dispatch: type[base.DispatchFields]
     ):
-        """pop_dispatch() が発火することを確認.
+        """pop_dispatch() が agent_ids で絞り込まれることを確認.
 
-        観点1: 異なる agent_id で登録した予定が pop_dispatch() 一発で両方とも取得されること
-        観点2: 戻り値の各 Dispatch.agent_id が、それぞれ登録した agent_id と一致すること
+        観点1: agent_ids に含まれる agent_id の予定のみが戻り値に含まれること
+        観点2: agent_ids に含まれない agent_id の予定は削除されず、list_dispatch() に残ること
         """
         # 試験準備
         service = DispatcherService(
@@ -285,15 +288,14 @@ class TestDispatcherService:
         dispatch_b = await service.invoke_delay("agent-b", "test-b", delay_value=1)
 
         # 試験実施
-        due = await service.pop_dispatch(now + timedelta(seconds=2))
+        due = await service.pop_dispatch(now + timedelta(seconds=2), ["agent-a"])
 
         # 結果検証
         # 観点1
-        assert {d.dispatch_id for d in due} == {dispatch_a.dispatch_id, dispatch_b.dispatch_id}
+        assert [d.dispatch_id for d in due] == [dispatch_a.dispatch_id]
         # 観点2
-        due_by_id = {d.dispatch_id: d for d in due}
-        assert due_by_id[dispatch_a.dispatch_id].agent_id == "agent-a"
-        assert due_by_id[dispatch_b.dispatch_id].agent_id == "agent-b"
+        remaining_ids = {d.dispatch_id for d in await service.list_dispatch("agent-b")}
+        assert dispatch_b.dispatch_id in remaining_ids
 
     @pytest.mark.integration
     async def test_setup_01(
@@ -355,5 +357,5 @@ class TestDispatcherService:
         # 観点1
         listed_ids = {d.dispatch_id for d in await restarted_service.list_dispatch("agent-a")}
         assert listed_ids == {at_dispatch.dispatch_id, delay_dispatch.dispatch_id}
-        due = await restarted_service.pop_dispatch(now + timedelta(seconds=2))
+        due = await restarted_service.pop_dispatch(now + timedelta(seconds=2), ["agent-a"])
         assert [d.dispatch_id for d in due] == [delay_dispatch.dispatch_id]

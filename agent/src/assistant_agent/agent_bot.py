@@ -120,7 +120,9 @@ async def init_harness(
         # フローを初期化
         sync_request_channel = workflow.SyncRequestChannel()
         dispatcher_channel = DispatcherChannel(
-            service=bot_ctx["dispatcher_service"], poll_interval_seconds=60.0
+            service=bot_ctx["dispatcher_service"],
+            poll_interval_seconds=60.0,
+            agent_ids=[agent_id],
         )
         discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
         log_writer = workflow.LogWriter()

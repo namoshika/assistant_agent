@@ -161,13 +161,15 @@ class DispatcherService:
             ).all()
             return [self._to_dispatch(row) for row in rows]
 
-    async def pop_dispatch(self, now: datetime) -> list[Dispatch]:
+    async def pop_dispatch(self, now: datetime, agent_ids: list[str]) -> list[Dispatch]:
         """発火条件を満たす予定を取得し、後始末（単発削除・繰り返し次回時刻更新）まで行う.
 
         戻り値の Dispatch.run_at は単発・繰り返しいずれも「今回発火した時刻」を表す。
+        agent_ids に含まれない agent_id の予定は対象外とし、DB に残す。
         """
         entity = self._entity
         due_condition = entity.run_at <= now
+        agent_condition = entity.agent_id.in_(agent_ids)
         one_second = literal_column("interval '1 second'")
         elapsed_seconds = func.extract("epoch", now - entity.run_at)
         steps = func.floor(elapsed_seconds / entity.interval_seconds)
@@ -178,21 +180,23 @@ class DispatcherService:
             deleted = (
                 await session.scalars(
                     delete(entity)
-                    .where(due_condition, entity.interval_seconds == self.ONE_SHOT)
+                    .where(due_condition, agent_condition, entity.interval_seconds == self.ONE_SHOT)
                     .returning(entity)
                 )
             ).all()
 
             fired = (
                 await session.scalars(
-                    select(entity).where(due_condition, entity.interval_seconds != self.ONE_SHOT)
+                    select(entity).where(
+                        due_condition, agent_condition, entity.interval_seconds != self.ONE_SHOT
+                    )
                 )
             ).all()
             due = [self._to_dispatch(row) for row in (*deleted, *fired)]
 
             await session.execute(
                 update(entity)
-                .where(due_condition, entity.interval_seconds != self.ONE_SHOT)
+                .where(due_condition, agent_condition, entity.interval_seconds != self.ONE_SHOT)
                 .values(run_at=new_run_at)
             )
             await session.commit()
@@ -229,11 +233,14 @@ def build(store_conn: PostgresStoreConnector, **_: Any) -> DispatcherService:
 class DispatcherChannel(ActiveEmitter):
     """DispatcherService に登録された予定を、固定間隔でポーリングし emit() する実行エンジン."""
 
-    def __init__(self, service: DispatcherService, poll_interval_seconds: float):
-        """service（DispatcherService）とポーリング間隔（秒）を構成する."""
+    def __init__(
+        self, service: DispatcherService, poll_interval_seconds: float, agent_ids: list[str]
+    ):
+        """service（DispatcherService）とポーリング間隔（秒）、対象 agent_ids を構成する."""
         super().__init__()
         self._service = service
         self._poll_interval_seconds = poll_interval_seconds
+        self._agent_ids = agent_ids
         self._task: asyncio.Task[None] | None = None
         self._logger = logging.getLogger(__name__)
 
@@ -252,7 +259,9 @@ class DispatcherChannel(ActiveEmitter):
     async def _loop(self) -> None:
         while True:
             try:
-                for dispatch in await self._service.pop_dispatch(datetime.now(UTC)):
+                for dispatch in await self._service.pop_dispatch(
+                    datetime.now(UTC), self._agent_ids
+                ):
                     try:
                         prompt = DISPATCHER_MESSAGE_TMPL.format(
                             dispatch=dispatch, content=dispatch.prompt

@@ -63,6 +63,7 @@ class TestDispatcherChannel:
         観点2: emit される AgentInvocation の context["request_id"] が空でない文字列であること
         観点3: emit される AgentInvocation の context["agent_id"] が登録した Dispatch.agent_id と
           一致すること
+        観点4: service.pop_dispatch() が、コンストラクタで渡した agent_ids を引数に呼ばれること
         """
         # 試験準備
         received = MagicMock(spec=Receiver)
@@ -75,7 +76,9 @@ class TestDispatcherChannel:
             run_at=datetime.now(UTC),
         )
         service.pop_dispatch.side_effect = itertools.chain([[dispatch]], itertools.repeat([]))
-        channel = DispatcherChannel(service=service, poll_interval_seconds=0.01)
+        channel = DispatcherChannel(
+            service=service, poll_interval_seconds=0.01, agent_ids=["agent-a"]
+        )
         channel.receiver = received
 
         # 試験実施
@@ -93,6 +96,8 @@ class TestDispatcherChannel:
         assert emitted["context"]["request_id"] != ""  # pyright: ignore[reportTypedDictNotRequiredAccess]
         # 観点3
         assert emitted["context"]["agent_id"] == "agent-a"  # pyright: ignore[reportTypedDictNotRequiredAccess]
+        # 観点4
+        assert service.pop_dispatch.call_args[0][1] == ["agent-a"]
 
     async def test_emit_02(self):
         """繰り返し予定が stop() まで複数回 emit() されることを確認.
@@ -112,7 +117,9 @@ class TestDispatcherChannel:
             run_at=datetime.now(UTC),
         )
         service.pop_dispatch.return_value = [dispatch]
-        channel = DispatcherChannel(service=service, poll_interval_seconds=0.02)
+        channel = DispatcherChannel(
+            service=service, poll_interval_seconds=0.02, agent_ids=["agent-a"]
+        )
         channel.receiver = received
 
         # 試験実施
@@ -152,7 +159,9 @@ class TestDispatcherChannel:
             for i in range(2)
         ]
         service.pop_dispatch.side_effect = itertools.chain([dispatches], itertools.repeat([]))
-        channel = DispatcherChannel(service=service, poll_interval_seconds=0.01)
+        channel = DispatcherChannel(
+            service=service, poll_interval_seconds=0.01, agent_ids=["agent-a"]
+        )
         channel.receiver = received
 
         # 試験実施
@@ -183,7 +192,9 @@ class TestDispatcherChannel:
             run_at=datetime.now(UTC),
         )
         service.pop_dispatch.return_value = [dispatch]
-        channel = DispatcherChannel(service=service, poll_interval_seconds=0.01)
+        channel = DispatcherChannel(
+            service=service, poll_interval_seconds=0.01, agent_ids=["agent-a"]
+        )
         channel.receiver = received
 
         # 試験実施
