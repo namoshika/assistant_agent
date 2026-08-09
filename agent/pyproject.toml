@@ -21,6 +21,7 @@ dependencies = [
     "obsidianmd-parser>=0.4.0",
     "pydantic>=2.13.4",
     "sqlalchemy[asyncio]>=2.0.48",
+    "typer>=0.19",
 ]
 
 [build-system]
@@ -28,7 +29,7 @@ requires = ["uv_build>=0.10.9,<0.11.0"]
 build-backend = "uv_build"
 
 [project.scripts]
-solbot = "assistant_agent.agent_bot:main"
+solbot = "assistant_agent.agent_bot:app"
 
 [tool.fastapi]
 entrypoint = "assistant_agent.agent_server:app"

@@ -44,12 +44,15 @@ async def test_receive_01() -> None:
     # 試験準備
     llm = _FakeChatModel(messages=iter([AIMessage(content="こんにちは、assistant_agent_1です。")]))
     store = InMemoryStore()
-    lc_agent = sample.build_lc_agent(InMemorySaver(), store, llm)
-    backend = StoreBackend(store=store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem"))
+    lc_agent = sample.build_lc_agent(InMemorySaver(), store, llm, "sample")
+    backend = StoreBackend(
+        store=store,
+        namespace=lambda _rt: ("sample", "filesystem"),
+    )
     agent = Agent(
         lc_agent,
         context={},
-        agent_id=sample.AGENT_ID,
+        agent_id="sample",
         thread_id=None,
         rollover_strategy=DefaultRolloverStrategy(llm, backend),
     )

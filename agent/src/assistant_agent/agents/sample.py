@@ -11,8 +11,6 @@ from assistant_agent import subagents
 from assistant_agent.tools import discord, dispatcher, obsidian, sample
 from assistant_agent.utils.context import CommonContext
 
-AGENT_ID = "assistant-agent-1"  # thread_id の prefix・StoreBackend の namespace に使う識別子
-
 SYSTEM_PROMPT = """
 # Instruction
 あなたは親身なエージェントで、名前は assistant_agent_1 です。
@@ -66,9 +64,10 @@ def build_lc_agent(
     checkpointer: BaseCheckpointSaver,
     store: BaseStore,
     llm: BaseChatModel,
+    agent_id: str,
 ) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
-    """ツール・checkpointer/store を束ねたグラフを構築する（LLM は呼び出し元から受け取る）."""
-    backend = StoreBackend(store=store, namespace=lambda _rt: (AGENT_ID, "filesystem"))
+    """ツール・checkpointer/store を束ねたグラフを構築する（LLM・agent_id は呼び出し元から受取）."""
+    backend = StoreBackend(store=store, namespace=lambda _rt: (agent_id, "filesystem"))
     lc_agent = deepagents.create_deep_agent(
         model=llm,
         tools=[

@@ -17,7 +17,7 @@ async def test_web_researcher_01(llm: BaseChatModel) -> None:
     観点1: 例外なく応答が返ること
     """
     # 試験準備
-    lc_agent = sample.build_lc_agent(InMemorySaver(), InMemoryStore(), llm)
+    lc_agent = sample.build_lc_agent(InMemorySaver(), InMemoryStore(), llm, "sample")
     config: RunnableConfig = {"configurable": {"thread_id": f"test-agent:{uuid.uuid7()}"}}
 
     # 試験実施

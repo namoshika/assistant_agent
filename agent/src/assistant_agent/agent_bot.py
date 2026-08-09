@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TypedDict, cast
 
 import mlflow
-from deepagents.backends.store import StoreBackend
+import typer
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.base import TTLConfig
@@ -17,14 +17,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import assistant_agent.services  # noqa: F401  登録発火（ContextRegistry へ factory を登録）
-from assistant_agent.agents import sample
+from assistant_agent import agents
 from assistant_agent.entities.checkpoint import CheckpointEntity
 from assistant_agent.services.discord import DiscordChannel, DiscordService
 from assistant_agent.services.dispatcher import DispatcherChannel, DispatcherService
 from assistant_agent.store import PostgresStoreConnector
 from assistant_agent.utils import context, workflow
 
-LOG_PATH = os.getenv("AA_LOG_PATH", "logs/solbot_history.log")
+LOG_DIR = os.getenv("AA_LOG_PATH", "logs")
 LOG_LEVEL = os.getenv("AA_LOG_LEVEL", "INFO")
 MLFLOW_EXPERIMENT_ID = os.getenv("MLFLOW_EXPERIMENT_ID")
 STORE_TTL_DEFAULT_DAYS = 30  # 仮想ファイルシステム上のアイテムの既定 TTL（日数）
@@ -55,17 +55,23 @@ async def find_latest_thread_id(engine: AsyncEngine, agent_id: str) -> str | Non
 
 
 @asynccontextmanager
-async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
+async def init_harness(
+    module_name: str, agent_id: str | None
+) -> AsyncGenerator[workflow.SyncRequestChannel]:
     """エージェントハーネスを初期化."""
+    agent_id = agent_id or module_name
     # ログ出力を構成
     proj_dir = Path(__file__).resolve().parents[2]
-    log_path = proj_dir / LOG_PATH
+    log_path = proj_dir / LOG_DIR / f"solbot_{agent_id}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=LOG_LEVEL,
         format="[%(asctime)s] [%(levelname)s] [%(filename)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S%z",
-        handlers=[logging.FileHandler(log_path, encoding="utf-8")],
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(log_path, encoding="utf-8"),
+        ],
     )
     logger = logging.getLogger(__name__)
 
@@ -100,9 +106,11 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
         await pg_store.start_ttl_sweeper()
 
         # エージェントを構築
-        llm = ChatOpenAI(model="openai.gpt-5.6-terra", use_responses_api=True)
-        lc_agent = sample.build_lc_agent(checkpointer, pg_store, llm)
-        latest_thread_id = await find_latest_thread_id(store_conn.get_engine(), sample.AGENT_ID)
+        llm = ChatOpenAI(model="openai.gpt-5.6-luna", use_responses_api=True)
+        latest_thread_id = await find_latest_thread_id(store_conn.get_engine(), agent_id)
+        agent = agents.get_agent(
+            module_name, agent_id, latest_thread_id, llm, ctx, checkpointer, pg_store
+        )
 
         # フローを初期化
         sync_request_channel = workflow.SyncRequestChannel()
@@ -110,23 +118,14 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
             service=bot_ctx["dispatcher_service"], poll_interval_seconds=60.0
         )
         discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
-        rollover_backend = StoreBackend(
-            store=pg_store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem")
-        )
-        rollover_strategy = workflow.DefaultRolloverStrategy(llm, rollover_backend)
-        agent = workflow.Agent(
-            lc_agent,
-            context=ctx,
-            agent_id=sample.AGENT_ID,
-            thread_id=latest_thread_id,
-            rollover_strategy=rollover_strategy,
-        )
         log_writer = workflow.LogWriter()
         workflow.MergePipe([sync_request_channel, dispatcher_channel, discord_channel], agent)
         workflow.BroadcastPipe(agent, [sync_request_channel, log_writer])
 
         # フローを起動・終了
-        logger.info(f"Start Assistant Agent Loop (thread_id: {latest_thread_id})")
+        logger.info(
+            f"Start Assistant Agent Loop (agent_id: {agent_id}, thread_id: {latest_thread_id})"
+        )
         try:
             agent.start()
             sync_request_channel.start()
@@ -141,19 +140,41 @@ async def init_harness() -> AsyncGenerator[workflow.SyncRequestChannel]:
             await pg_store.stop_ttl_sweeper()
 
 
-async def _amain() -> None:
-    async with init_harness():
+async def _amain(module_name: str = "sample", agent_id: str | None = None) -> None:
+    async with init_harness(module_name, agent_id):
         await asyncio.Event().wait()
 
 
-def main() -> None:
-    """agent_bot.py のエントリーポイント（pyproject.toml の project.scripts から呼ばれる）."""
+app = typer.Typer()
+
+
+def _validate_agent_module(value: str) -> str:
+    if not agents.module_exists(value):
+        raise typer.BadParameter(f"No agent module named {value!r} in agents/")
+    return value
+
+
+@app.command()
+def main(
+    agent: str = typer.Option(
+        "sample",
+        "--agent",
+        callback=_validate_agent_module,
+        help="起動するエージェントのモジュール名",
+    ),
+    overwrite_agent_id: str | None = typer.Option(
+        None,
+        "--overwrite_agent_id",
+        help="thread_id・backend namespace 等に使う agent_id（省略時は --agent の値）",
+    ),
+) -> None:
+    """Solbot コマンドの処理本体（pyproject.toml の project.scripts が指す app 経由で呼ばれる）."""
     try:
-        asyncio.run(_amain())
+        asyncio.run(_amain(agent, overwrite_agent_id))
     except KeyboardInterrupt:
         print("\nStopping because Ctrl+C was received.")
         sys.exit(130)
 
 
 if __name__ == "__main__":
-    main()
+    app()

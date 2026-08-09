@@ -30,7 +30,7 @@ def _extract_text_content(msg: BaseMessage) -> str | None:
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    async with agent_bot.init_harness() as sync_request_channel:
+    async with agent_bot.init_harness("sample", None) as sync_request_channel:
         logger = logging.getLogger(__name__)
 
         @endpoint.regist(model_id="assistant_agent_v1")

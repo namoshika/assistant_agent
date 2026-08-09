@@ -11,7 +11,6 @@ from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
-from assistant_agent.agents import sample
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
 from assistant_agent.utils.workflow import (
     THREAD_ROLLOVER_INTERVAL_DAYS,
@@ -46,7 +45,7 @@ def old_thread_id() -> str:
     old_ts_ms = int(old_time.timestamp() * 1000)
     base_uuid = uuid.uuid7()
     old_uuid_int = (base_uuid.int & ((1 << 80) - 1)) | (old_ts_ms << 80)
-    return f"{sample.AGENT_ID}:{uuid.UUID(int=old_uuid_int)}"
+    return f"sample:{uuid.UUID(int=old_uuid_int)}"
 
 
 class TestDefaultRolloverStrategy:
@@ -64,7 +63,7 @@ class TestDefaultRolloverStrategy:
         checkpointer = InMemorySaver()
         store = InMemoryStore()
         lc_agent = langchain.agents.create_agent(llm, checkpointer=checkpointer)
-        backend = StoreBackend(store=store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem"))
+        backend = StoreBackend(store=store, namespace=lambda _rt: ("sample", "filesystem"))
         rollover_strategy = DefaultRolloverStrategy(llm, backend)
 
         old_config: RunnableConfig = {"configurable": {"thread_id": old_thread_id}}
@@ -76,7 +75,7 @@ class TestDefaultRolloverStrategy:
         agent = Agent(
             lc_agent,
             context={},
-            agent_id=sample.AGENT_ID,
+            agent_id="sample",
             thread_id=old_thread_id,
             rollover_strategy=rollover_strategy,
         )

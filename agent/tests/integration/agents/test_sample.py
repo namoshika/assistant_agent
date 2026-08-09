@@ -2,15 +2,14 @@ import asyncio
 from typing import Any
 
 import pytest
-from deepagents.backends.store import StoreBackend
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
-from assistant_agent.agents import sample
+from assistant_agent import agents
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
-from assistant_agent.utils.workflow import Agent, BroadcastPipe, DefaultRolloverStrategy
+from assistant_agent.utils.workflow import BroadcastPipe
 
 
 class _DummyActiveEmitter(ActiveEmitter):
@@ -32,22 +31,22 @@ class _DummyReceiver(Receiver):
 
 
 @pytest.mark.integration
-async def test_receive_01(llm: BaseChatModel):
-    """実 LLM で新着に応答し、BroadcastPipe 経由で配信されるか確認.
+@pytest.mark.parametrize("module_name", ["sample", "holo", "rune"])
+async def test_receive_01(module_name: str, llm: BaseChatModel) -> None:
+    """各エージェントが実 LLM で入力を処理し、応答を配信できることを確認.
 
-    観点1: BroadcastPipe で接続した発信元から新着を流すと、
-        実グラフの応答が Agent の購読者へ配信されること
+    観点1: BroadcastPipe で接続した発信元から新着を流すこと
+    観点2: 各エージェントの応答が購読者へ配信されること
     """
     # 試験準備
-    store = InMemoryStore()
-    lc_agent = sample.build_lc_agent(InMemorySaver(), store, llm)
-    backend = StoreBackend(store=store, namespace=lambda _rt: (sample.AGENT_ID, "filesystem"))
-    agent = Agent(
-        lc_agent,
-        context={},
-        agent_id=sample.AGENT_ID,
-        thread_id=None,
-        rollover_strategy=DefaultRolloverStrategy(llm, backend),
+    agent = agents.get_agent(
+        module_name,
+        module_name,
+        None,
+        llm,
+        {},
+        InMemorySaver(),
+        InMemoryStore(),
     )
     source = _DummyActiveEmitter()
     BroadcastPipe(source, [agent])
@@ -55,16 +54,20 @@ async def test_receive_01(llm: BaseChatModel):
     received = _DummyReceiver(received_event)
     agent.receiver = received
 
-    # 試験実施
-    agent.start()
-    invocation = AgentInvocation(
-        input={"messages": [HumanMessage(content="こんにちは。自己紹介してください。")]},
-        context={},
-    )
-    source.emit(invocation)
-    await asyncio.wait_for(received_event.wait(), timeout=30)
+    try:
+        # 試験実施
+        invocation = AgentInvocation(
+            input={"messages": [HumanMessage(content="こんにちは。自己紹介してください。")]},
+            context={},
+        )
+        agent.start()
+        source.emit(invocation)
+        await asyncio.wait_for(received_event.wait(), timeout=30)
 
-    # 結果検証
-    # 観点1
-    assert len(received.received) == 1
-    assert received.received[0]["input"]["messages"][-1].content
+        # 結果検証
+        # 観点1
+        assert len(received.received) == 1
+        # 観点2
+        assert received.received[0]["input"]["messages"][-1].content
+    finally:
+        agent.stop()
