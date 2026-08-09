@@ -1,6 +1,7 @@
 from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -14,12 +15,22 @@ class PostgresStoreConnector(StoreConnector):
         """Construct PostgresStoreConnector."""
         self._url = make_url(connection_string)
         self._engine: AsyncEngine | None = None
+        self._engine_sync: Engine | None = None
 
     def get_engine(self) -> AsyncEngine:
         """PostgreSQL の SQLAlchemy AsyncEngine を生成する（キャッシュあり）."""
         if self._engine is None:
             self._engine = create_async_engine(self._url.set(drivername="postgresql+asyncpg"))
         return self._engine
+
+    def get_engine_sync(self) -> Engine:
+        """PostgreSQL の SQLAlchemy Engine（同期）を生成する（キャッシュあり）.
+
+        pandas.read_sql 等、同期エンジンを要する用途向け（例: notebook でのレコード表示）。
+        """
+        if self._engine_sync is None:
+            self._engine_sync = create_engine(self._url.set(drivername="postgresql+psycopg"))
+        return self._engine_sync
 
     def get_psycopg_pool(self) -> AsyncConnectionPool[AsyncConnection[DictRow]]:
         """LangGraph checkpointer/store 用の psycopg AsyncConnectionPool を返す（未オープン）."""

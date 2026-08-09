@@ -66,7 +66,7 @@ async def init_harness(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=LOG_LEVEL,
-        format="[%(asctime)s] [%(levelname)s] [%(filename)s] %(message)s",
+        format=f"%(asctime)s [%(process)d] [%(levelname)s] [%(filename)s] [{agent_id}]: %(message)s",  # noqa: E501
         datefmt="%Y-%m-%d %H:%M:%S%z",
         handlers=[
             logging.StreamHandler(sys.stdout),

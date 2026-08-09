@@ -56,6 +56,27 @@ class TestPostgresStoreConnector:
         assert result == 1
 
     @pytest.mark.integration
+    def test_get_engine_sync_01(self, pg_conn: PostgresStoreConnector) -> None:
+        """get_engine_sync が Engine（同期）を返すこと.
+
+        観点1: Engine インスタンスが返ること
+        観点2: 同一インスタンスが返ること（キャッシュ）
+        観点3: SELECT 1 で PostgreSQL と通信できること
+        """
+        # 試験実施
+        engine = pg_conn.get_engine_sync()
+
+        # 結果検証
+        # 観点1
+        assert engine is not None
+        # 観点2
+        assert pg_conn.get_engine_sync() is engine
+        # 観点3
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT 1")).scalar()
+        assert result == 1
+
+    @pytest.mark.integration
     async def test_get_psycopg_pool_01(self, pg_conn: PostgresStoreConnector) -> None:
         """get_psycopg_pool が実際に PostgreSQL へオープンできること.
 

@@ -19,6 +19,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=3.1.1",
     "mlflow>=3.11.1",
     "obsidianmd-parser>=0.4.0",
+    "pandas>=2.3.3",
     "pydantic>=2.13.4",
     "sqlalchemy[asyncio]>=2.0.48",
     "typer>=0.19",
