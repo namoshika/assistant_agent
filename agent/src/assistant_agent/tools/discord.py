@@ -76,7 +76,11 @@ async def discord_mention_user(
     content: str,
     runtime: ToolRuntime[DiscordContext],
 ) -> str:
-    """指定チャンネルでユーザーへメンション付き投稿をする."""
+    """指定チャンネルでユーザーへメンション付き投稿をする.
+
+    メンションは本関数が自動で付与するため、content にメンション（例: <@user_id>）を含めないこと。
+    含めるとメンションが重複する。
+    """
     service = runtime.context["discord_service"]
     try:
         await service.mention_user(int(channel_id), int(user_id), content)
