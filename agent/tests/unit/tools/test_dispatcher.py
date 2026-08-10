@@ -195,8 +195,8 @@ async def test_dispatcher_cancel_01():
     """ツール dispatcher_cancel が DispatcherService.cancel_dispatch() を呼ぶことを確認.
 
     観点1（R020）: agent_id、dispatch_id とともに呼ばれること
-    観点2（R020）: cancel_dispatch() の戻り値（True/False）と、その意味を説明する
-      Description を含む文字列が返ること
+    観点2（R020）: cancel_dispatch() の戻り値（True/False）が content には人間可読な文言
+      （"Success"/"Failure"）として、artifact には bool そのものが返ること
     """
     # 試験準備
     m_service = AsyncMock(spec=DispatcherService)
@@ -226,8 +226,8 @@ async def test_dispatcher_cancel_01():
     m_service.cancel_dispatch.assert_called_once_with("test-agent", "dispatch-1")
     # 観点2
     tool_message = result["messages"][2]
-    assert "True" in tool_message.content
-    assert "Description:" in tool_message.content
+    assert tool_message.content == "Success"
+    assert tool_message.artifact is True
 
     # 試験準備: 見つからない場合
     m_service.cancel_dispatch.reset_mock(return_value=True)
@@ -255,8 +255,8 @@ async def test_dispatcher_cancel_01():
     # 結果検証
     # 観点2
     tool_message_missing = result_missing["messages"][2]
-    assert "False" in tool_message_missing.content
-    assert "Description:" in tool_message_missing.content
+    assert tool_message_missing.content == "Failure"
+    assert tool_message_missing.artifact is False
 
 
 async def test_dispatcher_get_01():
@@ -348,13 +348,13 @@ async def test_dispatcher_list_01():
     観点1（R021）: agent_id とともに list_dispatch() が呼ばれ、結果が dispatch_id、繰り返し間隔、
       次回発火時刻、メッセージ内容を含む文字列として返ること
     観点2（R021）: 予定が0件のときもその旨が返ること
-    観点3（R021）: 100文字を超えるメッセージ内容が切り詰められること
+    観点3（R021）: 1件あたりの表示が300文字を超える場合、切り詰められること
     観点4（R021）: interval_seconds が ONE_SHOT の予定は "once"、それ以外は "every Ns" 等の
       人間可読な表現になり、-1s のような内部表現が出力に現れないこと
     観点5: ToolMessage.artifact が list_dispatch() の返り値と一致すること
     """
     # 試験準備
-    long_content = "あ" * 150
+    long_content = "あ" * 400
     m_service = AsyncMock(spec=DispatcherService)
     m_service.list_dispatch.return_value = [
         Dispatch(
@@ -392,8 +392,9 @@ async def test_dispatcher_list_01():
     assert "dispatch-1" in tool_message.content
     assert "dispatch-2" in tool_message.content
     # 観点3
-    assert "あ" * 101 not in tool_message.content
-    assert "あ" * 100 in tool_message.content
+    assert long_content not in tool_message.content
+    expected_item = str(m_service.list_dispatch.return_value[0])[:200]
+    assert expected_item in tool_message.content
     # 観点4
     assert "once" in tool_message.content
     assert "every 30s" in tool_message.content

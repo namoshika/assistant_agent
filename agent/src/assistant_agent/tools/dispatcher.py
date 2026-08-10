@@ -12,21 +12,12 @@ _PROMPT_DESCRIPTION = "エージェントへの指示を入力。具体的な指
 _AT_DESCRIPTION = (
     "発信する日時。タイムゾーンの指定を省略した場合は JST（Asia/Tokyo）として解釈する。"
 )
+_RESPONSE_TMPL = """
+# {title}
+{description}
 
-_DISPATCH_GET_TMPL = """\
-{% if dispatch is none -%}
-(dispatch not found)
-{%- else -%}
-## Dispatch (dispatch_id: {{ dispatch.dispatch_id }})
-
-- interval: {{ "once" if dispatch.interval_seconds == one_shot else "every %ds" % dispatch.interval_seconds }}
-- run_at: {{ dispatch.run_at.astimezone(jst).isoformat() }}
-
-### prompt
-
-{{ dispatch.prompt }}
-{%- endif %}
-"""  # noqa: E501
+{response}
+"""
 
 
 class DispatcherContext(TypedDict):
@@ -47,7 +38,9 @@ async def dispatcher_invoke_at(
     service = runtime.context["dispatcher_service"]
     agent_id = runtime.context["agent_id"]
     dispatch = await service.invoke_at(agent_id, prompt, at)
-    return _format_response(str(dispatch), "The registered dispatch.")
+    return PromptTemplate.from_template(_RESPONSE_TMPL).format(
+        title="Dispatcher invoke_at", description="The registered dispatch.", response=str(dispatch)
+    )
 
 
 @tool
@@ -69,7 +62,11 @@ async def dispatcher_invoke_delay(
     dispatch = await service.invoke_delay(
         agent_id, prompt, delay_value, delay_unit, interval_value, interval_unit
     )
-    return _format_response(str(dispatch), "The registered dispatch.")
+    return PromptTemplate.from_template(_RESPONSE_TMPL).format(
+        title="Dispatcher invoke_delay",
+        description="The registered dispatch.",
+        response=str(dispatch),
+    )
 
 
 @tool
@@ -78,21 +75,21 @@ async def dispatcher_get(dispatch_id: str, runtime: ToolRuntime[DispatcherContex
     service = runtime.context["dispatcher_service"]
     agent_id = runtime.context["agent_id"]
     dispatch = await service.get_dispatch(agent_id, dispatch_id)
-    response = PromptTemplate.from_template(_DISPATCH_GET_TMPL, template_format="jinja2").format(
-        dispatch=dispatch,
-        one_shot=DispatcherService.ONE_SHOT,
-        jst=ZoneInfo("Asia/Tokyo"),
+    response = str(dispatch) if dispatch is not None else "(dispatch not found)"
+    return PromptTemplate.from_template(_RESPONSE_TMPL).format(
+        title="Dispatcher get", description="The requested dispatch, if found.", response=response
     )
-    return _format_response(response, "The requested dispatch, if found.")
 
 
-@tool
-async def dispatcher_cancel(dispatch_id: str, runtime: ToolRuntime[DispatcherContext]) -> str:
+@tool(response_format="content_and_artifact")
+async def dispatcher_cancel(
+    dispatch_id: str, runtime: ToolRuntime[DispatcherContext]
+) -> tuple[str, bool]:
     """登録済みの予定を dispatch_id を指定して解除する."""
     service = runtime.context["dispatcher_service"]
     agent_id = runtime.context["agent_id"]
     cancelled = await service.cancel_dispatch(agent_id, dispatch_id)
-    return _format_response(str(cancelled), "Whether the dispatch was found and cancelled.")
+    return "Success" if cancelled else "Failure", cancelled
 
 
 @tool(response_format="content_and_artifact")
@@ -101,11 +98,10 @@ async def dispatcher_list(runtime: ToolRuntime[DispatcherContext]) -> tuple[str,
     service = runtime.context["dispatcher_service"]
     agent_id = runtime.context["agent_id"]
     dispatches = await service.list_dispatch(agent_id)
-    response = "\n".join(str(d) for d in dispatches) if dispatches else "(no dispatches)"
-    return _format_response(response, "List of the currently registered dispatches."), dispatches
-
-
-def _format_response(response: str, description: str) -> str:
-    response = f"{'\n' if '\n' in response else ''}{response}"
-    prompt = PromptTemplate.from_template("Description: {description}\nResponse: {response}")
-    return prompt.format(description=description, response=response)
+    response = "\n\n".join(str(d)[:200] for d in dispatches) if dispatches else "(no dispatches)"
+    formatted = PromptTemplate.from_template(_RESPONSE_TMPL).format(
+        title="Dispatcher list",
+        description="List of the currently registered dispatches.",
+        response=response,
+    )
+    return formatted, dispatches

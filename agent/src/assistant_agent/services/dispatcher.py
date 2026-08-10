@@ -8,6 +8,7 @@ from typing import Any, Self
 from zoneinfo import ZoneInfo
 
 from langchain_core.messages import HumanMessage
+from langchain_core.prompts import PromptTemplate
 from sqlalchemy import delete, func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -17,13 +18,11 @@ from assistant_agent.store import PostgresStoreConnector
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation
 from assistant_agent.utils.context import ContextRegistry
 
-DISPATCHER_MESSAGE_TMPL = """\
+_DISPATCHER_MESSAGE_TMPL = """\
 # Dispatcher Channel
 予約イベントが発火しました。
 
-イベント詳細: {dispatch}
-受信プロンプト:
-{content}
+{{ dispatch }}
 """
 
 
@@ -53,8 +52,7 @@ class Dispatch:
     run_at: datetime
 
     def __str__(self) -> str:
-        """LLM への提示用に、予定の内容を英語の1行テキストへ整形する（LLM の精度向上のため）."""
-        content = self.prompt[:100]
+        """LLM への提示用に、予定の内容を整形する."""
         interval = (
             "once"
             if self.interval_seconds == DispatcherService.ONE_SHOT
@@ -62,8 +60,12 @@ class Dispatch:
         )
         run_at_jst = self.run_at.astimezone(ZoneInfo("Asia/Tokyo"))
         return (
-            f"dispatch_id={self.dispatch_id}, interval={interval}, "
-            f"run_at={run_at_jst.isoformat()}, content={content}"
+            f"## Dispatch (dispatch_id: {self.dispatch_id})\n"
+            f"### Metadata\n"
+            f"- interval: {interval}\n"
+            f"- run_at: {run_at_jst.isoformat()}\n\n"
+            f"### Prompt\n"
+            f"{self.prompt}"
         )
 
 
@@ -263,9 +265,9 @@ class DispatcherChannel(ActiveEmitter):
                     datetime.now(UTC), self._agent_ids
                 ):
                     try:
-                        prompt = DISPATCHER_MESSAGE_TMPL.format(
-                            dispatch=dispatch, content=dispatch.prompt
-                        )
+                        prompt = PromptTemplate.from_template(
+                            _DISPATCHER_MESSAGE_TMPL, template_format="jinja2"
+                        ).format(dispatch=dispatch)
                         invocation = AgentInvocation(
                             input={"messages": [HumanMessage(content=prompt)]},
                             context={

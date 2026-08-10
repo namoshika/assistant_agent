@@ -9,13 +9,12 @@ from assistant_agent.utils.absclass import AgentInvocation, Receiver
 
 class TestDispatch:
     def test_str_01(self):
-        """__str__() が予定を LLM 向けの英語1行テキストへ整形することを確認.
+        """__str__() が予定を LLM 向けの Markdown テキストへ整形することを確認.
 
-        観点1: dispatch_id・次回発火時刻・メッセージ内容を含むこと
-        観点2: 100文字を超えるメッセージ内容は100文字に切り詰められること
-        観点3: interval_seconds が ONE_SHOT の場合は "once"、それ以外は "every Ns" と
+        観点1: dispatch_id・次回発火時刻・メッセージ内容（全文）を含むこと
+        観点2: interval_seconds が ONE_SHOT の場合は "once"、それ以外は "every Ns" と
           表現され、内部表現（-1s 等）が現れないこと
-        観点4: run_at は UTC ではなく JST（+09:00）に変換されて表示されること
+        観点3: run_at は UTC ではなく JST（+09:00）に変換されて表示されること
         """
         # 試験準備
         long_content = "あ" * 150
@@ -34,12 +33,10 @@ class TestDispatch:
         # 結果検証
         # 観点1
         assert "dispatch-1" in text
+        assert long_content in text
         # 観点2
-        assert "あ" * 101 not in text
-        assert "あ" * 100 in text
-        # 観点3
         assert "once" in text
-        # 観点4
+        # 観点3
         assert "2026-07-30T18:00:00+09:00" in text
 
         # 試験準備: 繰り返し予定
@@ -49,7 +46,7 @@ class TestDispatch:
         text_repeat = str(dispatch)
 
         # 結果検証
-        # 観点3
+        # 観点2
         assert "every 30s" in text_repeat
         assert "-1s" not in text_repeat
 
