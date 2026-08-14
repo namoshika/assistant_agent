@@ -1,15 +1,12 @@
-from typing import Any
-
 import deepagents
-from deepagents.backends.store import StoreBackend
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.base import BaseStore
 
 from assistant_agent import subagents
-from assistant_agent.tools import discord, dispatcher, obsidian, sample
+from assistant_agent.agents import COMMON_TOOLS, build_backend
 from assistant_agent.utils.context import CommonContext
+from assistant_agent.utils.workflow import Agent, DefaultRolloverStrategy
 
 SYSTEM_PROMPT = """
 # Instruction
@@ -60,31 +57,22 @@ SYSTEM_PROMPT = """
 """
 
 
-def build_lc_agent(
+def build_agent(
+    llm: BaseChatModel,
+    context: CommonContext,
     checkpointer: BaseCheckpointSaver,
     store: BaseStore,
-    llm: BaseChatModel,
     agent_id: str,
-) -> CompiledStateGraph[Any, CommonContext, Any, Any]:
-    """ツール・checkpointer/store を束ねたグラフを構築する（LLM・agent_id は呼び出し元から受取）."""
-    backend = StoreBackend(store=store, namespace=lambda _rt: (agent_id, "filesystem"))
+    thread_id: str | None,
+) -> Agent:
+    """ツール・checkpointer/store を束ねたグラフから Agent を構築する.
+
+    LLM・agent_id は呼び出し元から受取。
+    """
+    backend = build_backend(agent_id)
     lc_agent = deepagents.create_deep_agent(
         model=llm,
-        tools=[
-            sample.get_weather,
-            sample.get_datetime_now,
-            dispatcher.dispatcher_get,
-            dispatcher.dispatcher_list,
-            dispatcher.dispatcher_invoke_at,
-            dispatcher.dispatcher_invoke_delay,
-            dispatcher.dispatcher_cancel,
-            obsidian.obsidian_vault_search,
-            obsidian.obsidian_vault_get,
-            discord.discord_get_messages,
-            discord.discord_send_message,
-            discord.discord_mention_user,
-            discord.discord_reply_message,
-        ],
+        tools=COMMON_TOOLS,
         subagents=[
             subagents.web_researcher,
         ],
@@ -95,4 +83,11 @@ def build_lc_agent(
         checkpointer=checkpointer,
         store=store,
     )
-    return lc_agent
+    rollover_strategy = DefaultRolloverStrategy(llm, backend)
+    return Agent(
+        lc_agent,
+        context=context,
+        agent_id=agent_id,
+        thread_id=thread_id,
+        rollover_strategy=rollover_strategy,
+    )

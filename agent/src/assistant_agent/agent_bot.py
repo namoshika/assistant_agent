@@ -9,7 +9,7 @@ from typing import TypedDict, cast
 
 import mlflow
 import typer
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.base import TTLConfig
 from langgraph.store.postgres.aio import AsyncPostgresStore
@@ -106,7 +106,12 @@ async def init_harness(
         await pg_store.start_ttl_sweeper()
 
         # エージェントを構築
-        llm = ChatOpenAI(model="openai.gpt-5.6-luna", use_responses_api=True)
+        # NOTE: langchain-openai の ChatOpenAI._resolve_model_profile() は model_name を
+        # 内部テーブルへの完全一致で引くため、Bedrock Mantle 用の "openai." 接頭辞付き
+        # モデルID（例: "openai.gpt-5.6-luna"）では profile が解決できず空になる。
+        # 接頭辞なしのモデル名で profile だけを解決し、明示的に渡すことで回避する。
+        prf = init_chat_model("openai:gpt-5.6-luna", use_responses_api=True).profile
+        llm = init_chat_model("openai:openai.gpt-5.6-luna", use_responses_api=True, profile=prf)
         latest_thread_id = await find_latest_thread_id(store_conn.get_engine(), agent_id)
         agent = agents.get_agent(
             module_name, agent_id, latest_thread_id, llm, ctx, checkpointer, pg_store

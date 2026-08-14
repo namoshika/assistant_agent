@@ -1,7 +1,6 @@
 import asyncio
 from typing import Any
 
-from deepagents.backends.store import StoreBackend
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -9,7 +8,7 @@ from langgraph.store.memory import InMemoryStore
 
 from assistant_agent.agents import sample
 from assistant_agent.utils.absclass import ActiveEmitter, AgentInvocation, Receiver
-from assistant_agent.utils.workflow import Agent, BroadcastPipe, DefaultRolloverStrategy
+from assistant_agent.utils.workflow import BroadcastPipe
 
 
 class _FakeChatModel(GenericFakeChatModel):
@@ -36,7 +35,7 @@ class _DummyReceiver(Receiver):
 
 
 async def test_receive_01() -> None:
-    """build_lc_agent() で構築したグラフを Agent 化し、新着に応答して emit することを確認.
+    """build_agent() で構築した Agent が、新着に応答して emit することを確認.
 
     観点1: BroadcastPipe で接続した発信元から新着を流すと、
         グラフの応答が Agent の購読者へ配信されること
@@ -44,18 +43,7 @@ async def test_receive_01() -> None:
     # 試験準備
     llm = _FakeChatModel(messages=iter([AIMessage(content="こんにちは、assistant_agent_1です。")]))
     store = InMemoryStore()
-    lc_agent = sample.build_lc_agent(InMemorySaver(), store, llm, "sample")
-    backend = StoreBackend(
-        store=store,
-        namespace=lambda _rt: ("sample", "filesystem"),
-    )
-    agent = Agent(
-        lc_agent,
-        context={},
-        agent_id="sample",
-        thread_id=None,
-        rollover_strategy=DefaultRolloverStrategy(llm, backend),
-    )
+    agent = sample.build_agent(llm, {}, InMemorySaver(), store, "sample", None)
     source = _DummyActiveEmitter()
     BroadcastPipe(source, [agent])
     received_event = asyncio.Event()

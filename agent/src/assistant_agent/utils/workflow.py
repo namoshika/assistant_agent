@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import mlflow
-from deepagents.backends.store import StoreBackend
+from deepagents.backends import BackendProtocol
 from langchain.agents.middleware.summarization import DEFAULT_SUMMARY_PROMPT
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage
@@ -171,7 +171,7 @@ class DefaultRolloverStrategy(RolloverStrategy):
     移行は成立するため）。要約生成・生ログ退避に使う llm・backend はコンストラクタで受け取る。
     """
 
-    def __init__(self, llm: BaseChatModel, backend: StoreBackend) -> None:
+    def __init__(self, llm: BaseChatModel, backend: BackendProtocol) -> None:
         """DefaultRolloverStrategy を構成する."""
         self._llm = llm
         self._backend = backend
@@ -224,7 +224,7 @@ class DefaultRolloverStrategy(RolloverStrategy):
         messages: list[AnyMessage],
         history_path: str,
         llm: BaseChatModel,
-        backend: StoreBackend,
+        backend: BackendProtocol,
     ) -> HumanMessage:
         """旧 thread の全メッセージを要約し、生ログを仮想ファイルシステムへ退避する."""
         formatted = get_buffer_string(messages, format="xml")
