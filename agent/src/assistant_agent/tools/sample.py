@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Sequence
 from typing import TypedDict
@@ -27,17 +28,22 @@ class SampleSearchInput(BaseModel):
 async def sample_search(
     search_query: str,
     runtime: ToolRuntime[SampleContext],
-) -> tuple[str, Sequence[Document]]:
+) -> tuple[str, Sequence[Document] | Exception]:
     """Perform vector search on web pages saved in Local DB."""
     retriever = runtime.context["sample_retriever"]
-    results = await retriever.search_documents(search_query, top_k=10)
-    return fmt.format_doc_list(
-        [
-            fmt.ContentsWithFrontmatter(
-                title=os.path.basename(item.metadata["file_path"]),
-                contents=item.page_content,
-                frontmatter=None,
-            )
-            for item in results
-        ]
-    ), results
+    try:
+        results = await retriever.search_documents(search_query, top_k=10)
+        return fmt.format_doc_list(
+            [
+                fmt.ContentsWithFrontmatter(
+                    title=os.path.basename(item.metadata["file_path"]),
+                    contents=item.page_content,
+                    frontmatter=None,
+                )
+                for item in results
+            ]
+        ), results
+    except Exception as ex:
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to search sample vault")
+        return str(ex), ex

@@ -1,8 +1,14 @@
 import importlib
 import importlib.util
+import os
 from pathlib import Path
 
-from deepagents.backends import BackendProtocol, LocalShellBackend
+from deepagents.backends import (
+    BackendProtocol,
+    CompositeBackend,
+    FilesystemBackend,
+    LocalShellBackend,
+)
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_tavily import (
     TavilyCrawl,
@@ -72,8 +78,18 @@ def get_agent(
 
 
 def build_backend(agent_id: str) -> BackendProtocol:
-    """エージェント用の ackend を構築する."""
-    profile_dir = Path(__file__) / "../../../../.assistant_agent/"
+    """エージェント用の backend を構築する."""
+    profile_dir = Path(os.path.expanduser(os.getenv("AA_PROFILE_DIR", "~/.assistant_agent/")))
     profile_dir = profile_dir.resolve()
-    (profile_dir / f"agent_{agent_id}").mkdir(parents=True, exist_ok=True)
-    return LocalShellBackend(profile_dir)
+
+    agent_dir = profile_dir / f"agent_{agent_id}"
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    skills_dir = profile_dir / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+
+    return CompositeBackend(
+        default=LocalShellBackend(agent_dir, inherit_env=True),
+        routes={
+            "/skills/": FilesystemBackend(skills_dir),
+        },
+    )

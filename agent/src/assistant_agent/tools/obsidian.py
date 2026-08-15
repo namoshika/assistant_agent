@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Sequence
 from typing import TypedDict
@@ -55,12 +56,17 @@ async def obsidian_vault_search(
     filters: SearchFilters | None,
     full_fetch: bool,
     runtime: ToolRuntime[ObsidianContext],
-) -> tuple[str, list[Document]]:
+) -> tuple[str, Sequence[Document] | Exception]:
     """Perform vector search on Obsidian vault with metadata filters."""
     retriever = runtime.context["obsidian_retriever"]
     top_k = 9999 if full_fetch else 10
-    results = await retriever.search_documents(search_query, top_k=top_k, filters=filters)
-    return format_doc_ids(results), results  # pyright: ignore[reportReturnType]
+    try:
+        results = await retriever.search_documents(search_query, top_k=top_k, filters=filters)
+        return format_doc_ids(results), results
+    except Exception as ex:
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to search Obsidian vault")
+        return str(ex), ex
 
 
 # --------------------------------
@@ -75,7 +81,7 @@ class GetToolInput(BaseModel):
 @tool(args_schema=GetToolInput, response_format="content_and_artifact")
 async def obsidian_vault_get(
     document_ids: Sequence[str], runtime: ToolRuntime[ObsidianContext]
-) -> tuple[str, Sequence[Document]]:
+) -> tuple[str, Sequence[Document] | Exception]:
     """Return the text of Obsidian notes specified by document_id.
 
     # Note format
@@ -96,20 +102,25 @@ async def obsidian_vault_get(
     The document_id can be got by matching the wikilink with forward_link in the frontmatter.
     """
     retriever = runtime.context["obsidian_retriever"]
-    docs = await retriever.get_documents_by_ids(document_ids)
+    try:
+        docs = await retriever.get_documents_by_ids(document_ids)
 
-    contents = [
-        ContentsWithFrontmatter(
-            title=os.path.basename(doc.metadata["file_path"]),
-            contents=doc.page_content,
-            frontmatter={
-                k: await _format_links(v, retriever) if k == "forward_links" else v
-                for k, v in doc.metadata.items()
-            },
-        )
-        for doc in docs
-    ]
-    return format_doc_list(contents), docs
+        contents = [
+            ContentsWithFrontmatter(
+                title=os.path.basename(doc.metadata["file_path"]),
+                contents=doc.page_content,
+                frontmatter={
+                    k: await _format_links(v, retriever) if k == "forward_links" else v
+                    for k, v in doc.metadata.items()
+                },
+            )
+            for doc in docs
+        ]
+        return format_doc_list(contents), docs
+    except Exception as ex:
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to get Obsidian vault notes")
+        return str(ex), ex
 
 
 async def _format_links(

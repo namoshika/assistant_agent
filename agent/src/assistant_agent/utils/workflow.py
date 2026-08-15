@@ -31,14 +31,6 @@ THREAD_ROLLOVER_INTERVAL_DAYS = 3  # thread_id の世代交代間隔（日数）
 # (このバージョンの mlflow には SpanAttributeKey.CHAT_MESSAGES 定数が無いため直接指定する)
 CHAT_MESSAGES_ATTR_KEY = "mlflow.chat.messages"
 
-SYNC_REQUEST_MESSAGE_TMPL = """\
-# {channel_name}
-## Guideline
-イベントを受信しました。このイベントに対しては行動後に理由ではなく、応答自体を出力してください。
-
-## Received Prompt
-{content}
-"""
 SUMMARY_HANDOFF_TMPL = """\
 You are in the middle of a conversation that has been summarized.
 
@@ -267,21 +259,18 @@ class SyncRequestChannel(ActiveEmitter, Receiver):
             fut.set_result(invocation["input"]["messages"][-1])
 
     async def emit_and_wait(
-        self, content: str, channel_name: str, timeout_seconds: int = 300
+        self, messages: list[BaseMessage], timeout_seconds: int = 300
     ) -> BaseMessage:
-        """引数 content を Agent へ emit し、対応する応答を待って返す.
+        """引数 messages を Agent へ emit し、対応する応答を待って返す.
 
         timeout_seconds 秒以内に応答が得られない場合は TimeoutError を送出する。
         """
         request_id = str(uuid.uuid7())
         fut: asyncio.Future[BaseMessage] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = fut
-        prompt = SYNC_REQUEST_MESSAGE_TMPL.format(
-            request_id=request_id, content=content, channel_name=channel_name
-        )
         self.emit(
             AgentInvocation(
-                input={"messages": [HumanMessage(content=prompt)]},
+                input={"messages": messages},
                 context={"request_id": request_id},
             )
         )

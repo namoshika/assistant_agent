@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import deepagents
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
@@ -32,34 +33,19 @@ SYSTEM_PROMPT = """
 ...
 ```
 
-## 出力例:
-
-```
-# Activity Log
-
-## Observe
-(観測した事実)
-
-## Understand
-(現在の状況・目的)
-
-## Consider
-(判断・方針)
-
-## Act
-(実行したこと)
-
-## Verify
-(結果・確認)
-
-## Report
-(ユーザーへの報告)
-```
-
-## ファイル読み書き・シェルコマンド実行
-ファイルパス指定はできる限り、相対パスを使用せよ。
-カレントディレクトリは可能な限り `{cwd}` に設定せよ。
+## コード生成・実行時
+python を優先し使用せよ。環境構築には uv が使用可能。
+実行する場合はルートディレクトリ直下にディレクトリを作成し、仮想環境を構築して実行してください。
 """
+
+
+class _NoopSummarizationMiddleware(AgentMiddleware):
+    """`create_deep_agent()` のベーススタックの SummarizationMiddleware を無効化する no-op 実装."""
+
+    @property
+    def name(self) -> str:
+        """`.name` の一致で `_apply_custom_middleware()` に置き換えさせるための固定名."""
+        return "SummarizationMiddleware"
 
 
 def build_agent(

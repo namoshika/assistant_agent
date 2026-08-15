@@ -39,3 +39,23 @@ def test_chat_completions_01():
         assert body["model"] == "assistant_agent_v1"
         assert body["choices"][0]["message"]["role"] == "assistant"
         assert body["choices"][0]["message"]["content"]
+
+        # 観点2: 会話履歴を含む複数メッセージ
+        # 試験実施
+        history_resp = client.post(
+            "/api/chat/completions",
+            json={
+                "model": "assistant_agent_v1",
+                "messages": [
+                    {"role": "user", "content": "私の好きな色は青です。覚えておいてください。"},
+                    {"role": "assistant", "content": "承知しました。"},
+                    {"role": "user", "content": "先ほど伝えた好きな色は何でしたか？"},
+                ],
+            },
+        )
+
+        # 結果検証 (観点2)
+        assert history_resp.status_code == 200
+        history_body = history_resp.json()
+        assert history_body["choices"][0]["message"]["role"] == "assistant"
+        assert history_body["choices"][0]["message"]["content"]

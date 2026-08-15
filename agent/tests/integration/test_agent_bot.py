@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.base import Checkpoint, empty_checkpoint
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -38,7 +39,9 @@ def log_path(tmp_path: Path) -> Iterator[Path]:
 async def test_amain_01(mocker: MockerFixture, log_path: Path):
     """Agent が起動されることを確認.
 
-    観点1: Agent が invoke（応答をログ出力）されること
+    観点1: agent_ev が invoke（Dispatcher 応答をログ出力）されること
+    観点2: init_harness() が返す sync_request_channel へ emit_and_wait() でメッセージを送ると、
+        agent_ch 経由で実グラフの応答が返ること
     """
     # 試験準備
     dispatch = Dispatch(
@@ -53,16 +56,19 @@ async def test_amain_01(mocker: MockerFixture, log_path: Path):
     mocker.patch("assistant_agent.services.dispatcher.DispatcherService", return_value=service)
 
     # 試験実施
-    try:
-        await asyncio.wait_for(agent_bot._amain(), timeout=90)
-    except TimeoutError:
-        pass
+    async with agent_bot.init_harness("sample", "test-agent") as sync_request_channel:
+        await asyncio.sleep(65)
+        msg_out = await sync_request_channel.emit_and_wait(
+            [HumanMessage(content="こんにちは。自己紹介してください。")], timeout_seconds=60
+        )
 
     # 結果検証
     # 観点1
     service.pop_dispatch.assert_called()
     assert log_path.exists()
     assert log_path.read_text().strip()
+    # 観点2
+    assert msg_out.content
 
 
 @pytest.mark.integration

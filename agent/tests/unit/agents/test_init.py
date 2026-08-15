@@ -1,4 +1,7 @@
 import asyncio
+import os
+import uuid
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -114,3 +117,25 @@ async def test_get_agent_03() -> None:
     assert len(checkpoints) > 0
     thread_id = checkpoints[0].config["configurable"]["thread_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
     assert thread_id.startswith("custom-id:")
+
+
+def test_build_backend_01() -> None:
+    """build_backend() が agent_id 毎・skills 共有でファイル操作をルーティングすることを確認.
+
+    観点1: "/" 配下への書き込みが agent_id 固有のディレクトリに保存されること
+    観点2: "/skills/" 配下への書き込みが全エージェント共有のディレクトリに保存されること
+    """
+    # 試験準備
+    agent_id = f"test-{uuid.uuid4().hex}"
+    profile_dir = Path(os.environ["AA_PROFILE_DIR"])
+
+    # 試験実施
+    backend = agents.build_backend(agent_id)
+    backend.write("/note.txt", "agent-scoped")
+    backend.write("/skills/shared-note.txt", "shared")
+
+    # 結果検証
+    # 観点1
+    assert (profile_dir / f"agent_{agent_id}" / "note.txt").read_text() == "agent-scoped"
+    # 観点2
+    assert (profile_dir / "skills" / "shared-note.txt").read_text() == "shared"

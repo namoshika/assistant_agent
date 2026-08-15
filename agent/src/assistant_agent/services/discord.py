@@ -42,6 +42,31 @@ DISCORD_CHANNEL_TMPL = """\
 応答する場合、相槌や結論の反復だけで終わらせず、自分の視点・関心・疑問のいずれかを添えて話題を1歩広げること。
 可能であれば相手が反応しやすい問いかけや話の続きを残すこと。
 
+## Output Format
+行動後、以下の形式で出力してください。
+
+```
+# Activity Log
+
+## Observe
+(観測した事実)
+
+## Understand
+(現在の状況・目的)
+
+## Consider
+(判断・方針)
+
+## Act
+(実行したこと)
+
+## Verify
+(結果・確認)
+
+## Report
+(ユーザーへの報告)
+```
+
 ## Received Message
 {messages}
 """

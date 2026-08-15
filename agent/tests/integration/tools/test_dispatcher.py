@@ -112,7 +112,7 @@ async def test_dispatcher_cancel_01(llm: BaseChatModel) -> None:
     assert m_service.cancel_dispatch.call_args.args == ("test-agent", "dispatch-3")
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
-    assert "True" in tool_msg.content
+    assert "Success" in tool_msg.content
 
 
 @pytest.mark.integration

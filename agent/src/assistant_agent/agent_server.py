@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, convert_to_messages
 from mlflow.types.agent import ChatAgentMessage, ChatAgentRequest, ChatAgentResponse
 
 from assistant_agent import agent_bot
@@ -37,10 +37,10 @@ async def _lifespan(_: FastAPI) -> AsyncGenerator[None]:
         async def predict(req: ChatAgentRequest) -> ChatAgentResponse:
             if not req.messages or not req.messages[-1].content:
                 raise HTTPException(status_code=400, detail="messages must be non-empty")
-            content = req.messages[-1].content
-            msg_out = await sync_request_channel.emit_and_wait(
-                content, channel_name="Chat Completions API Channel"
+            messages = convert_to_messages(
+                [{"role": m.role, "content": m.content} for m in req.messages]
             )
+            msg_out = await sync_request_channel.emit_and_wait(messages)
             text_content = _extract_text_content(msg_out)
             if text_content is None:
                 logger.error(f"Agent response has no text content: {msg_out!r}")

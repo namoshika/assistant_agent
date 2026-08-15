@@ -20,8 +20,32 @@ from assistant_agent.utils.context import ContextRegistry
 
 _DISPATCHER_MESSAGE_TMPL = """\
 # Dispatcher Channel
-予約イベントが発火しました。
+## Guideline
+予約イベントが発火しました。行動後、以下の形式で出力してください。
 
+```
+# Activity Log
+
+## Observe
+(観測した事実)
+
+## Understand
+(現在の状況・目的)
+
+## Consider
+(判断・方針)
+
+## Act
+(実行したこと)
+
+## Verify
+(結果・確認)
+
+## Report
+(ユーザーへの報告)
+```
+
+## Received Dispatch
 {{ dispatch }}
 """
 

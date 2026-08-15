@@ -1,7 +1,6 @@
 import logging
 from typing import TypedDict
 
-from discord.errors import DiscordServerError
 from langchain.tools import ToolRuntime, tool
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
@@ -46,7 +45,7 @@ async def discord_get_messages(
             messages="\n".join(str(m) for m in messages),
         )
         return content, messages
-    except DiscordServerError as ex:
+    except Exception as ex:
         logger = logging.getLogger(__name__)
         logger.exception("Failed to get Discord messages")
         return str(ex), ex
@@ -63,7 +62,7 @@ async def discord_send_message(
     try:
         await service.send_message(int(channel_id), content)
         return "Message sent successfully."
-    except DiscordServerError as ex:
+    except Exception as ex:
         logger = logging.getLogger(__name__)
         logger.exception("Failed to send Discord message")
         return str(ex)
@@ -85,7 +84,7 @@ async def discord_mention_user(
     try:
         await service.mention_user(int(channel_id), int(user_id), content)
         return "Message sent successfully."
-    except DiscordServerError as ex:
+    except Exception as ex:
         logger = logging.getLogger(__name__)
         logger.exception("Failed to mention Discord user")
         return str(ex)
@@ -103,7 +102,7 @@ async def discord_reply_message(
     try:
         await service.reply_message(int(channel_id), int(message_id), content)
         return "Message sent successfully."
-    except DiscordServerError as ex:
+    except Exception as ex:
         logger = logging.getLogger(__name__)
         logger.exception("Failed to reply to Discord message")
         return str(ex)

@@ -735,35 +735,29 @@ class TestDefaultRolloverStrategy:
 
 class TestSyncRequestChannel:
     async def test_emit_and_wait_01(self):
-        """emit_and_wait() が content・channel_name, request_id を持つ AgentInvocation を emit することを確認.
+        """emit_and_wait() が messages, request_id を持つ AgentInvocation を emit することを確認.
 
-        観点1: emit する AgentInvocation の input.messages[-1].content に引数の channel_name と content が含まれること
+        観点1: emit する AgentInvocation の input.messages が渡した messages と一致すること
         観点2: emit する AgentInvocation の context.request_id が一意な値であること
-        """  # noqa: E501
+        """
         # 試験準備
         channel = SyncRequestChannel()
         received = MagicMock(spec=Receiver)
         channel.receiver = received
+        messages1 = [HumanMessage(content="hello")]
+        messages2 = [HumanMessage(content="world")]
 
         # 試験実施
-        task1 = asyncio.ensure_future(
-            channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=1)
-        )
-        task2 = asyncio.ensure_future(
-            channel.emit_and_wait("world", channel_name="Test Channel", timeout_seconds=1)
-        )
+        task1 = asyncio.ensure_future(channel.emit_and_wait(messages1, timeout_seconds=1))
+        task2 = asyncio.ensure_future(channel.emit_and_wait(messages2, timeout_seconds=1))
         await asyncio.sleep(0.2)
 
         # 結果検証
         # 観点1
         invocation1: AgentInvocation = received.on_received.call_args_list[0][0][0]
         invocation2: AgentInvocation = received.on_received.call_args_list[1][0][0]
-        content1 = invocation1["input"]["messages"][-1].content
-        content2 = invocation2["input"]["messages"][-1].content
-        assert "Test Channel" in content1
-        assert "hello" in content1
-        assert "Test Channel" in content2
-        assert "world" in content2
+        assert invocation1["input"]["messages"] == messages1
+        assert invocation2["input"]["messages"] == messages2
         # 観点2
         assert invocation1["context"]["request_id"] != invocation2["context"]["request_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
 
@@ -785,7 +779,7 @@ class TestSyncRequestChannel:
         channel.receiver = received
 
         # 試験実施
-        task = asyncio.ensure_future(channel.emit_and_wait("hello", channel_name="Test Channel"))
+        task = asyncio.ensure_future(channel.emit_and_wait([HumanMessage(content="hello")]))
         await asyncio.sleep(0.05)
         invocation: AgentInvocation = received.on_received.call_args[0][0]
         request_id = invocation["context"]["request_id"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
@@ -823,11 +817,11 @@ class TestSyncRequestChannel:
         # 試験実施・結果検証
         # 観点1
         with pytest.raises(TimeoutError):
-            await channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=0)
+            await channel.emit_and_wait([HumanMessage(content="hello")], timeout_seconds=0)
 
         # 試験準備: stop() によるキャンセル
         task = asyncio.ensure_future(
-            channel.emit_and_wait("hello", channel_name="Test Channel", timeout_seconds=10)
+            channel.emit_and_wait([HumanMessage(content="hello")], timeout_seconds=10)
         )
         await asyncio.sleep(0.05)
 
