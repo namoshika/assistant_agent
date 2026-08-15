@@ -14,6 +14,7 @@ wheels/
 .env
 
 # Dataset
+/.assistant_agent/
 /docs/*
 /logs/
 /tests/data/vault_db*/

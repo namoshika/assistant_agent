@@ -1,9 +1,10 @@
+from pathlib import Path
+
 import deepagents
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 
-from assistant_agent import subagents
 from assistant_agent.agents import COMMON_TOOLS, build_backend
 from assistant_agent.utils.context import CommonContext
 from assistant_agent.utils.workflow import Agent, DefaultRolloverStrategy
@@ -54,6 +55,10 @@ SYSTEM_PROMPT = """
 ## Report
 (ユーザーへの報告)
 ```
+
+## ファイル読み書き・シェルコマンド実行
+ファイルパス指定はできる限り、相対パスを使用せよ。
+カレントディレクトリは可能な限り `{cwd}` に設定せよ。
 """
 
 
@@ -70,18 +75,21 @@ def build_agent(
     LLM・agent_id は呼び出し元から受取。
     """
     backend = build_backend(agent_id)
+    prof_dir = Path(__file__) / "../../../../.assistant_agent/"
+    prof_dir = prof_dir.resolve()
+    cwd = prof_dir / f"agent_{agent_id}"
+    cwd = str(cwd)
+
     lc_agent = deepagents.create_deep_agent(
-        model=llm,
-        tools=COMMON_TOOLS,
-        subagents=[
-            subagents.web_researcher,
-        ],
+        llm,
+        COMMON_TOOLS,
+        skills=["/skills"],
         backend=backend,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=SYSTEM_PROMPT.format(cwd=cwd),
         context_schema=CommonContext,
-        name="SampleAgent",
         checkpointer=checkpointer,
         store=store,
+        name="SampleAgent",
     )
     rollover_strategy = DefaultRolloverStrategy(llm, backend)
     return Agent(
