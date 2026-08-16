@@ -81,7 +81,8 @@ async def test_discord_get_messages_01():
 async def test_discord_send_message_01():
     """指定チャンネルへメッセージを投稿できるか確認.
 
-    観点1（R013・R014）: service.send_message(channel_id, content) が正しい引数で呼ばれること
+    観点1（R013・R014）: service.send_message(channel_id, content, suppress_embeds) が
+        正しい引数で呼ばれること
     観点2: 投稿完了を示す ToolMessage が返ること
     """
     # 試験準備
@@ -92,7 +93,7 @@ async def test_discord_send_message_01():
         tool_calls=[
             {
                 "name": "discord_send_message",
-                "args": {"channel_id": "111", "content": "hello"},
+                "args": {"channel_id": "111", "content": "hello", "suppress_embeds": True},
                 "id": "1",
                 "type": "tool_call",
             }
@@ -108,7 +109,7 @@ async def test_discord_send_message_01():
 
     # 結果検証
     # 観点1
-    m_service.send_message.assert_called_once_with(111, "hello")
+    m_service.send_message.assert_called_once_with(111, "hello", suppress_embeds=True)
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert tool_msg.content == "Message sent successfully."
@@ -117,7 +118,7 @@ async def test_discord_send_message_01():
 async def test_discord_mention_user_01():
     """指定チャンネルでユーザーへメンション付き投稿ができるか確認.
 
-    観点1（R013・R014）: service.mention_user(channel_id, user_id, content) が
+    観点1（R013・R014）: service.mention_user(channel_id, user_id, content, suppress_embeds) が
         正しい引数で呼ばれること
     観点2: 投稿完了を示す ToolMessage が返ること
     """
@@ -129,7 +130,12 @@ async def test_discord_mention_user_01():
         tool_calls=[
             {
                 "name": "discord_mention_user",
-                "args": {"channel_id": "111", "user_id": "222", "content": "hello"},
+                "args": {
+                    "channel_id": "111",
+                    "user_id": "222",
+                    "content": "hello",
+                    "suppress_embeds": True,
+                },
                 "id": "1",
                 "type": "tool_call",
             }
@@ -145,7 +151,7 @@ async def test_discord_mention_user_01():
 
     # 結果検証
     # 観点1
-    m_service.mention_user.assert_called_once_with(111, 222, "hello")
+    m_service.mention_user.assert_called_once_with(111, 222, "hello", suppress_embeds=True)
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert tool_msg.content == "Message sent successfully."
@@ -154,7 +160,7 @@ async def test_discord_mention_user_01():
 async def test_discord_reply_message_01():
     """指定メッセージへ返信できるか確認.
 
-    観点1（R013・R014）: service.reply_message(channel_id, message_id, content) が
+    観点1（R013・R014）: service.reply_message(channel_id, message_id, content, suppress_embeds) が
         正しい引数で呼ばれること
     観点2: 投稿完了を示す ToolMessage が返ること
     """
@@ -166,7 +172,12 @@ async def test_discord_reply_message_01():
         tool_calls=[
             {
                 "name": "discord_reply_message",
-                "args": {"channel_id": "111", "message_id": "333", "content": "hello"},
+                "args": {
+                    "channel_id": "111",
+                    "message_id": "333",
+                    "content": "hello",
+                    "suppress_embeds": True,
+                },
                 "id": "1",
                 "type": "tool_call",
             }
@@ -182,7 +193,7 @@ async def test_discord_reply_message_01():
 
     # 結果検証
     # 観点1
-    m_service.reply_message.assert_called_once_with(111, 333, "hello")
+    m_service.reply_message.assert_called_once_with(111, 333, "hello", suppress_embeds=True)
     # 観点2
     tool_msg = next(m for m in result["messages"] if isinstance(m, ToolMessage))
     assert tool_msg.content == "Message sent successfully."

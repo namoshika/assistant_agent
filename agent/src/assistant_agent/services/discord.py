@@ -172,24 +172,30 @@ class DiscordService:
         assert isinstance(channel, discord.TextChannel)
         return [self._to_incoming_message(msg) async for msg in channel.history(limit=limit)]
 
-    async def send_message(self, channel_id: int, content: str) -> None:
+    async def send_message(
+        self, channel_id: int, content: str, *, suppress_embeds: bool = False
+    ) -> None:
         """指定チャンネルへメンションなしでメッセージを投稿する."""
         channel = self._client.get_channel(channel_id)
         assert isinstance(channel, discord.TextChannel)
-        await channel.send(content)
+        await channel.send(content, suppress_embeds=suppress_embeds)
 
-    async def reply_message(self, channel_id: int, message_id: int, content: str) -> None:
+    async def reply_message(
+        self, channel_id: int, message_id: int, content: str, *, suppress_embeds: bool = False
+    ) -> None:
         """指定メッセージへ返信する."""
         channel = self._client.get_channel(channel_id)
         assert isinstance(channel, discord.TextChannel)
         message = await channel.fetch_message(message_id)
-        await message.reply(content)
+        await message.reply(content, suppress_embeds=suppress_embeds)
 
-    async def mention_user(self, channel_id: int, user_id: int, content: str) -> None:
+    async def mention_user(
+        self, channel_id: int, user_id: int, content: str, *, suppress_embeds: bool = False
+    ) -> None:
         """指定チャンネルへユーザーへのメンション付きメッセージを投稿する."""
         channel = self._client.get_channel(channel_id)
         assert isinstance(channel, discord.TextChannel)
-        await channel.send(f"<@{user_id}> {content}")
+        await channel.send(f"<@{user_id}> {content}", suppress_embeds=suppress_embeds)
 
     def list_channels(self) -> list[dict[str, int]]:
         """参加中のテキストチャンネル一覧（サーバー ID・チャンネル ID）を取得する."""

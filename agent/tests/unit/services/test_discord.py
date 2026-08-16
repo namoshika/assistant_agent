@@ -75,6 +75,8 @@ class TestDiscordService:
         """send_message() がメンションなしで channel.send() を呼ぶことを確認.
 
         観点1（R003）: channel.send(content) がメンションなしで呼ばれること
+        観点2（R003）: suppress_embeds を省略した場合、False として channel.send() に渡ること
+        観点3（R003）: suppress_embeds=True を指定すると、そのまま channel.send() に渡ること
         """
         # 試験準備
         client = mocker.patch("discord.Client").return_value
@@ -87,13 +89,23 @@ class TestDiscordService:
         await service.send_message(111, "hello")
 
         # 結果検証
-        # 観点1
-        channel.send.assert_called_once_with("hello")
+        # 観点1・観点2
+        channel.send.assert_called_once_with("hello", suppress_embeds=False)
+
+        # 試験実施
+        channel.send.reset_mock()
+        await service.send_message(111, "hello", suppress_embeds=True)
+
+        # 結果検証
+        # 観点3
+        channel.send.assert_called_once_with("hello", suppress_embeds=True)
 
     async def test_mention_user_01(self, mocker: MockerFixture):
         """mention_user() がメンション形式の文字列を送信することを確認.
 
         観点1（R004）: channel.send() の引数に <@user_id> を含むメンション形式の文字列が渡ること
+        観点2（R004）: suppress_embeds を省略した場合、False として channel.send() に渡ること
+        観点3（R004）: suppress_embeds=True を指定すると、そのまま channel.send() に渡ること
         """
         # 試験準備
         client = mocker.patch("discord.Client").return_value
@@ -106,13 +118,23 @@ class TestDiscordService:
         await service.mention_user(111, 222, "hello")
 
         # 結果検証
-        # 観点1
-        channel.send.assert_called_once_with("<@222> hello")
+        # 観点1・観点2
+        channel.send.assert_called_once_with("<@222> hello", suppress_embeds=False)
+
+        # 試験実施
+        channel.send.reset_mock()
+        await service.mention_user(111, 222, "hello", suppress_embeds=True)
+
+        # 結果検証
+        # 観点3
+        channel.send.assert_called_once_with("<@222> hello", suppress_embeds=True)
 
     async def test_reply_message_01(self, mocker: MockerFixture):
         """reply_message() が指定メッセージへ reply() することを確認.
 
         観点1（R005）: channel.fetch_message() で取得したメッセージの reply() が呼ばれること
+        観点2（R005）: suppress_embeds を省略した場合、False として message.reply() に渡ること
+        観点3（R005）: suppress_embeds=True を指定すると、そのまま message.reply() に渡ること
         """
         # 試験準備
         client = mocker.patch("discord.Client").return_value
@@ -127,9 +149,17 @@ class TestDiscordService:
         await service.reply_message(111, 333, "hello")
 
         # 結果検証
-        # 観点1
+        # 観点1・観点2
         channel.fetch_message.assert_called_once_with(333)
-        message.reply.assert_called_once_with("hello")
+        message.reply.assert_called_once_with("hello", suppress_embeds=False)
+
+        # 試験実施
+        message.reply.reset_mock()
+        await service.reply_message(111, 333, "hello", suppress_embeds=True)
+
+        # 結果検証
+        # 観点3
+        message.reply.assert_called_once_with("hello", suppress_embeds=True)
 
     async def test_on_message_01(self, mocker: MockerFixture):
         """on_message() が自分自身の発言・DM を無視し、それ以外はハンドラへ変換して渡すことを確認.

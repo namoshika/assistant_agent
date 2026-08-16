@@ -56,11 +56,14 @@ async def discord_send_message(
     channel_id: str,
     content: str,
     runtime: ToolRuntime[DiscordContext],
+    suppress_embeds: bool = Field(
+        default=False, description="URL のリンクプレビュー（embed）を非表示にするか"
+    ),
 ) -> str:
     """指定チャンネルへメッセージを投稿する. ※この関数を呼び出さない限り、テキスト出力はユーザーに届かない."""  # noqa: E501
     service = runtime.context["discord_service"]
     try:
-        await service.send_message(int(channel_id), content)
+        await service.send_message(int(channel_id), content, suppress_embeds=suppress_embeds)
         return "Message sent successfully."
     except Exception as ex:
         logger = logging.getLogger(__name__)
@@ -74,6 +77,9 @@ async def discord_mention_user(
     user_id: str,
     content: str,
     runtime: ToolRuntime[DiscordContext],
+    suppress_embeds: bool = Field(
+        default=False, description="URL のリンクプレビュー（embed）を非表示にするか"
+    ),
 ) -> str:
     """指定チャンネルでユーザーへメンション付き投稿をする.
 
@@ -82,7 +88,9 @@ async def discord_mention_user(
     """
     service = runtime.context["discord_service"]
     try:
-        await service.mention_user(int(channel_id), int(user_id), content)
+        await service.mention_user(
+            int(channel_id), int(user_id), content, suppress_embeds=suppress_embeds
+        )
         return "Message sent successfully."
     except Exception as ex:
         logger = logging.getLogger(__name__)
@@ -96,11 +104,16 @@ async def discord_reply_message(
     message_id: str,
     content: str,
     runtime: ToolRuntime[DiscordContext],
+    suppress_embeds: bool = Field(
+        default=False, description="URL のリンクプレビュー（embed）を非表示にするか"
+    ),
 ) -> str:
     """指定メッセージへ返信する."""
     service = runtime.context["discord_service"]
     try:
-        await service.reply_message(int(channel_id), int(message_id), content)
+        await service.reply_message(
+            int(channel_id), int(message_id), content, suppress_embeds=suppress_embeds
+        )
         return "Message sent successfully."
     except Exception as ex:
         logger = logging.getLogger(__name__)
