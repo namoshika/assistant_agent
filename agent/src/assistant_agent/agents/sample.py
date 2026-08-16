@@ -1,12 +1,14 @@
 from pathlib import Path
+from typing import Any
 
 import deepagents
-from langchain.agents.middleware import AgentMiddleware
+from deepagents.backends import BackendProtocol
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.base import BaseStore
 
-from assistant_agent.agents import COMMON_TOOLS, build_backend
+from assistant_agent.agents import COMMON_TOOLS, NoopSummarizationMiddleware, build_backend
 from assistant_agent.utils.context import CommonContext
 from assistant_agent.utils.workflow import Agent, DefaultRolloverStrategy
 
@@ -39,13 +41,26 @@ python を優先し使用せよ。環境構築には uv が使用可能。
 """
 
 
-class _NoopSummarizationMiddleware(AgentMiddleware):
-    """`create_deep_agent()` のベーススタックの SummarizationMiddleware を無効化する no-op 実装."""
-
-    @property
-    def name(self) -> str:
-        """`.name` の一致で `_apply_custom_middleware()` に置き換えさせるための固定名."""
-        return "SummarizationMiddleware"
+def build_lc_agent(
+    llm: BaseChatModel,
+    checkpointer: BaseCheckpointSaver | None,
+    store: BaseStore,
+    backend: BackendProtocol,
+) -> CompiledStateGraph[Any, Any, Any, Any]:
+    """CompiledStateGraph を構築する."""
+    lc_agent = deepagents.create_deep_agent(
+        llm,
+        COMMON_TOOLS,
+        skills=["/skills"],
+        backend=backend,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=CommonContext,
+        checkpointer=checkpointer,
+        store=store,
+        name="SampleAgent",
+        middleware=[NoopSummarizationMiddleware()] if checkpointer is None else [],
+    )
+    return lc_agent
 
 
 def build_agent(
@@ -66,22 +81,11 @@ def build_agent(
     cwd = prof_dir / f"agent_{agent_id}"
     cwd = str(cwd)
 
-    lc_agent = deepagents.create_deep_agent(
-        llm,
-        COMMON_TOOLS,
-        skills=["/skills"],
-        backend=backend,
-        system_prompt=SYSTEM_PROMPT.format(cwd=cwd),
-        context_schema=CommonContext,
-        checkpointer=checkpointer,
-        store=store,
-        name="SampleAgent",
-    )
-    rollover_strategy = DefaultRolloverStrategy(llm, backend)
+    lc_agent = build_lc_agent(llm, checkpointer, store, backend)
     return Agent(
         lc_agent,
         context=context,
         agent_id=agent_id,
         thread_id=thread_id,
-        rollover_strategy=rollover_strategy,
+        rollover_strategy=DefaultRolloverStrategy(llm, backend),
     )

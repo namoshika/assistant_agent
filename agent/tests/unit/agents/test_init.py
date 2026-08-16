@@ -119,6 +119,44 @@ async def test_get_agent_03() -> None:
     assert thread_id.startswith("custom-id:")
 
 
+async def test_get_lc_agent_01() -> None:
+    """get_lc_agent() の CompiledStateGraph が応答し、agent_id が backend へ伝播することを確認.
+
+    観点1: sample モジュールを指定して得た CompiledStateGraph に ainvoke() で入力すると、
+        実グラフの応答が返ること
+    観点2: agent_id 固有の backend ディレクトリ（build_backend() が作成する agent_{agent_id}）が
+        用意されること
+    """
+    # 試験準備
+    llm = _FakeChatModel(messages=iter([AIMessage(content="こんにちは。")]))
+    agent_id = f"test-{uuid.uuid4().hex}"
+    profile_dir = Path(os.environ["AA_PROFILE_DIR"])
+
+    # 試験実施
+    lc_agent = agents.get_lc_agent("sample", agent_id, llm, None, InMemoryStore())
+    result = await lc_agent.ainvoke({"messages": [HumanMessage(content="こんにちは。")]})
+
+    # 結果検証
+    # 観点1
+    assert result["messages"][-1].content
+    # 観点2
+    assert (profile_dir / f"agent_{agent_id}").is_dir()
+
+
+def test_get_lc_agent_02() -> None:
+    """get_lc_agent() が存在しない module_name に対し ValueError を送出することを確認.
+
+    観点1: 存在しない module_name を指定すると ValueError が送出されること
+    """
+    # 試験準備
+    llm = _FakeChatModel(messages=iter([AIMessage(content="こんにちは。")]))
+
+    # 試験実施、結果検証
+    # 観点1
+    with pytest.raises(ValueError, match="no-such-agent"):
+        agents.get_lc_agent("no-such-agent", "no-such-agent", llm, None, InMemoryStore())
+
+
 def test_build_backend_01() -> None:
     """build_backend() が agent_id 毎・skills 共有でファイル操作をルーティングすることを確認.
 

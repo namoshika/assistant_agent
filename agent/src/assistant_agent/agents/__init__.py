@@ -2,6 +2,7 @@ import importlib
 import importlib.util
 import os
 from pathlib import Path
+from typing import Any
 
 from deepagents.backends import (
     BackendProtocol,
@@ -9,6 +10,7 @@ from deepagents.backends import (
     FilesystemBackend,
     LocalShellBackend,
 )
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_tavily import (
     TavilyCrawl,
@@ -19,6 +21,7 @@ from langchain_tavily import (
     TavilySearch,
 )
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.base import BaseStore
 
 from assistant_agent.tools import discord, dispatcher, obsidian, utils
@@ -77,6 +80,24 @@ def get_agent(
     return module.build_agent(llm, context, checkpointer, store, agent_id, thread_id)
 
 
+def get_lc_agent(
+    module_name: str,
+    agent_id: str,
+    llm: BaseChatModel,
+    checkpointer: BaseCheckpointSaver | None,
+    store: BaseStore,
+) -> CompiledStateGraph[Any, Any, Any, Any]:
+    """module_name に対応するモジュールの build_lc_agent を使い CompiledStateGraph を組み立てて返す.
+
+    agent_id は backend namespace に使う。
+    """
+    if not module_exists(module_name):
+        raise ValueError(f"Unknown agent module: {module_name!r}")
+    module = importlib.import_module(f"{__name__}.{module_name}")
+    backend = build_backend(agent_id)
+    return module.build_lc_agent(llm, checkpointer, store, backend)
+
+
 def build_backend(agent_id: str) -> BackendProtocol:
     """エージェント用の backend を構築する."""
     profile_dir = Path(os.path.expanduser(os.getenv("AA_PROFILE_DIR", "~/.assistant_agent/")))
@@ -93,3 +114,12 @@ def build_backend(agent_id: str) -> BackendProtocol:
             "/skills/": FilesystemBackend(skills_dir),
         },
     )
+
+
+class NoopSummarizationMiddleware(AgentMiddleware[Any, CommonContext, Any]):
+    """`create_deep_agent()` のベーススタックの SummarizationMiddleware を無効化する no-op 実装."""
+
+    @property
+    def name(self) -> str:
+        """`.name` の一致で `_apply_custom_middleware()` に置き換えさせるための固定名."""
+        return "SummarizationMiddleware"

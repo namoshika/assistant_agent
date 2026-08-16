@@ -5,12 +5,13 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Any, TypedDict, cast
 
 import mlflow
 import typer
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.base import TTLConfig
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from sqlalchemy import select
@@ -57,7 +58,7 @@ async def find_latest_thread_id(engine: AsyncEngine, agent_id: str) -> str | Non
 @asynccontextmanager
 async def init_harness(
     module_name: str, agent_id: str | None
-) -> AsyncGenerator[workflow.SyncRequestChannel]:
+) -> AsyncGenerator[tuple[CompiledStateGraph[Any, Any, Any, Any], context.CommonContext]]:
     """エージェントハーネスを初期化."""
     agent_id = agent_id or module_name
     # ログ出力を構成
@@ -116,9 +117,9 @@ async def init_harness(
         agent = agents.get_agent(
             module_name, agent_id, latest_thread_id, llm, ctx, checkpointer, pg_store
         )
+        lc_agent = agents.get_lc_agent(module_name, agent_id, llm, None, pg_store)
 
         # フローを初期化
-        sync_request_channel = workflow.SyncRequestChannel()
         dispatcher_channel = DispatcherChannel(
             service=bot_ctx["dispatcher_service"],
             poll_interval_seconds=60.0,
@@ -126,8 +127,8 @@ async def init_harness(
         )
         discord_channel = DiscordChannel(service=bot_ctx["discord_service"])
         log_writer = workflow.LogWriter()
-        workflow.MergePipe([sync_request_channel, dispatcher_channel, discord_channel], agent)
-        workflow.BroadcastPipe(agent, [sync_request_channel, log_writer])
+        workflow.MergePipe([dispatcher_channel, discord_channel], agent)
+        workflow.BroadcastPipe(agent, [log_writer])
 
         # フローを起動・終了
         logger.info(
@@ -135,13 +136,11 @@ async def init_harness(
         )
         try:
             agent.start()
-            sync_request_channel.start()
             dispatcher_channel.start()
             discord_channel.start()
-            yield sync_request_channel
+            yield lc_agent, ctx | {"agent_id": agent_id}
         finally:
             agent.stop()
-            sync_request_channel.stop()
             dispatcher_channel.stop()
             discord_channel.stop()
             await pg_store.stop_ttl_sweeper()

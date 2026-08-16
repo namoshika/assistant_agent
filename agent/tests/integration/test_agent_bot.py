@@ -39,9 +39,9 @@ def log_path(tmp_path: Path) -> Iterator[Path]:
 async def test_amain_01(mocker: MockerFixture, log_path: Path):
     """Agent が起動されることを確認.
 
-    観点1: agent_ev が invoke（Dispatcher 応答をログ出力）されること
-    観点2: init_harness() が返す sync_request_channel へ emit_and_wait() でメッセージを送ると、
-        agent_ch 経由で実グラフの応答が返ること
+    観点1: agent が invoke（Dispatcher 応答をログ出力）されること
+    観点2: init_harness() が返す (CompiledStateGraph, CommonContext) のうち CompiledStateGraph に
+        直接 ainvoke() を呼ぶと、実グラフの応答が返ること
     """
     # 試験準備
     dispatch = Dispatch(
@@ -56,10 +56,14 @@ async def test_amain_01(mocker: MockerFixture, log_path: Path):
     mocker.patch("assistant_agent.services.dispatcher.DispatcherService", return_value=service)
 
     # 試験実施
-    async with agent_bot.init_harness("sample", "test-agent") as sync_request_channel:
+    async with agent_bot.init_harness("sample", "test-agent") as (lc_agent, ctx):
         await asyncio.sleep(65)
-        msg_out = await sync_request_channel.emit_and_wait(
-            [HumanMessage(content="こんにちは。自己紹介してください。")], timeout_seconds=60
+        result = await asyncio.wait_for(
+            lc_agent.ainvoke(
+                {"messages": [HumanMessage(content="こんにちは。自己紹介してください。")]},
+                context=ctx,
+            ),
+            timeout=60,
         )
 
     # 結果検証
@@ -68,7 +72,7 @@ async def test_amain_01(mocker: MockerFixture, log_path: Path):
     assert log_path.exists()
     assert log_path.read_text().strip()
     # 観点2
-    assert msg_out.content
+    assert result["messages"][-1].content
 
 
 @pytest.mark.integration
