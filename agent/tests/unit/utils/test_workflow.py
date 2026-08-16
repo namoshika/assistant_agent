@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -10,12 +11,11 @@ import pytest
 from deepagents.backends.store import StoreBackend
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.memory import InMemoryStore
-from langgraph.types import GraphOutput
 from pytest_mock import MockerFixture
 
 from assistant_agent.utils.absclass import (
@@ -52,6 +52,18 @@ class _FakeChatModel(GenericFakeChatModel):
 class _NoopRolloverStrategy(RolloverStrategy):
     async def invoke(self, lc_agent, agent_id, thread_id, config):
         return thread_id, config
+
+
+async def _astream_updates(
+    node_name: str, messages: list[AnyMessage]
+) -> AsyncIterator[dict[str, Any]]:
+    yield {"type": "updates", "ns": (), "data": {node_name: {"messages": messages}}}
+
+
+async def _astream_error(exc: Exception) -> AsyncIterator[dict[str, Any]]:
+    for _ in ():
+        yield {"type": "updates", "ns": (), "data": {}}
+    raise exc
 
 
 class TestBroadcastPipe:
@@ -198,8 +210,8 @@ class TestAgent:
             system_prompt="test",
         )
         lc_agent2 = MagicMock(spec=CompiledStateGraph)
-        lc_agent2.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply2")]})
+        lc_agent2.astream = MagicMock(
+            side_effect=lambda **_: _astream_updates("model", [AIMessage(content="reply2")])
         )
         source = _DummyActiveEmitter()
         agent1 = Agent(
@@ -234,22 +246,22 @@ class TestAgent:
         result_invocation: AgentInvocation = received.on_received.call_args[0][0]
         assert result_invocation["input"]["messages"][-1].content == "reply2"
         # 観点2
-        _, kwargs = lc_agent2.ainvoke.call_args
+        _, kwargs = lc_agent2.astream.call_args
         assert kwargs["config"]["configurable"]["thread_id"] == fixed_thread_id
         assert kwargs["context"] == context | {"agent_id": "test-agent"}
 
     async def test_receive_03(self):
-        """入力の context がサービス群の context とマージされて ainvoke() へ渡ることを確認.
+        """入力の context がサービス群の context とマージされて astream() へ渡ることを確認.
 
-        観点1: 入力に context={"request_id": "xxx"} を含めて emit すると、ainvoke() へ渡る
+        観点1: 入力に context={"request_id": "xxx"} を含めて emit すると、astream() へ渡る
             context にサービス群の値、request_id、自身の agent_id が含まれること
         観点2: emit される応答の AgentInvocation["context"] に入力側の context がそのまま
             積まれること
         """
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
+        lc_agent.astream = MagicMock(
+            side_effect=lambda **_: _astream_updates("model", [AIMessage(content="reply")])
         )
         source = _DummyActiveEmitter()
         context: CommonContext = {"sample_retriever": "dummy"}  # pyright: ignore[reportAssignmentType]
@@ -276,7 +288,7 @@ class TestAgent:
 
         # 結果検証
         # 観点1
-        _, kwargs = lc_agent.ainvoke.call_args
+        _, kwargs = lc_agent.astream.call_args
         assert kwargs["context"] == {
             "sample_retriever": "dummy",
             "request_id": "req-1",
@@ -290,12 +302,12 @@ class TestAgent:
         """rollover_strategy を呼び出し、その戻り値の thread_id, config を使うことを確認.
 
         観点1: rollover_strategy が呼ばれること
-        観点2: rollover_strategy が返した新しい thread_id, config が ainvoke() に使われること
+        観点2: rollover_strategy が返した新しい thread_id, config が astream() に使われること
         """
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
+        lc_agent.astream = MagicMock(
+            side_effect=lambda **_: _astream_updates("model", [AIMessage(content="reply")])
         )
         new_thread_id = "test-agent:new-thread"
         new_config = {"configurable": {"thread_id": new_thread_id}}
@@ -327,11 +339,11 @@ class TestAgent:
         assert call_args[2] == fixed_thread_id
         assert call_args[3] == {"configurable": {"thread_id": fixed_thread_id}}
         # 観点2
-        _, kwargs = lc_agent.ainvoke.call_args
+        _, kwargs = lc_agent.astream.call_args
         assert kwargs["config"] == new_config
 
     async def test_receive_05(self, caplog: pytest.LogCaptureFixture, fixed_thread_id: str):
-        """ainvoke() 実行中に例外が発生しても _consume() が停止せず、エラー内容が emit されることを確認.
+        """astream() 実行中に例外が発生しても _consume() が停止せず、エラー内容が emit されることを確認.
 
         観点1: 例外発生時、logger.error() でトレース情報が記録されること
         観点2: 例外発生時もエラー内容を積んだ AgentInvocation が context を引き継いだ状態で emit されること
@@ -339,10 +351,10 @@ class TestAgent:
         """  # noqa: E501
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
+        lc_agent.astream = MagicMock(
             side_effect=[
-                KeyError("NOT_FOUND_CONTEXT"),
-                GraphOutput(value={"messages": [AIMessage(content="reply after error")]}),
+                _astream_error(KeyError("NOT_FOUND_CONTEXT")),
+                _astream_updates("model", [AIMessage(content="reply after error")]),
             ]
         )
         source = _DummyActiveEmitter()
@@ -386,18 +398,18 @@ class TestAgent:
         assert result_invocation["input"]["messages"][-1].content == "reply after error"
 
     async def test_receive_06(self):
-        """ainvoke() が context.timeout_seconds 以内に完了しない場合の挙動を確認.
+        """astream() が context.timeout_seconds 以内に完了しない場合の挙動を確認.
 
         観点1: AIMessage（エラー内容）が context を引き継いだ状態で emit されること
         観点2: TIMEOUT_SECONDS_DEFAULT（300秒）ではなく context.timeout_seconds に指定した秒数でタイムアウトすること
         """  # noqa: E501
 
-        async def _sleep_forever(**_: Any) -> GraphOutput:
+        async def _sleep_forever(**_: Any) -> AsyncIterator[dict[str, Any]]:
             await asyncio.sleep(3600)
-            raise AssertionError("unreachable")
+            yield {"type": "updates", "ns": (), "data": {}}
 
         lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(side_effect=_sleep_forever)
+        lc_agent.astream = MagicMock(side_effect=_sleep_forever)
         source = _DummyActiveEmitter()
         agent = Agent(
             lc_agent,
@@ -431,15 +443,15 @@ class TestAgent:
     async def test_receive_07(self):
         """受信した context["agent_id"] によるフィルタを確認.
 
-        観点1: context["agent_id"] が自身の agent_id と不一致の場合、ainvoke() が呼ばれず
+        観点1: context["agent_id"] が自身の agent_id と不一致の場合、astream() が呼ばれず
             応答も配信されないこと
         観点2: context["agent_id"] が自身の agent_id と一致する場合、従来どおり処理されること
         観点3: context に agent_id を含まない場合、従来どおり処理されること
         """
         # 試験準備
         lc_agent = MagicMock(spec=CompiledStateGraph)
-        lc_agent.ainvoke = AsyncMock(
-            return_value=GraphOutput(value={"messages": [AIMessage(content="reply")]})
+        lc_agent.astream = MagicMock(
+            side_effect=lambda **_: _astream_updates("model", [AIMessage(content="reply")])
         )
         source = _DummyActiveEmitter()
         agent = Agent(
@@ -465,7 +477,7 @@ class TestAgent:
 
         # 結果検証
         # 観点1
-        lc_agent.ainvoke.assert_not_called()
+        lc_agent.astream.assert_not_called()
         received.on_received.assert_not_called()
 
         # 試験実施: 一致する agent_id
@@ -479,7 +491,7 @@ class TestAgent:
 
         # 結果検証
         # 観点2
-        lc_agent.ainvoke.assert_called_once()
+        lc_agent.astream.assert_called_once()
         received.on_received.assert_called_once()
 
         # 試験実施: agent_id を含まない
@@ -488,7 +500,7 @@ class TestAgent:
 
         # 結果検証
         # 観点3
-        assert lc_agent.ainvoke.call_count == 2
+        assert lc_agent.astream.call_count == 2
         assert received.on_received.call_count == 2
 
     async def test_start_01(self):

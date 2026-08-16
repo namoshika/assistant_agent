@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
@@ -43,6 +44,41 @@ refer back to it for details.
 """
 
 
+def _extract_last_message(part: Any) -> AnyMessage | None:
+    """astream() の1チャンクから、更新された最後のメッセージを取り出す（無ければ None）."""
+    if part["type"] != "updates":
+        return None
+    msg_out: AnyMessage | None = None
+    for node_output in part["data"].values():
+        if node_output and "messages" in node_output:
+            msg_out = node_output["messages"][-1]
+    return msg_out
+
+
+def _drop_reasoning_content(message: AIMessage) -> AIMessage:
+    """Content 内の reasoning ブロックを取り除いた複製を返す."""
+    if not isinstance(message.content, list):
+        return message
+    filtered = [
+        b for b in message.content if not (isinstance(b, dict) and b.get("type") == "reasoning")
+    ]
+    return message.model_copy(update={"content": filtered})
+
+
+def _reduce_chat_output(parts: list[Any]) -> dict[str, Any]:
+    """_consume_one() が yield した astream() の全チャンクから、最終メッセージを集約する."""
+    msg_out: AnyMessage | None = None
+    for part in parts:
+        if updated := _extract_last_message(part):
+            msg_out = updated
+    # Responses API に差し込まれる type=reasoning ブロックは、mlflow の
+    # ChatMessage（text/image_url/input_audio のみ許容）が検証エラーとするため除去
+    chat_msg_out = convert_lc_message_to_chat_message(
+        _drop_reasoning_content(cast(AIMessage, msg_out))
+    ).model_dump()
+    return {"messages": [chat_msg_out]}
+
+
 class Agent(ActiveEmitter, Receiver):
     """BroadcastPipe から入力を受け取り応答を発信するエージェント."""
 
@@ -82,77 +118,91 @@ class Agent(ActiveEmitter, Receiver):
             self._task = None
 
     async def _consume(self) -> None:
-        config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
         while True:
             invocation = await self._queue.get()
             received_context = invocation["context"]
             agent_id = received_context.get("agent_id")
             if agent_id is not None and agent_id != self._agent_id:
                 continue
-            with mlflow.start_span("Agent", span_type=SpanType.CHAT_MODEL) as span:
-                timeout_seconds = received_context.get("timeout_seconds", TIMEOUT_SECONDS_DEFAULT)
-                try:
-                    # スレッドをロールオーバー (戦略の判断に応じて実施される)
-                    self._thread_id, config = await self._rollover_strategy.invoke(
-                        self._agent, self._agent_id, self._thread_id, config
-                    )
-                    mlflow.update_current_trace(
-                        metadata={
-                            "mlflow.trace.user": "123",
-                            "mlflow.trace.session": self._thread_id,
-                        }
-                    )
-
-                    # エージェントを呼び出しオブジェクトを準備
-                    merged_invocation = cast(
-                        AgentInvocation,
-                        invocation | {"context": received_context | self._context},
-                    )
-                    msg_in = invocation["input"]["messages"][-1]
-                    chat_msg_in = convert_lc_message_to_chat_message(msg_in).model_dump()
-                    span.set_inputs({"messages": [chat_msg_in]})
-                    self._logger.info(self._format_log_message("Consume a message"))
-
-                    # エージェントを呼び出し
-                    result = await asyncio.wait_for(
-                        self._agent.ainvoke(**merged_invocation, config=config, version="v2"),
-                        timeout=timeout_seconds,
-                    )
-                    msg_out = result.value["messages"][-1]
-                    # Responses API に差し込まれる type=reasoning ブロックは、mlflow の
-                    # ChatMessage（text/image_url/input_audio のみ許容）が検証エラーとするため除去
-                    chat_msg_out = convert_lc_message_to_chat_message(
-                        self._drop_reasoning_content(msg_out)
-                    ).model_dump()
-                    span.set_outputs({"messages": [chat_msg_out]})
-                    span.set_attribute(CHAT_MESSAGES_ATTR_KEY, [chat_msg_in, chat_msg_out])
-                except TimeoutError:
-                    txt = self._format_log_message(f"ainvoke() timed out after {timeout_seconds}s")
-                    self._logger.error(txt)
-                    msg_out = AIMessage(content=txt)
-                except Exception:
-                    txt = self._format_log_message("Exception during execution")
-                    self._logger.exception(txt)
-                    msg_out = AIMessage(content=txt)
+            timeout_seconds = received_context.get("timeout_seconds", TIMEOUT_SECONDS_DEFAULT)
+            try:
+                msg_out: AnyMessage | None = None
+                async with asyncio.timeout(timeout_seconds):
+                    async for part in self._consume_one(invocation, received_context):
+                        if updated := _extract_last_message(part):
+                            msg_out = updated
+            except TimeoutError:
+                txt = self._format_log_message(f"astream() timed out after {timeout_seconds}s")
+                self._logger.error(txt)
+                msg_out = AIMessage(content=txt)
+            except Exception:
+                txt = self._format_log_message("Exception during execution")
+                self._logger.exception(txt)
+                msg_out = AIMessage(content=txt)
 
             # 後続へ送信
             self.emit(AgentInvocation(input={"messages": [msg_out]}, context=received_context))
+
+    # 暫定対処 (ADR-018): _consume() の while True ループへ直接 with mlflow.start_span(...) を
+    # 被せると、span を開いたまま astream() を await する構造になり、ツール並列実行
+    # (asyncio.gather) 後の contextvar 分岐で mlflow の親 span 解決が乱れ、実行のたびに
+    # ネストが深くなる。1メッセージ分の処理をこの generator メソッドへ切り出し
+    # @mlflow.trace を付けることで、mlflow 自身の _wrap_generator（LangGraph の1チャンク
+    # 受信の瞬間だけ span をアクティブにする制御）に span の生存期間管理を委譲する。
+    #
+    # 出力は span.set_outputs() ではなく output_reducer で確定させる。_wrap_generator は
+    # generator 終了後に yield された全チャンクを集めて span.end(outputs=...) を無条件に
+    # 呼ぶため、ループ内外を問わず set_outputs() の結果はこの上書きで失われる
+    # (mlflow.chat.messages 属性は個別キーのため影響を受けない)。
+    @mlflow.trace(span_type=SpanType.CHAT_MODEL, name="Agent", output_reducer=_reduce_chat_output)
+    async def _consume_one(
+        self, invocation: AgentInvocation, received_context: CommonContext
+    ) -> AsyncIterator[Any]:
+        # スレッドをロールオーバー (戦略の判断に応じて実施される)
+        config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
+        self._thread_id, config = await self._rollover_strategy.invoke(
+            self._agent, self._agent_id, self._thread_id, config
+        )
+        mlflow.update_current_trace(
+            metadata={
+                "mlflow.trace.user": "123",
+                "mlflow.trace.session": self._thread_id,
+            }
+        )
+
+        # エージェントを呼び出しオブジェクトを準備
+        merged_invocation = cast(
+            AgentInvocation,
+            invocation | {"context": received_context | self._context},
+        )
+        msg_in = invocation["input"]["messages"][-1]
+        chat_msg_in = convert_lc_message_to_chat_message(msg_in).model_dump()
+        # @mlflow.trace デコレータ配下で呼ばれるため、必ずアクティブな span が存在する
+        span = mlflow.get_current_active_span()
+        assert span is not None
+        span.set_inputs({"messages": [chat_msg_in]})
+        self._logger.info(self._format_log_message("Consume a message"))
+
+        msg_out: AnyMessage | None = None
+        async for part in self._agent.astream(
+            **merged_invocation, config=config, stream_mode=["updates"], version="v2"
+        ):
+            if updated := _extract_last_message(part):
+                msg_out = updated
+            yield part
+
+        # Responses API に差し込まれる type=reasoning ブロックは、mlflow の
+        # ChatMessage（text/image_url/input_audio のみ許容）が検証エラーとするため除去
+        chat_msg_out = convert_lc_message_to_chat_message(
+            _drop_reasoning_content(cast(AIMessage, msg_out))
+        ).model_dump()
+        span.set_attribute(CHAT_MESSAGES_ATTR_KEY, [chat_msg_in, chat_msg_out])
 
     def _format_log_message(self, message: str) -> str:
         return f"{message} (thread_id: {self._thread_id}, queue: {self._queue.qsize()},  trace_id: {mlflow.get_last_active_trace_id()})"  # noqa: E501
 
     def _new_thread_id(self) -> str:
         return f"{self._agent_id}:{uuid.uuid7()}"
-
-    @staticmethod
-    def _drop_reasoning_content(message: AIMessage) -> AIMessage:
-        """Content 内の reasoning ブロックを取り除いた複製を返す."""
-        if not isinstance(message.content, list):
-            return message
-        filtered = [
-            b for b in message.content if not (isinstance(b, dict) and b.get("type") == "reasoning")
-        ]
-        return message.model_copy(update={"content": filtered})
 
 
 class DefaultRolloverStrategy(RolloverStrategy):
@@ -259,7 +309,7 @@ class SyncRequestChannel(ActiveEmitter, Receiver):
             fut.set_result(invocation["input"]["messages"][-1])
 
     async def emit_and_wait(
-        self, messages: list[BaseMessage], timeout_seconds: int = 300
+        self, messages: Sequence[BaseMessage], timeout_seconds: int = 300
     ) -> BaseMessage:
         """引数 messages を Agent へ emit し、対応する応答を待って返す.
 
