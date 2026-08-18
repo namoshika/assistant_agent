@@ -20,11 +20,11 @@ async def _lifespan(_: FastAPI) -> AsyncGenerator[None]:
     async with agent_bot.init_harness(AGENT_MODULE, OVERWRITE_AGENT_ID) as (lc_agent, ctx):
         agent_wrapped = mlflow.LangGraphChatAgent(lc_agent, ctx)
 
-        @endpoint.regist(model_id="assistant_agent_v1")
+        @endpoint.regist(model_id=f"assistant_{AGENT_MODULE}")
         async def predict(req: ChatAgentRequest) -> ChatAgentResponse:
             return await agent_wrapped.predict_async(req.messages)
 
-        @endpoint.regist_stream(model_id="assistant_agent_v1")
+        @endpoint.regist_stream(model_id=f"assistant_{AGENT_MODULE}")
         async def predict_stream(req: ChatAgentRequest) -> AsyncIterator[ChatAgentChunk]:
             async for item in agent_wrapped.predict_stream_async(req.messages):
                 yield item

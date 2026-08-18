@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+.env
+.env.*
+
+.git/
+.vscode/
+.claude/settings.local.json
+
+docs/
+scripts/*.ipynb
+logs/

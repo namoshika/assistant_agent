@@ -1,11 +1,40 @@
 services:
   agent:
-    build: { context: agent }
+    profiles: ["dev"]
+    build:
+      context: agent
+      target: dev
     volumes:
       - .:/workspaces/assistant_agent:cached
     ports:
       - 8000:8000
     command: sleep infinity
+
+  agent-rune:
+    profiles: ["prod"]
+    build:
+      context: agent
+      target: prod
+    environment:
+      - AA_AGENT_MODULE=rune
+      - AA_DISCORD_BOT_TOKEN=$AA_DISCORD_BOT_TOKEN_1
+    env_file:
+      - agent/.env
+    ports:
+      - 8002:8000
+
+  agent-holo:
+    profiles: ["prod"]
+    build:
+      context: agent
+      target: prod
+    environment:
+      - AA_AGENT_MODULE=holo
+      - AA_DISCORD_BOT_TOKEN=$AA_DISCORD_BOT_TOKEN_2
+    env_file:
+      - agent/.env
+    ports:
+      - 8003:8000
 
   chatbot:
     build: { context: chatbot }
